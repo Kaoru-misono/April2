@@ -1,0 +1,7 @@
+[submodule "engine/core/library/glfw"]
+	path = engine/core/library/glfw
+	url = https://github.com/glfw/glfw.git
+[submodule "engine/core/library/imgui"]
+	path = engine/core/library/imgui
+	url = https://github.com/ocornut/imgui.git
+	branch = docking

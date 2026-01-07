@@ -1,0 +1,35 @@
+cmake_minimum_required(VERSION 3.25)
+
+project(April
+    VERSION 0.1.0
+    DESCRIPTION "A C++23 Game Engine"
+    LANGUAGES CXX C
+)
+
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
+if(MSVC)
+  # Enable parallel builds, and set warning level 3 for MSVC.
+  add_compile_options($<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/MP>)
+  add_compile_options($<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/W4>)
+else()
+  # Remove unused sections to save space (and remove usage_* doc functions).
+  # You can add -Wl,--print-gc-sections to see what was removed.
+  add_link_options(-Wl,--gc-sections)
+endif()
+
+include(cmake/april-build.cmake)
+
+april_scan_and_load_modules("${CMAKE_SOURCE_DIR}/engine")
+
+# add_subdirectory(apps/runtime)
