@@ -40,6 +40,15 @@
 # debug information files
 *.dwo
 
+# Directories
 build/
 .cache/
 .vscode/
+
+# ==============================================================================
+# Exceptions (Whitelist)
+# ==============================================================================
+
+!**/library/**/*.dll
+!**/library/**/*.lib
+!**/library/**/*.exe

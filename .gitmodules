@@ -5,3 +5,6 @@
 	path = engine/core/library/imgui
 	url = https://github.com/ocornut/imgui.git
 	branch = docking
+[submodule "engine/graphics/library/slang-rhi"]
+	path = engine/graphics/library/slang-rhi
+	url = https://github.com/Kaoru-misono/slang-rhi.git

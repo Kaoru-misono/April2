@@ -16,12 +16,15 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 if(MSVC)
     add_compile_options(/utf-8)
+    add_compile_options(/EHsc)
 endif()
 
 if(MSVC)
   # Enable parallel builds, and set warning level 3 for MSVC.
   add_compile_options($<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/MP>)
   add_compile_options($<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:/W4>)
+
+  add_compile_options(/Zc:preprocessor)
 else()
   # Remove unused sections to save space (and remove usage_* doc functions).
   # You can add -Wl,--print-gc-sections to see what was removed.
@@ -32,4 +35,4 @@ include(cmake/april-build.cmake)
 
 april_scan_and_load_modules("${CMAKE_SOURCE_DIR}/engine")
 
-# add_subdirectory(apps/runtime)
+add_subdirectory(engine/test)
