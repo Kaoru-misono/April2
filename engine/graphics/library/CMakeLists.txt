@@ -1,44 +1,38 @@
-set(SLANG_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/slang")
+add_subdirectory(slang-rhi EXCLUDE_FROM_ALL)
 
-add_library(slang_core SHARED IMPORTED GLOBAL)
-add_library(slang::slang ALIAS slang_core)
-set_target_properties(slang_core PROPERTIES
-    INTERFACE_INCLUDE_DIRECTORIES "${SLANG_ROOT}/include"
-    IMPORTED_IMPLIB "${SLANG_ROOT}/lib/slang.lib"
-    IMPORTED_LOCATION "${SLANG_ROOT}/bin/slang.dll"
-)
+set(SLANG_TARGETS slang slang-rhi)
+foreach(T ${SLANG_TARGETS})
+    if(TARGET ${T})
+        get_target_property(IS_IMPORTED ${T} IMPORTED)
+        if(NOT IS_IMPORTED)
+            target_compile_options(${T} PRIVATE /permissive /wd4996 /wd4596)
+            target_compile_definitions(${T} PRIVATE
+                _SILENCE_CXX20_IS_POD_DEPRECATED_WARNING
+                _SILENCE_ALL_CXX20_DEPRECATION_WARNINGS
+            )
+        endif()
 
-add_library(slang_rt SHARED IMPORTED GLOBAL)
-add_library(slang::rt ALIAS slang_rt)
-set_target_properties(slang_rt PROPERTIES
-    INTERFACE_INCLUDE_DIRECTORIES "${SLANG_ROOT}/include"
-    IMPORTED_IMPLIB "${SLANG_ROOT}/lib/slang-rt.lib"
-    IMPORTED_LOCATION "${SLANG_ROOT}/bin/slang-rt.dll"
-    INTERFACE_LINK_LIBRARIES slang::slang
-)
+        get_target_property(_INC_DIRS ${T} INTERFACE_INCLUDE_DIRECTORIES)
 
-add_library(slang_gfx SHARED IMPORTED GLOBAL)
-add_library(slang::gfx ALIAS slang_gfx)
-set_target_properties(slang_gfx PROPERTIES
-    INTERFACE_INCLUDE_DIRECTORIES "${SLANG_ROOT}/include"
-    IMPORTED_IMPLIB "${SLANG_ROOT}/lib/gfx.lib"
-    IMPORTED_LOCATION "${SLANG_ROOT}/bin/gfx.dll"
-    INTERFACE_LINK_LIBRARIES slang::rt
-)
+        if(_INC_DIRS)
+            set_target_properties(${T} PROPERTIES
+                INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_INC_DIRS}"
+            )
+        endif()
+    endif()
+endforeach()
 
 if(TARGET ${CURRENT_MODULE_TARGET})
-    target_link_libraries(${CURRENT_MODULE_TARGET} PUBLIC slang::gfx)
+    message(STATUS "[Library] Linking 'slang' and 'slang-rhi' to '${CURRENT_MODULE_TARGET}'")
 
-    set(ITEMS_TO_COPY "")
-
-    list(APPEND ITEMS_TO_COPY slang::gfx slang::rt slang::slang)
-
-    file(GLOB ALL_SLANG_DLLS "${SLANG_ROOT}/bin/*.dll")
-    list(APPEND ITEMS_TO_COPY ${ALL_SLANG_DLLS})
-
-    list(REMOVE_DUPLICATES ITEMS_TO_COPY)
-    set(MODULE_DLL_COPY_LIST ${ITEMS_TO_COPY} PARENT_SCOPE)
-
+    target_link_libraries(${CURRENT_MODULE_TARGET} PUBLIC
+        slang
+        slang-rhi
+    )
 endif()
+
+set(_DLL_TARGETS slang slang-rhi)
+
+set(MODULE_DLL_COPY_LIST ${_DLL_TARGETS} PARENT_SCOPE)
 
 april_helper_add_library(meshoptimizer ${CURRENT_MODULE_TARGET})
