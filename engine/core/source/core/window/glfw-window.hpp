@@ -12,10 +12,13 @@ namespace april
         GlfwWindow(WindowDesc const& desc);
         ~GlfwWindow() override;
 
-        auto onUpdate() -> void override;
+        auto onEvent() -> void override;
 
         [[nodiscard]] auto getWidth() const -> unsigned int override { return m_data.width.load(std::memory_order_relaxed); }
         [[nodiscard]] auto getHeight() const -> unsigned int override { return m_data.height.load(std::memory_order_relaxed); }
+
+        [[nodiscard]] auto getFramebufferWidth() const -> unsigned int override { return m_data.fbWidth.load(std::memory_order_relaxed); }
+        [[nodiscard]] auto getFramebufferHeight() const -> unsigned int override { return m_data.fbHeight.load(std::memory_order_relaxed); }
 
         auto setVSync(bool enabled) -> void override;
         [[nodiscard]] auto isVSync() const -> bool override;
@@ -40,6 +43,8 @@ namespace april
             std::string title;
             std::atomic<unsigned int> width{0};
             std::atomic<unsigned int> height{0};
+            std::atomic<unsigned int> fbWidth{0};
+            std::atomic<unsigned int> fbHeight{0};
             bool vSync{false};
 
             std::unordered_map<EventType, std::vector<EventCallbackFn>> callbacks;

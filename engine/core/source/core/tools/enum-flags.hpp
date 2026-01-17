@@ -6,7 +6,7 @@ template <typename T>
 concept enum_type = std::is_enum_v<T> && !std::is_convertible_v<T, std::underlying_type_t<T>>;
 
 // This macro defines bitwise operators for an enum type that already is an flag.
-#define ENUM_STRUCT_OPETRATORS(ENUM) \
+#define AP_ENUM_CLASS_OPERATORS(ENUM) \
     inline constexpr auto operator |= (ENUM& lhs, ENUM rhs) noexcept -> ENUM& { using underlying_type = std::underlying_type_t<ENUM>; return lhs = (ENUM) (underlying_type(lhs) | underlying_type(rhs)); } \
     inline constexpr auto operator &= (ENUM& lhs, ENUM rhs) noexcept -> ENUM& { using underlying_type = std::underlying_type_t<ENUM>; return lhs = (ENUM) (underlying_type(lhs) & underlying_type(rhs)); } \
     inline constexpr auto operator ^= (ENUM& lhs, ENUM rhs) noexcept -> ENUM& { using underlying_type = std::underlying_type_t<ENUM>; return lhs = (ENUM) (underlying_type(lhs) ^ underlying_type(rhs));} \

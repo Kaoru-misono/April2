@@ -9,6 +9,7 @@ namespace april
         None = 0,
         WindowClose,
         WindowResize,
+        FrameBufferResize,
         WindowFocus,
         WindowLostFocus,
         // KeyPressed, MouseMoved...
@@ -38,16 +39,35 @@ namespace april
 
     struct WindowResizeEvent final: Event
     {
-        unsigned int width{};
-        unsigned int height{};
+        uint32_t width{};
+        uint32_t height{};
 
-        WindowResizeEvent(unsigned int w, unsigned int h): width(w), height(h) {}
+        WindowResizeEvent(uint32_t pWidth, uint32_t pHeight)
+            : width(pWidth), height(pHeight)
+        {}
 
         DEFINE_EVENT(WindowResize);
 
         auto toString() const -> std::string
         {
-            return std::format("WindowResize: {}, {}", width, height);
+            return std::format("WindowResize: {}, {})", width, height);
+        }
+    };
+
+    struct FrameBufferResizeEvent final: Event
+    {
+        uint32_t width{};
+        uint32_t height{};
+
+        FrameBufferResizeEvent(uint32_t pWidth, uint32_t pHeight)
+            : width(pWidth), height(pHeight)
+        {}
+
+        DEFINE_EVENT(FrameBufferResize);
+
+        auto toString() const -> std::string
+        {
+            return std::format("Framebuffer: {}, {}", width, height);
         }
     };
 } // namespace april

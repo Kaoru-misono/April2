@@ -42,7 +42,7 @@ namespace april
         [[nodiscard]] static auto readTextFile(std::string const& virtualPath) -> std::string;
         [[nodiscard]] static auto readBinaryFile(std::string const& virtualPath) -> Blob;
 
-        [[nodiscard]] static auto resolvePath(std::string const& virtualPath) -> std::pair<bool, std::filesystem::path>;
+        [[nodiscard]] static auto resolvePath(std::string const& virtualPath) -> std::filesystem::path;
 
     private:
         [[nodiscard]] static auto normalize(std::string const& path) -> std::string;

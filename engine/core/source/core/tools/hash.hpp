@@ -2,7 +2,7 @@
 
 #include <type_traits>
 
-namespace april
+namespace april::core
 {
     template <typename T>
     concept hashable_type = requires (T t) { std::hash<std::remove_cvref_t<T>>{}(t); } || requires (T t) { { t.hash() } -> std::convertible_to<size_t>; };

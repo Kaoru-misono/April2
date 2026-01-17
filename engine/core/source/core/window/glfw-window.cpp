@@ -83,6 +83,13 @@ namespace april
             return;
         }
 
+        {
+            int fWidth, fHeight;
+            glfwGetFramebufferSize(m_glfwWindow, &fWidth, &fHeight);
+            m_data.fbWidth = static_cast<unsigned int>(fWidth);
+            m_data.fbHeight = static_cast<unsigned int>(fHeight);
+        }
+
         glfwSetWindowUserPointer(m_glfwWindow, &m_data);
 
         setVSync(true);
@@ -100,7 +107,18 @@ namespace april
             dataPtr->dispatchEvent(event);
         });
 
-        // 2. Window Close
+        // 2. Framebuffer Resize
+        glfwSetFramebufferSizeCallback(m_glfwWindow, [](GLFWwindow* window, int width, int height) {
+            auto* dataPtr = static_cast<WindowData*>(glfwGetWindowUserPointer(window));
+
+            dataPtr->fbWidth = static_cast<unsigned int>(width);
+            dataPtr->fbHeight = static_cast<unsigned int>(height);
+
+            auto event = FrameBufferResizeEvent{dataPtr->fbWidth, dataPtr->fbHeight};
+            dataPtr->dispatchEvent(event);
+        });
+
+        // 3. Window Close
         glfwSetWindowCloseCallback(m_glfwWindow, [](GLFWwindow* window) {
             auto* dataPtr = static_cast<WindowData*>(glfwGetWindowUserPointer(window));
 
@@ -135,7 +153,7 @@ namespace april
         }
     }
 
-    auto GlfwWindow::onUpdate() -> void
+    auto GlfwWindow::onEvent() -> void
     {
         glfwPollEvents();
     }

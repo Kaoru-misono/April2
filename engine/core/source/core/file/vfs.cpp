@@ -123,7 +123,7 @@ namespace april
         m_mountPoints.erase(cleanAlias);
     }
 
-    auto VFS::resolvePath(std::string const& virtualPath) -> std::pair<bool, std::filesystem::path>
+    auto VFS::resolvePath(std::string const& virtualPath) -> std::filesystem::path
     {
         auto lock = std::lock_guard<std::mutex>(m_mutex);
 
@@ -141,28 +141,27 @@ namespace april
                 }
 
                 auto finalPath = rootPath / subPath;
-                return {true, finalPath};
+                return finalPath;
             }
         }
 
-        return {false, {}};
+        return virtualPath;
     }
 
     auto VFS::exists(std::string const& virtualPath) -> bool
     {
-        auto [found, path] = resolvePath(virtualPath);
-        if (!found) return false;
+        auto path = resolvePath(virtualPath);
 
         return std::filesystem::exists(path) && std::filesystem::is_regular_file(path);
     }
 
     auto VFS::open(std::string const& virtualPath) -> std::unique_ptr<File>
     {
-        auto [found, path] = resolvePath(virtualPath);
+        auto path = resolvePath(virtualPath);
 
         auto displayPath = normalize(virtualPath);
 
-        if (!found)
+        if (path.string() == virtualPath)
         {
             AP_ERROR("<VFS>: Mount point not found for path: {}", displayPath);
             return nullptr;

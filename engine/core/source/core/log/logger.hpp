@@ -10,6 +10,8 @@
 #include <mutex>
 #include <iostream>
 #include <fstream>
+#include <functional>
+#include <vector>
 
 namespace april
 {
@@ -59,7 +61,7 @@ namespace april
         Reverse   = 1 << 5,
         Hidden    = 1 << 6,
     };
-    ENUM_STRUCT_OPETRATORS(ELogStyle);
+    AP_ENUM_CLASS_OPERATORS(ELogStyle);
 
     enum struct ELogFeature: uint8_t
     {
@@ -72,7 +74,7 @@ namespace april
         ShowTime      = 1 << 5,
         ShowThreadId  = 1 << 6,
     };
-    ENUM_STRUCT_OPETRATORS(ELogFeature);
+    AP_ENUM_CLASS_OPERATORS(ELogFeature);
 
     static constexpr ELogFeature DefaultLogFeatures = ELogFeature::EnableConsole | ELogFeature::EnableColor | ELogFeature::ShowLevel | ELogFeature::ShowTime;
 
@@ -86,6 +88,9 @@ namespace april
     struct Logger
     {
     public:
+        using LogSinkFn = std::function<void(ELogLevel level, std::string const& prefix, std::string const& message)>;
+        using LogSinkId = uint32_t;
+
         Logger(std::string const& name, LogConfig const& config = {});
         ~Logger();
 
@@ -127,29 +132,53 @@ namespace april
             auto message = std::format(fmt, std::forward<Args>(args)...);
             auto prefix = buildPrefix(ELogLevel::Info, true);
 
-            std::lock_guard<std::mutex> lock(m_mutex);
-
-            if (enum_has_any_flags(m_config.feature, ELogFeature::EnableConsole))
+            std::vector<std::pair<LogSinkId, LogSinkFn>> sinksCopy;
             {
-                if (enum_has_any_flags(m_config.feature, ELogFeature::EnableColor))
+                std::lock_guard<std::recursive_mutex> lock(m_mutex);
+
+                if (enum_has_any_flags(m_config.feature, ELogFeature::EnableConsole))
                 {
-                    auto ansiCode = buildAnsiCode(color, style);
-                    std::println("{}{}{}\033[0m", ansiCode, prefix, message);
+                    if (enum_has_any_flags(m_config.feature, ELogFeature::EnableColor))
+                    {
+                        auto ansiCode = buildAnsiCode(color, style);
+                        std::println("{}{}{}\033[0m", ansiCode, prefix, message);
+                    }
+                    else
+                    {
+                        std::println("{}{}", prefix, message);
+                    }
                 }
-                else
+
+                if (enum_has_any_flags(m_config.feature, ELogFeature::EnableFile) && m_fileStream.is_open())
                 {
-                    std::println("{}{}", prefix, message);
+                    std::println(m_fileStream, "{}{}", prefix, message);
                 }
+
+                sinksCopy = m_sinks;
             }
 
-            if (enum_has_any_flags(m_config.feature, ELogFeature::EnableFile) && m_fileStream.is_open())
+            for (auto const& sink : sinksCopy)
             {
-                std::println(m_fileStream, "{}{}", prefix, message);
+                sink.second(ELogLevel::Info, prefix, message);
             }
         }
 
         auto setLevel(ELogLevel level) -> void { m_minLevel = level; }
         [[nodiscard]] auto getConfig() -> LogConfig& { return m_config; }
+
+        auto addSink(LogSinkFn sink) -> LogSinkId
+        {
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+            LogSinkId id = m_nextSinkId++;
+            m_sinks.push_back({id, std::move(sink)});
+            return id;
+        }
+
+        auto removeSink(LogSinkId id) -> void
+        {
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+            std::erase_if(m_sinks, [id](auto const& pair) { return pair.first == id; });
+        }
 
     private:
         template <typename... Args>
@@ -160,31 +189,41 @@ namespace april
             auto message = std::format(fmt, std::forward<Args>(args)...);
             auto prefix = buildPrefix(level);
 
-            std::lock_guard<std::mutex> lock(m_mutex);
-
-            if (enum_has_any_flags(m_config.feature, ELogFeature::EnableConsole))
+            std::vector<std::pair<LogSinkId, LogSinkFn>> sinksCopy;
             {
-                std::ostream& targetStream = (level == ELogLevel::Critical) ? std::cerr : std::cout;
+                std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
-                if (enum_has_any_flags(m_config.feature, ELogFeature::EnableColor))
+                if (enum_has_any_flags(m_config.feature, ELogFeature::EnableConsole))
                 {
-                    std::println(targetStream, "{}{}{}\033[0m", getColorCode(level), prefix, message);
+                    std::ostream& targetStream = (level == ELogLevel::Critical) ? std::cerr : std::cout;
+
+                    if (enum_has_any_flags(m_config.feature, ELogFeature::EnableColor))
+                    {
+                        std::println(targetStream, "{}{}{}\033[0m", getColorCode(level), prefix, message);
+                    }
+                    else
+                    {
+                        std::println(targetStream, "{}{}", prefix, message);
+                    }
                 }
-                else
+
+                // 2. File Output
+                if (enum_has_any_flags(m_config.feature, ELogFeature::EnableFile) && m_fileStream.is_open())
                 {
-                    std::println(targetStream, "{}{}", prefix, message);
+                    std::println(m_fileStream, "{}{}", prefix, message);
+
+                    if (level == ELogLevel::Critical)
+                    {
+                        m_fileStream.flush();
+                    }
                 }
+
+                sinksCopy = m_sinks;
             }
 
-            // 2. File Output
-            if (enum_has_any_flags(m_config.feature, ELogFeature::EnableFile) && m_fileStream.is_open())
+            for (auto const& sink : sinksCopy)
             {
-                std::println(m_fileStream, "{}{}", prefix, message);
-
-                if (level == ELogLevel::Critical)
-                {
-                    m_fileStream.flush();
-                }
+                sink.second(level, prefix, message);
             }
         }
 
@@ -199,8 +238,10 @@ namespace april
         std::string m_name{};
         LogConfig m_config{};
         ELogLevel m_minLevel{ELogLevel::Trace};
-        std::mutex m_mutex{};
+        std::recursive_mutex m_mutex{};
         std::ofstream m_fileStream{};
+        std::vector<std::pair<LogSinkId, LogSinkFn>> m_sinks;
+        LogSinkId m_nextSinkId{0};
     };
 
     struct Log

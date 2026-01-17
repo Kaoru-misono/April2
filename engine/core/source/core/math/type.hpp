@@ -47,6 +47,7 @@ namespace april
 
     static constexpr auto pi     = glm::pi<float>();
     static constexpr auto two_pi = glm::two_pi<float>();
+    static constexpr auto kUintMax = std::numeric_limits<uint>::max();
 } // namespace april
 
 namespace april::inline math

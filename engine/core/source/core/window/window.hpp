@@ -31,10 +31,13 @@ namespace april
 
         virtual ~Window() = default;
 
-        virtual auto onUpdate() -> void = 0;
+        virtual auto onEvent() -> void = 0;
 
         virtual auto getWidth() const -> unsigned int = 0;
         virtual auto getHeight() const -> unsigned int = 0;
+
+        virtual auto getFramebufferWidth() const -> unsigned int = 0;
+        virtual auto getFramebufferHeight() const -> unsigned int = 0;
 
         virtual auto setVSync(bool enabled) -> void = 0;
         virtual auto isVSync() const -> bool = 0;
