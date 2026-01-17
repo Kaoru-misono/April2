@@ -1,0 +1,8 @@
+{
+  "track_id": "imgui-refactor_20260117",
+  "type": "refactor",
+  "status": "new",
+  "created_at": "2026-01-17T15:30:00Z",
+  "updated_at": "2026-01-17T15:30:00Z",
+  "description": "Learn from nvpro_core2 ImGui integration to refactor April's ImGuiLayer into a more modular and robust system using the April RHI."
+}

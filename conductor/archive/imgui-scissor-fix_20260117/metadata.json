@@ -1,0 +1,8 @@
+{
+  "track_id": "imgui-scissor-fix_20260117",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-01-17T14:00:00Z",
+  "updated_at": "2026-01-17T14:00:00Z",
+  "description": "redo the track of imgui-fix_20260117, this time, carefully check the logic of imgui_impl_vulkan.cpp, make sure we are the same, because I found the imgui rendering is still wrong"
+}

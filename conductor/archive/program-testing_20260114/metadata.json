@@ -1,0 +1,8 @@
+{
+  "track_id": "program-testing_20260114",
+  "type": "chore",
+  "status": "new",
+  "created_at": "2026-01-14T18:37:00Z",
+  "updated_at": "2026-01-14T18:37:00Z",
+  "description": "make more tests about graphics/program to ensure the program system is working correctly, you can do the same tests like slang-rhi/test or test whatever you want in the program folder"
+}
