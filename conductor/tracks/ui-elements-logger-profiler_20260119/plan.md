@@ -12,19 +12,19 @@
     - [ ] Define `AP_PROFILE_SCOPE` and related macros
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Infrastructure' (Protocol in workflow.md)
 
-## Phase 2: Element Logger Implementation
-- [ ] Task: Element Logger Core
-    - [ ] Create `engine/ui/source/ui/element/element-logger.hpp` and `.cpp`
-    - [ ] Implement `ILogSink` interface to capture `april::Logger` output
-    - [ ] Implement thread-safe log buffer management
-- [ ] Task: Element Logger UI
-    - [ ] Implement ImGui window rendering with `onUIRender()`
-    - [ ] Implement color-coding for different log levels
-    - [ ] Add text filtering and "Clear" functionality
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Element Logger' (Protocol in workflow.md)
+## Phase 2: Element Logger Implementation [checkpoint: d721e61]
+- [x] Task: Element Logger Core [ade9da0]
+    - [x] Create `engine/ui/source/ui/element/element-logger.hpp` and `.cpp`
+    - [x] Implement `ILogSink` interface to capture `april::Logger` output
+    - [x] Implement thread-safe log buffer management
+- [x] Task: Element Logger UI [ade9da0]
+    - [x] Implement ImGui window rendering with `onUIRender()`
+    - [x] Implement color-coding for different log levels
+    - [x] Add text filtering and "Clear" functionality
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Element Logger' (Protocol in workflow.md)
 
 ## Phase 3: Element Profiler Implementation
-- [ ] Task: Element Profiler UI
+- [~] Task: Element Profiler UI
     - [ ] Create `engine/ui/source/ui/element/element-profiler.hpp` and `.cpp`
     - [ ] Implement frame history buffer to store profiling data
     - [ ] Implement `onUIRender()` to draw timing tables

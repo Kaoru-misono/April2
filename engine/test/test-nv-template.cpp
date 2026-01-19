@@ -8,6 +8,7 @@
 #include <graphics/rhi/resource-views.hpp>
 #include "ui/imgui-layer.hpp"
 #include "ui/element.hpp"
+#include "ui/element/element-logger.hpp"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -136,15 +137,25 @@ int main()
         auto sampleElement = core::make_ref<SampleElement>();
         imguiLayer->addElement(sampleElement);
 
+        auto elementLogger = core::make_ref<ElementLogger>(true);
+        imguiLayer->addElement(elementLogger);
+
         auto ctx = device->getCommandContext();
         bool closeWindow = false;
         window->subscribe<WindowCloseEvent>([&](WindowCloseEvent const&) { closeWindow = true; });
 
         // 6. Main Loop
         AP_INFO("Starting main loop");
+        int frame = 0;
         while (!closeWindow)
         {
             window->onEvent();
+
+            if (frame++ % 60 == 0) {
+                AP_INFO("Frame {}", frame);
+                if (frame % 120 == 0) AP_WARN("Warning at frame {}", frame);
+                if (frame % 300 == 0) AP_ERROR("Error at frame {}", frame);
+            }
 
             auto fw = window->getFramebufferWidth();
             auto fh = window->getFramebufferHeight();
