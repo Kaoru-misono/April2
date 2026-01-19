@@ -30,6 +30,14 @@ namespace april
         shutdown();
     }
 
+    auto GlfwWindow::getWindowContentScale() const -> float2
+    {
+        auto scale = float2{};
+        glfwGetWindowContentScale(m_glfwWindow, &scale.x, &scale.y);
+
+        return scale;
+    }
+
     auto GlfwWindow::getNativeWindowHandle() const -> void*
     {
         #ifdef _WIN32

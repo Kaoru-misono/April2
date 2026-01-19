@@ -11,9 +11,7 @@
 #include "ray-tracing-acceleration-structure.hpp"
 #include "render-target.hpp"
 #include "program/program-variables.hpp"
-#include "tools/enum-flags.hpp"
 
-#include <bitset>
 #include <core/math/type.hpp>
 #include <slang-rhi.h>
 #include <string_view>
@@ -24,7 +22,7 @@ namespace april::graphics
 
     template<class TEncoder>
     class PassEncoderBase {
-    protected:
+    public:
         PassEncoderBase() = default;
         explicit PassEncoderBase(TEncoder* pEncoder)
             : m_encoder(pEncoder) {}
@@ -86,7 +84,6 @@ namespace april::graphics
     {
         APRIL_OBJECT(RenderPassEncoder)
     public:
-        using PassEncoderBase::end;
         friend class CommandContext;
 
         RenderPassEncoder(
@@ -398,7 +395,8 @@ namespace april::graphics
     template <class TEncoder>
     auto PassEncoderBase<TEncoder>::pushDebugGroup(std::string_view name, float4 color) -> void
     {
-        m_encoder->pushDebugGroup(name.data(), color);
+        auto markerColor = rhi::MarkerColor{color.r, color.g, color.b};
+        m_encoder->pushDebugGroup(name.data(), markerColor);
     }
 
     template <class TEncoder>

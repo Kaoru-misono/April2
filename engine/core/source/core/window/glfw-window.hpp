@@ -20,6 +20,8 @@ namespace april
         [[nodiscard]] auto getFramebufferWidth() const -> unsigned int override { return m_data.fbWidth.load(std::memory_order_relaxed); }
         [[nodiscard]] auto getFramebufferHeight() const -> unsigned int override { return m_data.fbHeight.load(std::memory_order_relaxed); }
 
+        auto getWindowContentScale() const -> float2 override;
+
         auto setVSync(bool enabled) -> void override;
         [[nodiscard]] auto isVSync() const -> bool override;
 

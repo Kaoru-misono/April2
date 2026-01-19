@@ -3,6 +3,7 @@
 #include "event.hpp"
 #include "../tools/exclusive.hpp"
 
+#include <core/math/math.hpp>
 #include <string>
 #include <functional>
 #include <memory>
@@ -38,6 +39,8 @@ namespace april
 
         virtual auto getFramebufferWidth() const -> unsigned int = 0;
         virtual auto getFramebufferHeight() const -> unsigned int = 0;
+
+        virtual auto getWindowContentScale() const -> float2 = 0;
 
         virtual auto setVSync(bool enabled) -> void = 0;
         virtual auto isVSync() const -> bool = 0;

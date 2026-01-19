@@ -56,7 +56,6 @@ namespace april::graphics
                 return false;
             default:
                 AP_UNREACHABLE();
-                return false;
             }
         }
 
@@ -78,7 +77,6 @@ namespace april::graphics
                 return true;
             default:
                 AP_UNREACHABLE();
-                return false;
             }
         }
 

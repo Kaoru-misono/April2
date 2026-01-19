@@ -1,8 +1,0 @@
-{
-  "track_id": "editor-ui-rebuild_20260117",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-01-17T17:59:00Z",
-  "updated_at": "2026-01-17T17:59:00Z",
-  "description": "Refactor April's UI system using internal libraries (Core, Math, RHI) to create a Game Editor with a docking workspace, handling resize correctly and ensuring sharp font rendering without blurring, referencing nvpro_core2 patterns."
-}

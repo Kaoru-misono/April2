@@ -1,0 +1,8 @@
+{
+  "track_id": "imgui-font-example_20260118",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-18T22:09:00Z",
+  "updated_at": "2026-01-18T22:09:00Z",
+  "description": "我重构了 ui 部分的代码，并将 nvpro_core2 的 app 和 ui 部分作为参考，但是使用了我自己的 graphics rhi 而没有直接使用 imgui 封装的 vulkan 层，我实现了大部分的内容，只有一个部分，就是 font 相关的部分我没有实现，我希望你能通过 imgui_impl_vulkan 中的内容，找到 font texture 是如何进行创建并使用的，然后将其结合我的 rhi 添加到 imguiLayer 中，然后，我需要你创建一个 example，这个 example 需要和 nvpro_core2 的 projject_template/main.cpp 中的内容相同，但不要直接使用 nvpro，而是使用 apirl 提供的内容"
+}

@@ -11,6 +11,8 @@
 #include "blend-state.hpp"
 
 #include <core/foundation/object.hpp>
+#include <cstdint>
+#include <limits>
 #include <slang-rhi.h>
 
 namespace april::graphics
@@ -21,7 +23,7 @@ namespace april::graphics
 
     struct GraphicsPipelineDesc
     {
-        static constexpr uint32_t kSampleMaskAll = -1;
+        static constexpr uint32_t kSampleMaskAll = std::numeric_limits<uint32_t>::max();
 
         enum class PrimitiveType
         {

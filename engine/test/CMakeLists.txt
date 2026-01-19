@@ -25,17 +25,22 @@ target_compile_definitions(test-object PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNIC
 target_compile_definitions(test-resource PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
 target_compile_definitions(test-slang-rhi PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
 
-add_executable(test-imgui test-imgui.cpp)
-target_include_directories(test-imgui PRIVATE external/doctest)
-target_link_libraries(test-imgui PRIVATE April_graphics)
-target_compile_features(test-imgui PRIVATE cxx_std_23)
-target_compile_definitions(test-imgui PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
+add_executable(test-ui-editor test-ui-editor.cpp)
+target_include_directories(test-ui-editor PRIVATE external/doctest)
+target_link_libraries(test-ui-editor PRIVATE April_graphics April_ui)
+target_compile_features(test-ui-editor PRIVATE cxx_std_23)
+target_compile_definitions(test-ui-editor PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
 
-add_executable(test-imgui-backend test-imgui-backend.cpp)
-target_include_directories(test-imgui-backend PRIVATE external/doctest)
-target_link_libraries(test-imgui-backend PRIVATE April_graphics)
-target_compile_features(test-imgui-backend PRIVATE cxx_std_23)
-target_compile_definitions(test-imgui-backend PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
+add_executable(test-ui-font test-ui-font.cpp)
+target_include_directories(test-ui-font PRIVATE external/doctest)
+target_link_libraries(test-ui-font PRIVATE April_graphics April_ui)
+target_compile_features(test-ui-font PRIVATE cxx_std_23)
+target_compile_definitions(test-ui-font PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
+
+add_executable(test-nv-template test-nv-template.cpp)
+target_link_libraries(test-nv-template PRIVATE April_graphics April_ui)
+target_compile_features(test-nv-template PRIVATE cxx_std_23)
+target_compile_definitions(test-nv-template PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
 
 # Unified Test Suite
 add_executable(test-suite

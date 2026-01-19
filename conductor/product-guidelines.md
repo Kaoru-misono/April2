@@ -2,7 +2,9 @@
 
 ## Development Philosophy
 - **Modern C++ Excellence:** Strictly adhere to **C++23 standards**, utilizing Modules, Concepts, and Ranges to build a type-safe, performant, and future-proof engine.
-- **Snake_Case Convention:** Use **snake_case** for all naming (variables, functions, files, directories) to maintain a consistent and unified code style across the project.
+- **Snake_Case Convention:** Use **snake_case** for internal code naming (variables, functions).
+- **Kebab-Case File Naming:** Use **kebab-case** (hyphens) for file and directory names (e.g., `file-dialog.cpp`).
+- **Trailing Return Types:** Prefer the use of trailing return types (`auto func() -> type`) for all function declarations to maintain consistency and improve readability.
 - **Minimalist Code Style:** Favor clean, expressive code with a heavy reliance on `auto` where appropriate. Comments should be kept to a minimum, used only to explain the "why" of complex logic rather than the "what".
 
 ## Quality Assurance & Testing

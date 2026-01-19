@@ -26,7 +26,6 @@ namespace april::graphics
                 return Resource::State::CopyDest;
             default:
                 AP_UNREACHABLE();
-                return Resource::State::Undefined;
             }
         }
     } // namespace

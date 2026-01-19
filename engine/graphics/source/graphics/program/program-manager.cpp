@@ -95,35 +95,7 @@ namespace april::graphics
 
     ProgramManager::ProgramManager(Device* device) : mp_device(device)
     {
-        std::filesystem::path shaderPath;
-        std::vector<std::string> potentialPaths = {
-            "engine/graphics/shader",
-            "../engine/graphics/shader",
-            "../../engine/graphics/shader",
-            "../../../engine/graphics/shader",
-            "../../../../engine/graphics/shader",
-            "bin/shader/graphics",
-            "../shader/graphics",
-            "../../shader/graphics"
-        };
-
-        bool found = false;
-        for (const auto& p : potentialPaths)
-        {
-            if (std::filesystem::exists(p))
-            {
-                shaderPath = std::filesystem::absolute(p);
-                found = true;
-                break;
-            }
-        }
-
-        if (!found)
-        {
-            shaderPath = std::filesystem::current_path() / "shader/graphics";
-        }
-
-        VFS::mount("shader", shaderPath);
+        VFS::mount("shader", std::filesystem::current_path() / "shader/graphics");
         DefineList globalDefines = {};
 
         addGlobalDefines(globalDefines);
