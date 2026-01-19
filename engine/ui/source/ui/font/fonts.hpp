@@ -1,7 +1,5 @@
 #pragma once
 
-#include "external/IconsMaterialSymbols.h" // ICON_MS definitions
-
 struct ImFont;
 
 namespace april::ui

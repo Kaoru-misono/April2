@@ -80,6 +80,7 @@ namespace april::ui
                 temp[i].x += pos.x;                                            // Translate
                 temp[i].y += pos.y;
             }
+
             return temp;
         }
 
@@ -105,8 +106,8 @@ namespace april::ui
         // Draw the arrow
         auto draw(const std::vector<glm::vec3>& vertex, ImU32 col) -> void
         {
-            auto         draw_list = ImGui::GetWindowDrawList();
-            const ImVec2 uv        = ImGui::GetFontTexUvWhitePixel();
+            auto draw_list = ImGui::GetWindowDrawList();
+            auto const uv  = ImGui::GetFontTexUvWhitePixel();
 
             int num_indices = static_cast<int>(indices.size());
             draw_list->PrimReserve(num_indices, num_indices); // num vert/indices
@@ -124,8 +125,12 @@ namespace april::ui
             }
 
             // Draw the line
-            draw_list->AddLine(ImVec2(vertex[0].x, vertex[0].y), ImVec2(vertex.back().x, vertex.back().y), col,
-                               1.0f * ImGui::GetWindowDpiScale());
+            draw_list->AddLine(
+                ImVec2(vertex[0].x, vertex[0].y),
+                ImVec2(vertex.back().x, vertex.back().y),
+                col,
+                1.0f * ImGui::GetWindowDpiScale()
+            );
         }
     };
 
@@ -151,12 +156,16 @@ namespace april::ui
 
         // Sort from smallest Z to nearest (Painter algorithm)
         if (arrow[1].v[0].z < arrow[0].v[0].z)
+        {
             std::swap(arrow[0], arrow[1]);
+        }
         if (arrow[2].v[0].z < arrow[1].v[0].z)
         {
             std::swap(arrow[1], arrow[2]);
             if (arrow[1].v[0].z < arrow[0].v[0].z)
+            {
                 std::swap(arrow[1], arrow[0]);
+            }
         }
 
         // Draw all axis

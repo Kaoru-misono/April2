@@ -8,6 +8,7 @@
 #include "external/fonts/roboto_mono.h"
 #include "external/fonts/roboto_regular.h"
 #include "external/fonts/material_symbols_rounded_regular.h"
+#include "external/IconsMaterialSymbols.h" // ICON_MS definitions
 
 #define MATERIAL_SYMBOLS_DATA g_materialSymbolsRounded_compressed_data
 #define MATERIAL_SYMBOLS_SIZE g_materialSymbolsRounded_compressed_size
@@ -75,8 +76,12 @@ namespace april::ui
         if (g_monospaceFont == nullptr)
         {
             ImFontConfig fontConfig = getDefaultConfig();
-            g_monospaceFont         = ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(g_roboto_mono_compressed_data,
-                                                                                   g_roboto_mono_compressed_size, fontSize, &fontConfig);
+            g_monospaceFont         = ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(
+                g_roboto_mono_compressed_data,
+                g_roboto_mono_compressed_size,
+                fontSize,
+                &fontConfig
+            );
         }
     }
 
