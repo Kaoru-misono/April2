@@ -36,6 +36,12 @@ target_link_libraries(test-nv-template PRIVATE April_graphics April_ui)
 target_compile_features(test-nv-template PRIVATE cxx_std_23)
 target_compile_definitions(test-nv-template PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
 
+add_executable(test-implot test-implot.cpp)
+target_include_directories(test-implot PRIVATE external/doctest)
+target_link_libraries(test-implot PRIVATE April_graphics April_ui)
+target_compile_features(test-implot PRIVATE cxx_std_23)
+target_compile_definitions(test-implot PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
+
 # Unified Test Suite
 add_executable(test-suite
     test-main.cpp

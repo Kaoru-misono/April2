@@ -40,3 +40,27 @@ if(EXISTS "${IMGUI_ROOT}/imgui.h")
     endif()
 
 endif()
+
+set(IMPLOT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/implot")
+
+if(EXISTS "${IMPLOT_ROOT}/implot.h")
+    set(IMPLOT_SOURCES
+        "${IMPLOT_ROOT}/implot.cpp"
+        "${IMPLOT_ROOT}/implot_demo.cpp"
+        "${IMPLOT_ROOT}/implot_items.cpp"
+    )
+
+    set(IMPLOT_HEADERS
+        "${IMPLOT_ROOT}/implot.h"
+        "${IMPLOT_ROOT}/implot_internal.h"
+    )
+
+    add_library(implot STATIC ${IMPLOT_SOURCES} ${IMPLOT_HEADERS})
+    target_include_directories(implot PUBLIC "${IMPLOT_ROOT}" "${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(implot PUBLIC imgui)
+
+    if(TARGET ${CURRENT_MODULE_TARGET})
+        message(STATUS "[Library] Linking 'implot' to '${CURRENT_MODULE_TARGET}'")
+        target_link_libraries(${CURRENT_MODULE_TARGET} PUBLIC implot)
+    endif()
+endif()
