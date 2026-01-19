@@ -8,7 +8,7 @@
 using namespace april::core;
 
 TEST_CASE("PerformanceTimer") {
-    PerformanceTimer timer;
+    auto timer = PerformanceTimer{};
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     CHECK(timer.getMilliseconds() >= 10.0);
     timer.reset();
@@ -16,10 +16,10 @@ TEST_CASE("PerformanceTimer") {
 }
 
 TEST_CASE("ProfilerManager and Timeline") {
-    ProfilerManager manager;
-    ProfilerTimeline::CreateInfo info;
+    auto manager = ProfilerManager{};
+    auto info = ProfilerTimeline::CreateInfo{};
     info.name = "TestTimeline";
-    ProfilerTimeline* timeline = manager.createTimeline(info);
+    auto* timeline = manager.createTimeline(info);
 
     CHECK(timeline != nullptr);
     CHECK(timeline->getName() == "TestTimeline");
@@ -41,7 +41,8 @@ TEST_CASE("ProfilerManager and Timeline") {
     }
 
     // Snapshots
-    std::vector<ProfilerTimeline::Snapshot> frameSnaps, asyncSnaps;
+    auto frameSnaps = std::vector<ProfilerTimeline::Snapshot>{};
+    auto asyncSnaps = std::vector<ProfilerTimeline::Snapshot>{};
     manager.getSnapshots(frameSnaps, asyncSnaps);
 
     CHECK(frameSnaps.size() == 1);

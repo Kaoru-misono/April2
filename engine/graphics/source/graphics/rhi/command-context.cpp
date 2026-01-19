@@ -807,6 +807,31 @@ namespace april::graphics
         return ReadTextureTask::create(this, texture, subresourceIndex);
     }
 
+    auto CommandContext::pushDebugGroup(std::string_view name, float4 color) -> void
+    {
+        mp_lowLevelData->getGfxCommandEncoder()->pushDebugGroup(name.data(), rhi::MarkerColor{color.r, color.g, color.b});
+    }
+
+    auto CommandContext::popDebugGroup() -> void
+    {
+        mp_lowLevelData->getGfxCommandEncoder()->popDebugGroup();
+    }
+
+    auto CommandContext::insertDebugMarker(std::string_view name, float4 color) -> void
+    {
+        mp_lowLevelData->getGfxCommandEncoder()->insertDebugMarker(name.data(), rhi::MarkerColor{color.r, color.g, color.b});
+    }
+
+    auto CommandContext::writeTimestamp(QueryHeap* pHeap, uint32_t index) -> void
+    {
+        mp_lowLevelData->getGfxCommandEncoder()->writeTimestamp(pHeap->getGfxQueryPool(), index);
+    }
+
+    auto CommandContext::resolveQuery(QueryHeap* pHeap, uint32_t index, uint32_t count, Buffer const* buffer, uint64_t offset) -> void
+    {
+        mp_lowLevelData->getGfxCommandEncoder()->resolveQuery(pHeap->getGfxQueryPool(), index, count, buffer->getGfxBufferResource(), offset);
+    }
+
     auto CommandContext::textureBarrier(Texture const* texture, Resource::State newState) -> bool
     {
         auto resourceEncoder = getLowLevelData()->getGfxCommandEncoder();

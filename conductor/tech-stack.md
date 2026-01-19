@@ -7,7 +7,7 @@
 ## Libraries & Frameworks
 - **Windowing & Input:** GLFW
 - **Mathematics:** GLM
-- **GUI:** Dear ImGui
+- **GUI:** Dear ImGui, ImPlot
 - **Asset Loading:** TinyGLTF
 - **Optimization:** MeshOptimizer
 

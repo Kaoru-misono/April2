@@ -24,21 +24,21 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Element Logger' (Protocol in workflow.md)
 
 ## Phase 3: Element Profiler Implementation
-- [~] Task: Element Profiler UI
-    - [ ] Create `engine/ui/source/ui/element/element-profiler.hpp` and `.cpp`
-    - [ ] Implement frame history buffer to store profiling data
-    - [ ] Implement `onUIRender()` to draw timing tables
-- [ ] Task: ImPlot Visualization
-    - [ ] Implement real-time line charts for frame times using `ImPlot`
-    - [ ] Implement bar/pie charts for task distribution (CPU vs GPU)
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Element Profiler' (Protocol in workflow.md)
+- [x] Task: Element Profiler UI [ade9da0]
+    - [x] Create `engine/ui/source/ui/element/element-profiler.hpp` and `.cpp`
+    - [x] Implement frame history buffer to store profiling data
+    - [x] Implement `onUIRender()` to draw timing tables
+- [x] Task: ImPlot Visualization [ade9da0]
+    - [x] Implement real-time line charts for frame times using `ImPlot`
+    - [x] Implement bar/pie charts for task distribution (CPU vs GPU)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Element Profiler' (Protocol in workflow.md)
 
-## Phase 4: Integration and Verification
-- [ ] Task: Testing in `test-nv-template.cpp`
-    - [ ] Update `engine/test/test-nv-template.cpp` to include the new elements
-    - [ ] Generate various log levels to verify `ElementLogger`
-    - [ ] Add profiled scopes to verify `ElementProfiler` data accuracy
-- [ ] Task: Final Polish
-    - [ ] Ensure all file names follow `kebab-case` and functions follow `snake_case`
-    - [ ] Verify no direct dependencies on `nvpro_core2` headers
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Integration' (Protocol in workflow.md)
+## Phase 4: Integration and Verification [checkpoint: 71f0d49]
+- [x] Task: Testing in `test-nv-template.cpp`
+    - [x] Update `engine/test/test-nv-template.cpp` to include the new elements
+    - [x] Generate various log levels to verify `ElementLogger`
+    - [x] Add profiled scopes to verify `ElementProfiler` data accuracy
+- [x] Task: Final Polish
+    - [x] Ensure all file names follow `kebab-case` and functions follow `snake_case`
+    - [x] Verify no direct dependencies on `nvpro_core2` headers
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Integration' (Protocol in workflow.md)

@@ -7,6 +7,8 @@ namespace april::ui
     ElementLogger::ElementLogger(bool show)
         : m_showLog(show)
     {
+        m_sink = std::make_shared<ElementSink>();
+        april::Log::getLogger()->addSink(m_sink);
     }
 
     ElementLogger::~ElementLogger()
@@ -14,7 +16,7 @@ namespace april::ui
         // Detach sink if not already done?
         // Ideally should be done in onDetach or user code.
         // We can access global logger here?
-        april::Log::getLogger()->removeSink(std::shared_ptr<ILogSink>(this, [](ILogSink*){})); // Safe shared_ptr from this? No.
+        april::Log::getLogger()->removeSink(m_sink); // Safe shared_ptr from this? No.
         // We cannot remove ourselves safely if we are not managing the shared_ptr.
         // onAttach registers us, onDetach should unregister.
     }
@@ -58,13 +60,13 @@ namespace april::ui
         }
     }
 
-    auto ElementLogger::log(LogContext const& context, LogConfig const& config, std::string_view message) -> void
+    auto ElementLogger::ElementSink::log(LogContext const& context, LogConfig const& config, std::string_view message) -> void
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        int old_size = m_buf.size();
+        auto lock = std::lock_guard<std::mutex>{m_mutex};
+        auto old_size = m_buf.size();
         m_buf.append(message.data());
         m_buf.append("\n"); // Ensure newline
-        for (int new_size = m_buf.size(); old_size < new_size; old_size++)
+        for (auto new_size = m_buf.size(); old_size < new_size; old_size++)
         {
             if (m_buf[old_size] == '\n')
             {
@@ -76,13 +78,13 @@ namespace april::ui
 
     auto ElementLogger::clear() -> void
     {
-        m_buf.clear();
-        m_lineOffsets.clear();
-        m_lineLevels.clear();
-        m_lineOffsets.push_back(0);
+        // m_buf.clear();
+        // m_lineOffsets.clear();
+        // m_lineLevels.clear();
+        // m_lineOffsets.push_back(0);
     }
 
-    auto ElementLogger::draw(const char* title, bool* p_open) -> void
+    auto ElementLogger::draw(char const* title, bool* p_open) -> void
     {
         if (!ImGui::Begin(title, p_open))
         {
@@ -101,9 +103,9 @@ namespace april::ui
         if (ImGui::Button("Options"))
             ImGui::OpenPopup("Options");
         ImGui::SameLine();
-        bool clear_log = ImGui::Button("Clear");
+        auto clear_log = ImGui::Button("Clear");
         ImGui::SameLine();
-        bool copy = ImGui::Button("Copy");
+        auto copy = ImGui::Button("Copy");
         ImGui::SameLine();
         m_filter.Draw("Filter", -100.0f);
 
@@ -119,26 +121,29 @@ namespace april::ui
             clear();
 
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-        const char* buf = m_buf.begin();
-        const char* buf_end = m_buf.end();
-        
-        std::lock_guard<std::mutex> lock(m_mutex);
+        auto& buffer = m_sink->m_buf;
+        auto* buf = buffer.begin();
+        auto* buf_end = buffer.end();
+        auto& lineOffsets = m_sink->m_lineOffsets;
+        auto& lineLevels = m_sink->m_lineLevels;
+
+        // std::lock_guard<std::mutex> lock(m_mutex);
 
         if (m_filter.IsActive())
         {
-            for (int line_no = 0; line_no < m_lineOffsets.Size; line_no++)
+            for (auto line_no = 0; line_no < lineOffsets.Size; line_no++)
             {
-                const char* line_start = buf + (line_no == 0 ? 0 : m_lineOffsets[line_no - 1]);
-                const char* line_end = (line_no < m_lineOffsets.Size) ? (buf + m_lineOffsets[line_no] - 1) : buf_end;
+                auto* line_start = buf + (line_no == 0 ? 0 : lineOffsets[line_no - 1]);
+                auto* line_end = (line_no < lineOffsets.Size) ? (buf + lineOffsets[line_no] - 1) : buf_end;
                 if (m_filter.PassFilter(line_start, line_end))
                 {
                     // Color based on level (stored in m_lineLevels)
-                    ImVec4 color = ImVec4(1, 1, 1, 1);
-                    if (line_no < m_lineLevels.Size) {
-                        switch ((ELogLevel)m_lineLevels[line_no]) {
+                    auto color = ImVec4(1, 1, 1, 1);
+                    if (line_no < lineLevels.Size) {
+                        switch ((ELogLevel)lineLevels[line_no]) {
                             case ELogLevel::Trace: color = ImVec4(0.5f, 0.5f, 0.5f, 1.0f); break;
                             case ELogLevel::Debug: color = ImVec4(0.4f, 0.7f, 1.0f, 1.0f); break;
-                            case ELogLevel::Info:  color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); break;
+                            case ELogLevel::Info:  color = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); break;
                             case ELogLevel::Warning: color = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); break;
                             case ELogLevel::Error: color = ImVec4(1.0f, 0.4f, 0.4f, 1.0f); break;
                             case ELogLevel::Fatal: color = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); break;
@@ -152,21 +157,21 @@ namespace april::ui
         }
         else
         {
-            ImGuiListClipper clipper;
-            clipper.Begin(m_lineOffsets.Size);
+            auto clipper = ImGuiListClipper{};
+            clipper.Begin(lineOffsets.Size);
             while (clipper.Step())
             {
-                for (int line_no = clipper.DisplayStart; line_no < clipper.DisplayEnd; line_no++)
+                for (auto line_no = clipper.DisplayStart; line_no < clipper.DisplayEnd; line_no++)
                 {
-                    const char* line_start = buf + (line_no == 0 ? 0 : m_lineOffsets[line_no - 1]);
-                    const char* line_end = (line_no < m_lineOffsets.Size) ? (buf + m_lineOffsets[line_no] - 1) : buf_end;
-                    
-                    ImVec4 color = ImVec4(1, 1, 1, 1);
-                    if (line_no < m_lineLevels.Size) {
-                        switch ((ELogLevel)m_lineLevels[line_no]) {
+                    auto* line_start = buf + (line_no == 0 ? 0 : lineOffsets[line_no - 1]);
+                    auto* line_end = (line_no < lineOffsets.Size) ? (buf + lineOffsets[line_no] - 1) : buf_end;
+
+                    auto color = ImVec4(1, 1, 1, 1);
+                    if (line_no < lineLevels.Size) {
+                        switch ((ELogLevel)lineLevels[line_no]) {
                             case ELogLevel::Trace: color = ImVec4(0.5f, 0.5f, 0.5f, 1.0f); break;
                             case ELogLevel::Debug: color = ImVec4(0.4f, 0.7f, 1.0f, 1.0f); break;
-                            case ELogLevel::Info:  color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); break;
+                            case ELogLevel::Info:  color = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); break;
                             case ELogLevel::Warning: color = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); break;
                             case ELogLevel::Error: color = ImVec4(1.0f, 0.4f, 0.4f, 1.0f); break;
                             case ELogLevel::Fatal: color = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); break;

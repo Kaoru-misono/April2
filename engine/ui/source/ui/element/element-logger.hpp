@@ -9,7 +9,7 @@
 
 namespace april::ui
 {
-    class ElementLogger : public IElement, public ILogSink
+    class ElementLogger : public IElement
     {
         APRIL_OBJECT(ElementLogger)
 
@@ -28,19 +28,27 @@ namespace april::ui
         auto onFileDrop(std::filesystem::path const& filename) -> void override;
 
         // ILogSink overrides
-        auto log(LogContext const& context, LogConfig const& config, std::string_view message) -> void override;
+        class ElementSink final: public ILogSink
+        {
+            auto log(LogContext const& context, LogConfig const& config, std::string_view message) -> void override;
+
+            friend class ElementLogger;
+
+            // TODO: move these to element.
+            ImGuiTextBuffer m_buf;
+            ImVector<int>   m_lineOffsets; // Index to lines offset.
+            ImVector<int>   m_lineLevels;  // Log level per line.
+            mutable std::mutex m_mutex;
+        };
 
     private:
-        auto draw(const char* title, bool* p_open = nullptr) -> void;
+        auto draw(char const* title, bool* p_open = nullptr) -> void;
         auto clear() -> void;
 
     private:
-        ImGuiTextBuffer m_buf;
         ImGuiTextFilter m_filter;
-        ImVector<int>   m_lineOffsets; // Index to lines offset.
-        ImVector<int>   m_lineLevels;  // Log level per line.
         bool            m_autoScroll = true;
         bool            m_showLog = false;
-        mutable std::mutex m_mutex;
+        std::shared_ptr<ElementSink> m_sink{};
     };
 }

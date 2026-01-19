@@ -12,6 +12,7 @@
 
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <implot.h>
 #include <backends/imgui_impl_glfw.h>
 #include <GLFW/glfw3.h>
 
@@ -23,6 +24,7 @@ namespace april::ui
     {
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
+        ImPlot::CreateContext();
     }
 
     ImGuiLayer::~ImGuiLayer()
@@ -155,6 +157,7 @@ namespace april::ui
         m_fontSampler.reset();
 
         ImGui_ImplGlfw_Shutdown();
+        ImPlot::DestroyContext();
         ImGui::DestroyContext();
     }
 

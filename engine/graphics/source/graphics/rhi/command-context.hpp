@@ -357,6 +357,13 @@ namespace april::graphics
         auto readTextureSubresource(Texture const* texture, uint32_t subresourceIndex) -> std::vector<uint8_t>;
         auto asyncReadTextureSubresource(Texture const* texture, uint32_t subresourceIndex) -> ReadTextureTask::SharedPtr;
 
+        auto pushDebugGroup(std::string_view name, float4 color = {1.0, 1.0f, 1.0f, 1.0f}) -> void;
+        auto popDebugGroup() -> void;
+        auto insertDebugMarker(std::string_view name, float4 color = {1.0, 1.0f, 1.0f, 1.0f}) -> void;
+
+        auto writeTimestamp(QueryHeap* pHeap, uint32_t index) -> void;
+        auto resolveQuery(QueryHeap* pHeap, uint32_t index, uint32_t count, Buffer const* buffer, uint64_t offset) -> void;
+
         auto getLowLevelData() const -> LowLevelContextData* { return mp_lowLevelData.get(); }
 
         auto bindDescriptorHeaps() -> void;
@@ -408,13 +415,13 @@ namespace april::graphics
     template <class TEncoder>
     auto PassEncoderBase<TEncoder>::insertDebugMarker(std::string_view name, float4 color) -> void
     {
-        m_encoder->insertDebugMarker(name.data(), color);
+        m_encoder->insertDebugMarker(name.data(), rhi::MarkerColor{color.r, color.g, color.b});
     }
 
     template <class TEncoder>
     auto PassEncoderBase<TEncoder>::writeTimestamp(QueryHeap* pHeap, uint32_t index) -> void
     {
-        m_encoder->writeTimestamp(pHeap, index);
+        m_encoder->writeTimestamp(pHeap->getGfxQueryPool(), index);
     }
 
     template <class TEncoder>

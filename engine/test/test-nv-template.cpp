@@ -5,13 +5,18 @@
 #include <graphics/rhi/command-context.hpp>
 #include <graphics/rhi/swapchain.hpp>
 #include <graphics/rhi/texture.hpp>
+#include <graphics/rhi/buffer.hpp>      // [新增] Buffer
+#include <graphics/rhi/query-heap.hpp>  // [新增] QueryHeap
 #include <graphics/rhi/resource-views.hpp>
 #include "ui/imgui-layer.hpp"
 #include "ui/element.hpp"
 #include "ui/element/element-logger.hpp"
+#include "ui/element/element-profiler.hpp"
+#include <core/profile/profiler.hpp>
 
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <implot.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
 
@@ -26,9 +31,8 @@ public:
     void onAttach(ImGuiLayer* pLayer) override
     {
         m_pLayer = pLayer;
-        auto device = pLayer->getFontTexture()->getDevice(); // Quick way to get device
+        auto device = pLayer->getFontTexture()->getDevice();
 
-        // Create a 1x1 viewport texture
         m_viewportTexture = device->createTexture2D(
             1, 1, ResourceFormat::RGBA32Float, 1, 1, nullptr,
             ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget
@@ -41,16 +45,20 @@ public:
         m_viewportTexture.reset();
     }
 
-    void onResize(CommandContext*, float2 const&) override
-    {
-        // Handle resize if needed
-    }
+    void onResize(CommandContext*, float2 const&) override {}
 
     void onUIRender() override
     {
         ImGui::Begin("Settings");
         ImGui::Checkbox("Animated Viewport", &m_animate);
-        ImGui::TextDisabled("%d FPS / %.3fms", static_cast<int>(ImGui::GetIO().Framerate), 1000.F / ImGui::GetIO().Framerate);
+        ImGui::TextDisabled("CPU: %d FPS / %.3fms", static_cast<int>(ImGui::GetIO().Framerate), 1000.F / ImGui::GetIO().Framerate);
+
+        if (m_lastGpuTime > 0.0f) {
+            ImGui::TextColored(ImVec4(0,1,0,1), "GPU: %.3f ms", m_lastGpuTime);
+        } else {
+            ImGui::TextDisabled("GPU: Collecting...");
+        }
+
         ImGui::End();
 
         ImGui::Begin("Viewport");
@@ -80,25 +88,16 @@ public:
         }
     }
 
-    void onUIMenu() override
-    {
-        if (ImGui::BeginMenu("File"))
-        {
-            if (ImGui::MenuItem("Exit", "Ctrl+Q"))
-            {
-                // How to close window from element?
-                // In this simple example we'll just use a flag or assume GLFW.
-            }
-            ImGui::EndMenu();
-        }
-    }
-
+    void onUIMenu() override { /* ... */ }
     void onFileDrop(std::filesystem::path const&) override {}
+
+    void setGpuTime(double ms) { m_lastGpuTime = ms; }
 
 private:
     ImGuiLayer* m_pLayer{nullptr};
     core::ref<Texture> m_viewportTexture;
     bool m_animate{true};
+    double m_lastGpuTime{0.0};
 };
 
 int main()
@@ -125,6 +124,14 @@ int main()
         swapchainDesc.height = window->getFramebufferHeight();
         auto swapchain = core::make_ref<Swapchain>(device, swapchainDesc, window->getNativeWindowHandle());
 
+        auto queryHeap = QueryHeap::create(device, QueryHeap::Type::Timestamp, 2);
+        auto timestampBuffer = device->createBuffer(
+            sizeof(uint64_t) * 2,
+            ResourceBindFlags::None,
+            MemoryType::ReadBack
+        );
+        timestampBuffer->setName("Timestamp Readback");
+
         // 4. Initialize ImGuiLayer
         ImGuiLayerDesc layerDesc;
         layerDesc.device = device;
@@ -133,39 +140,43 @@ int main()
         auto imguiLayer = core::make_ref<ImGuiLayer>();
         imguiLayer->init(layerDesc);
 
-        // 5. Add Sample Element
+        ImPlot::CreateContext(); // Fix crash
+
+        // 5. Add Elements
         auto sampleElement = core::make_ref<SampleElement>();
         imguiLayer->addElement(sampleElement);
+        imguiLayer->addElement(core::make_ref<ElementLogger>(true));
 
-        auto elementLogger = core::make_ref<ElementLogger>(true);
-        imguiLayer->addElement(elementLogger);
+        april::core::GlobalProfiler::init("TestProfile");
+        imguiLayer->addElement(core::make_ref<ElementProfiler>());
 
         auto ctx = device->getCommandContext();
         bool closeWindow = false;
         window->subscribe<WindowCloseEvent>([&](WindowCloseEvent const&) { closeWindow = true; });
 
-        // 6. Main Loop
         AP_INFO("Starting main loop");
         int frame = 0;
+
         while (!closeWindow)
         {
+            april::core::GlobalProfiler::getTimeline()->frameAdvance();
+            AP_PROFILE_SCOPE("Frame");
+
             window->onEvent();
 
-            if (frame++ % 60 == 0) {
-                AP_INFO("Frame {}", frame);
-                if (frame % 120 == 0) AP_WARN("Warning at frame {}", frame);
-                if (frame % 300 == 0) AP_ERROR("Error at frame {}", frame);
-            }
+            ctx->writeTimestamp(queryHeap.get(), 0);
+
+            // Logic
+            if (frame % 60 == 0) AP_INFO("Frame {}", frame);
+            frame++;
 
             auto fw = window->getFramebufferWidth();
             auto fh = window->getFramebufferHeight();
 
             if (fw > 0 && fh > 0)
             {
-                if (swapchain->getDesc().width != fw ||
-                    swapchain->getDesc().height != fh)
+                if (swapchain->getDesc().width != fw || swapchain->getDesc().height != fh)
                 {
-                    AP_INFO("Resizing swapchain to {}x{}", fw, fh);
                     swapchain->resize(fw, fh);
                 }
 
@@ -176,12 +187,32 @@ int main()
                 imguiLayer->endFrame(ctx, backBuffer->getRTV());
 
                 ctx->resourceBarrier(backBuffer.get(), Resource::State::Present);
+
+                ctx->writeTimestamp(queryHeap.get(), 1);
+
+                ctx->resolveQuery(queryHeap.get(), 0, 2, timestampBuffer.get(), 0);
+
                 ctx->submit();
                 swapchain->present();
                 device->endFrame();
+
+                uint64_t* pData = reinterpret_cast<uint64_t*>(timestampBuffer->map());
+                if (pData)
+                {
+                    uint64_t startTick = pData[0];
+                    uint64_t endTick = pData[1];
+
+                    if (endTick > startTick)
+                    {
+                        double gpuMs = double(endTick - startTick) * 1000.0;
+                        sampleElement->setGpuTime(gpuMs);
+                    }
+                    timestampBuffer->unmap();
+                }
             }
         }
 
+        ImPlot::DestroyContext();
         imguiLayer->terminate();
     }
     catch (const std::exception& e)

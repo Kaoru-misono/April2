@@ -1,0 +1,8 @@
+{
+  "track_id": "style-reformat_20260120",
+  "type": "chore",
+  "status": "new",
+  "created_at": "2026-01-20T11:05:00Z",
+  "updated_at": "2026-01-20T11:05:00Z",
+  "description": "fix format for core/profile and ui/element, use principle of code_styleguides"
+}

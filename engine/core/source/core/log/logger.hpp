@@ -21,37 +21,37 @@ namespace april
         Logger(std::string const& name, LogConfig const& config = {});
         ~Logger();
 
-        template<typename... Args>
+        template <typename... Args>
         auto trace(std::source_location const& loc, std::format_string<Args...> fmt, Args&&... args) -> void
         {
             log(ELogLevel::Trace, loc, fmt, std::forward<Args>(args)...);
         }
 
-        template<typename... Args>
+        template <typename... Args>
         auto debug(std::source_location const& loc, std::format_string<Args...> fmt, Args&&... args) -> void
         {
             log(ELogLevel::Debug, loc, fmt, std::forward<Args>(args)...);
         }
 
-        template<typename... Args>
+        template <typename... Args>
         auto info(std::source_location const& loc, std::format_string<Args...> fmt, Args&&... args) -> void
         {
             log(ELogLevel::Info, loc, fmt, std::forward<Args>(args)...);
         }
 
-        template<typename... Args>
+        template <typename... Args>
         auto warning(std::source_location const& loc, std::format_string<Args...> fmt, Args&&... args) -> void
         {
             log(ELogLevel::Warning, loc, fmt, std::forward<Args>(args)...);
         }
 
-        template<typename... Args>
+        template <typename... Args>
         auto error(std::source_location const& loc, std::format_string<Args...> fmt, Args&&... args) -> void
         {
             log(ELogLevel::Error, loc, fmt, std::forward<Args>(args)...);
         }
 
-        template<typename... Args>
+        template <typename... Args>
         auto fatal(std::source_location const& loc, std::format_string<Args...> fmt, Args&&... args) -> void
         {
             log(ELogLevel::Fatal, loc, fmt, std::forward<Args>(args)...);
@@ -60,7 +60,7 @@ namespace april
         /**
          * @brief Backward compatibility for critical level.
          */
-        template<typename... Args>
+        template <typename... Args>
         auto critical(std::source_location const& loc, std::format_string<Args...> fmt, Args&&... args) -> void
         {
             log(ELogLevel::Fatal, loc, fmt, std::forward<Args>(args)...);
@@ -75,7 +75,7 @@ namespace april
         auto getConfig() const -> LogConfig const& { return m_config; }
 
     private:
-        template<typename... Args>
+        template <typename... Args>
         auto log(ELogLevel level, std::source_location const& loc, std::format_string<Args...> fmt, Args&&... args) -> void
         {
             if (level < m_minLevel)
@@ -83,9 +83,9 @@ namespace april
                 return;
             }
 
-            std::string message = std::format(fmt, std::forward<Args>(args)...);
+            auto message = std::format(fmt, std::forward<Args>(args)...);
 
-            LogContext context{
+            auto context = LogContext{
                 .level = level,
                 .name = m_name,
                 .location = loc,
@@ -93,7 +93,7 @@ namespace april
                 .threadID = std::this_thread::get_id()
             };
 
-            std::vector<std::shared_ptr<ILogSink>> sinksCopy;
+            auto sinksCopy = std::vector<std::shared_ptr<ILogSink>>{};
             {
                 std::lock_guard<std::recursive_mutex> lock(m_mutex);
                 sinksCopy = m_sinks;

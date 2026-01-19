@@ -1,0 +1,18 @@
+{
+  "tools": {
+    "allowed": [
+      "Shell",
+      "shell",
+      "run_shell",
+      "execute_shell",
+      "terminal",
+      "Git",
+      "git",
+      "CMake",
+      "cmake"
+    ]
+  },
+  "ui": {
+    "hideWindowTitle": true
+  }
+}

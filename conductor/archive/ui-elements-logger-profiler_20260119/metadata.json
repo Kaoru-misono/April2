@@ -1,0 +1,8 @@
+{
+  "track_id": "ui-elements-logger-profiler_20260119",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-19T16:15:00Z",
+  "updated_at": "2026-01-19T16:15:00Z",
+  "description": "Implement ElementLogger and ElementProfiler in engine/ui referencing nvpro_core2"
+}
