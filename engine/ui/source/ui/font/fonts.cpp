@@ -1,8 +1,5 @@
 #include "fonts.hpp"
 
-#include <cstdint>
-#include <string>
-
 #include <imgui.h>
 
 #include "external/fonts/roboto_mono.h"
@@ -15,9 +12,12 @@
 
 namespace april::ui
 {
-    ImFont* g_defaultFont   = nullptr;
-    ImFont* g_iconicFont    = nullptr;
-    ImFont* g_monospaceFont = nullptr;
+    inline namespace
+    {
+        ImFont* g_defaultFont   = nullptr;
+        ImFont* g_iconicFont    = nullptr;
+        ImFont* g_monospaceFont = nullptr;
+    }
 
     static auto getDefaultConfig() -> ImFontConfig
     {

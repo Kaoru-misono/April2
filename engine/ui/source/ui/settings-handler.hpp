@@ -1,30 +1,3 @@
-/*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.  All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * SPDX-FileCopyrightText: Copyright (c) 2024-2025 NVIDIA CORPORATION
- * SPDX-License-Identifier: Apache-2.0
- */
-
-
-// This is a helper class to manage settings in ImGui. It allows to easily add settings to the ImGui settings handler
-
-// Example
-// m_settingsHandler.setHandlerName("MyHandlerName");
-// m_settingsHandler.setSetting("ShowLog", &m_showLog);
-// m_settingsHandler.setSetting("LogLevel", &m_logger);
-// m_settingsHandler.addImGuiHandler();
 #pragma once
 
 #include <functional>
@@ -36,18 +9,22 @@
 
 namespace april::ui
 {
-
+    // Example
+    // m_settingsHandler.setHandlerName("MyHandlerName");
+    // m_settingsHandler.setSetting("ShowLog", &m_showLog);
+    // m_settingsHandler.setSetting("LogLevel", &m_logger);
+    // m_settingsHandler.addImGuiHandler();
     class SettingsHandler
     {
     public:
         SettingsHandler();
         explicit SettingsHandler(const std::string& name);
 
-        void setHandlerName(const std::string& name) { handlerName = name; }
-        void addImGuiHandler();
+        auto setHandlerName(const std::string& name) -> void { handlerName = name; }
+        auto addImGuiHandler() -> void;
 
         template <typename T>
-        void setSetting(const std::string& key, T* value);
+        auto setSetting(const std::string& key, T* value) -> void;
 
         private:
         struct SettingEntry
@@ -57,13 +34,13 @@ namespace april::ui
             std::function<std::string()>            toString;
         };
 
-        std::string                                   handlerName;
-        std::unordered_map<std::string, SettingEntry> settings;
+        std::string                                   handlerName{};
+        std::unordered_map<std::string, SettingEntry> settings{};
     };
 
     // Default setting for int, float, double, vec2, vec3, bool, ...
     template <typename T>
-    void SettingsHandler::setSetting(const std::string& key, T* value)
+    auto SettingsHandler::setSetting(const std::string& key, T* value) -> void
     {
         SettingEntry entry{.ptr = value};
         // value=23.3,45.2

@@ -24,3 +24,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: ImGui Font Texture & Engine Example**
 *Link: [./tracks/imgui-font-example_20260118/](./tracks/imgui-font-example_20260118/)*
+
+---
+
+- [x] **Track: Refactor logger format, add configurable layout, and provide a log stylization library.**
+*Link: [./tracks/log-enhancement_20260119/](./tracks/log-enhancement_20260119/)*

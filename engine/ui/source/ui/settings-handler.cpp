@@ -20,7 +20,7 @@ namespace april::ui
     // WindowWidth=1513
     // WindowHeight=871
     //
-    void SettingsHandler::addImGuiHandler()
+    auto SettingsHandler::addImGuiHandler() -> void
     {
         assert(!handlerName.empty());
         ImGuiSettingsHandler ini_handler{};

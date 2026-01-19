@@ -501,6 +501,10 @@ namespace april::graphics
         auto enableRaytracingValidation() -> void;
         auto disableRaytracingValidation() -> void;
 
+        std::unique_ptr<rhi::IDebugCallback> m_callback{};
+        std::unique_ptr<rhi::IPersistentCache> m_shaderCache{};
+        std::unique_ptr<rhi::IPersistentCache> m_pipelineCache{};
+
         Desc m_desc{};
         Slang::ComPtr<slang::IGlobalSession> m_slangGlobalSession{};
         Slang::ComPtr<rhi::IDevice> m_gfxDevice{};
@@ -526,9 +530,6 @@ namespace april::graphics
 
         std::unique_ptr<ProgramManager> mp_programManager;
         // std::unique_ptr<Profiler> mp_profiler;
-        std::unique_ptr<rhi::IDebugCallback> m_callback{};
-        std::unique_ptr<rhi::IPersistentCache> m_shaderCache{};
-        std::unique_ptr<rhi::IPersistentCache> m_pipelineCache{};
 
         std::mutex m_globalGfxMutex;
     };

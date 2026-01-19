@@ -46,7 +46,7 @@ namespace april::ui
 
         auto getFontTexture() const -> core::ref<graphics::Texture> { return m_fontTexture; }
 
-        private:
+    private:
         auto setupImguiDock() -> void;
         auto onViewportSizeChange(float2 size) -> void;
         auto renderDrawData(graphics::RenderPassEncoder* pEncoder, ImDrawData* pDrawData) -> void;

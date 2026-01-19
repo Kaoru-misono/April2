@@ -10,14 +10,15 @@ namespace april::ui
     struct IElement : public core::Object
     {
         APRIL_OBJECT(IElement)
-        virtual void onAttach(ImGuiLayer* pLayer) = 0;                       // Called once at start
-        virtual void onDetach() = 0;                                         // Called before destroying
-        virtual void onResize(graphics::CommandContext* pContext, float2 const& size) = 0; // Called when the viewport size is changing
-        virtual void onUIRender() = 0;                                           // Called for anything related to UI
-        virtual void onUIMenu() = 0;                                             // This is the menubar to create
-        virtual void onPreRender() = 0;                  // called post onUIRender and prior onRender (looped over all elements)
-        virtual void onRender(graphics::CommandContext* pContext) = 0;  // For anything to render within a frame
-        virtual void onFileDrop(std::filesystem::path const& filename) = 0;  // For when a file is dragged on top of the window
+
+        virtual auto onAttach(ImGuiLayer* pLayer) -> void = 0;                                     // Called once at start
+        virtual auto onDetach() -> void = 0;                                                       // Called before destroying
+        virtual auto onResize(graphics::CommandContext* pContext, float2 const& size) -> void = 0; // Called when the viewport size is changing
+        virtual auto onUIRender() -> void = 0;                                                     // Called for anything related to UI
+        virtual auto onUIMenu() -> void = 0;                                                       // This is the menubar to create
+        virtual auto onPreRender() -> void = 0;                                                    // called post onUIRender and prior onRender (looped over all elements)
+        virtual auto onRender(graphics::CommandContext* pContext) -> void = 0;                     // For anything to render within a frame
+        virtual auto onFileDrop(std::filesystem::path const& filename) -> void = 0;                // For when a file is dragged on top of the window
 
         virtual ~IElement() = default;
     };

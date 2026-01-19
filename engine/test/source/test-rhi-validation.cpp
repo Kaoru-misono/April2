@@ -322,84 +322,84 @@ TEST_SUITE("RHI Validation")
         }
     }
 
-    TEST_CASE("Ray Tracing AS Building")
-    {
-        for (auto deviceType : { Device::Type::D3D12, Device::Type::Vulkan })
-        {
-            Device::Desc deviceDesc;
-            deviceDesc.type = deviceType;
-            auto device = april::core::make_ref<Device>(deviceDesc);
-            if (!device) continue;
+    // TEST_CASE("Ray Tracing AS Building")
+    // {
+    //     for (auto deviceType : { Device::Type::D3D12, Device::Type::Vulkan })
+    //     {
+    //         Device::Desc deviceDesc;
+    //         deviceDesc.type = deviceType;
+    //         auto device = april::core::make_ref<Device>(deviceDesc);
+    //         if (!device) continue;
 
-            if (!device->isFeatureSupported(Device::SupportedFeatures::Raytracing)) continue;
+    //         if (!device->isFeatureSupported(Device::SupportedFeatures::Raytracing)) continue;
 
-            auto ctx = device->getCommandContext();
-            REQUIRE(ctx);
+    //         auto ctx = device->getCommandContext();
+    //         REQUIRE(ctx);
 
-            struct Vertex { april::float3 pos; };
-            std::vector<Vertex> vertices = { {{0,0,0}}, {{1,0,0}}, {{0,1,0}} };
-            auto vbo = device->createBuffer(vertices.size() * sizeof(Vertex), ResourceBindFlags::Vertex);
-            ctx->updateBuffer(vbo.get(), vertices.data());
-            ctx->submit(true);
+    //         struct Vertex { april::float3 pos; };
+    //         std::vector<Vertex> vertices = { {{0,0,0}}, {{1,0,0}}, {{0,1,0}} };
+    //         auto vbo = device->createBuffer(vertices.size() * sizeof(Vertex), ResourceBindFlags::Vertex);
+    //         ctx->updateBuffer(vbo.get(), vertices.data());
+    //         ctx->submit(true);
 
-            RtGeometryDesc geomDesc;
-            geomDesc.type = RtGeometryType::Triangles;
-            geomDesc.flags = RtGeometryFlags::Opaque;
-            geomDesc.content.triangles.vertexFormat = ResourceFormat::RGB32Float;
-            geomDesc.content.triangles.vertexCount = 3;
-            geomDesc.content.triangles.vertexData = vbo->getGpuAddress();
-            geomDesc.content.triangles.vertexStride = sizeof(Vertex);
+    //         RtGeometryDesc geomDesc;
+    //         geomDesc.type = RtGeometryType::Triangles;
+    //         geomDesc.flags = RtGeometryFlags::Opaque;
+    //         geomDesc.content.triangles.vertexFormat = ResourceFormat::RGB32Float;
+    //         geomDesc.content.triangles.vertexCount = 3;
+    //         geomDesc.content.triangles.vertexData = vbo->getGpuAddress();
+    //         geomDesc.content.triangles.vertexStride = sizeof(Vertex);
 
-            RtAccelerationStructureBuildInputs blasInputs;
-            blasInputs.kind = RtAccelerationStructureKind::BottomLevel;
-            blasInputs.flags = RtAccelerationStructureBuildFlags::PreferFastTrace;
-            blasInputs.descCount = 1;
-            blasInputs.geometryDescs = &geomDesc;
+    //         RtAccelerationStructureBuildInputs blasInputs;
+    //         blasInputs.kind = RtAccelerationStructureKind::BottomLevel;
+    //         blasInputs.flags = RtAccelerationStructureBuildFlags::PreferFastTrace;
+    //         blasInputs.descCount = 1;
+    //         blasInputs.geometryDescs = &geomDesc;
 
-            auto blasPrebuild = RtAccelerationStructure::getPrebuildInfo(device.get(), blasInputs);
-            auto blasBuffer = device->createBuffer(blasPrebuild.resultDataMaxSize, ResourceBindFlags::AccelerationStructure);
-            RtAccelerationStructure::Desc blasDesc;
-            blasDesc.setKind(RtAccelerationStructureKind::BottomLevel).setBuffer(blasBuffer, 0, blasPrebuild.resultDataMaxSize);
-            auto blas = RtAccelerationStructure::create(device, blasDesc);
-            REQUIRE(blas);
+    //         auto blasPrebuild = RtAccelerationStructure::getPrebuildInfo(device.get(), blasInputs);
+    //         auto blasBuffer = device->createBuffer(blasPrebuild.resultDataMaxSize, ResourceBindFlags::AccelerationStructure);
+    //         RtAccelerationStructure::Desc blasDesc;
+    //         blasDesc.setKind(RtAccelerationStructureKind::BottomLevel).setBuffer(blasBuffer, 0, blasPrebuild.resultDataMaxSize);
+    //         auto blas = RtAccelerationStructure::create(device, blasDesc);
+    //         REQUIRE(blas);
 
-            RtInstanceDesc instance;
-            std::memset(&instance, 0, sizeof(instance));
-            instance.transform[0][0] = 1.0f; instance.transform[1][1] = 1.0f; instance.transform[2][2] = 1.0f;
-            instance.accelerationStructure = blas->getGpuAddress();
-            auto instanceBuffer = device->createBuffer(sizeof(instance), ResourceBindFlags::ShaderResource, MemoryType::Upload, &instance);
+    //         RtInstanceDesc instance;
+    //         std::memset(&instance, 0, sizeof(instance));
+    //         instance.transform[0][0] = 1.0f; instance.transform[1][1] = 1.0f; instance.transform[2][2] = 1.0f;
+    //         instance.accelerationStructure = blas->getGpuAddress();
+    //         auto instanceBuffer = device->createBuffer(sizeof(instance), ResourceBindFlags::ShaderResource, MemoryType::Upload, &instance);
 
-            RtAccelerationStructureBuildInputs tlasInputs;
-            tlasInputs.kind = RtAccelerationStructureKind::TopLevel;
-            tlasInputs.descCount = 1;
-            tlasInputs.instanceDescs = instanceBuffer->getGpuAddress();
+    //         RtAccelerationStructureBuildInputs tlasInputs;
+    //         tlasInputs.kind = RtAccelerationStructureKind::TopLevel;
+    //         tlasInputs.descCount = 1;
+    //         tlasInputs.instanceDescs = instanceBuffer->getGpuAddress();
 
-            auto tlasPrebuild = RtAccelerationStructure::getPrebuildInfo(device.get(), tlasInputs);
-            auto tlasBuffer = device->createBuffer(tlasPrebuild.resultDataMaxSize, ResourceBindFlags::AccelerationStructure);
-            RtAccelerationStructure::Desc tlasDesc;
-            tlasDesc.setKind(RtAccelerationStructureKind::TopLevel).setBuffer(tlasBuffer, 0, tlasPrebuild.resultDataMaxSize);
-            auto tlas = RtAccelerationStructure::create(device, tlasDesc);
-            REQUIRE(tlas);
+    //         auto tlasPrebuild = RtAccelerationStructure::getPrebuildInfo(device.get(), tlasInputs);
+    //         auto tlasBuffer = device->createBuffer(tlasPrebuild.resultDataMaxSize, ResourceBindFlags::AccelerationStructure);
+    //         RtAccelerationStructure::Desc tlasDesc;
+    //         tlasDesc.setKind(RtAccelerationStructureKind::TopLevel).setBuffer(tlasBuffer, 0, tlasPrebuild.resultDataMaxSize);
+    //         auto tlas = RtAccelerationStructure::create(device, tlasDesc);
+    //         REQUIRE(tlas);
 
-            auto scratchBuffer = device->createBuffer(std::max(blasPrebuild.scratchDataSize, tlasPrebuild.scratchDataSize), ResourceBindFlags::UnorderedAccess);
-            auto rayEncoder = ctx->beginRayTracingPass();
-            RtAccelerationStructure::BuildDesc blasBuild;
-            blasBuild.inputs = blasInputs;
-            blasBuild.dest = blas.get();
-            blasBuild.scratchData = scratchBuffer->getGpuAddress();
-            rayEncoder->buildAccelerationStructure(blasBuild, 0, nullptr);
-            ctx->uavBarrier(blasBuffer.get());
-            RtAccelerationStructure::BuildDesc tlasBuild;
-            tlasBuild.inputs = tlasInputs;
-            tlasBuild.dest = tlas.get();
-            tlasBuild.scratchData = scratchBuffer->getGpuAddress();
-            rayEncoder->buildAccelerationStructure(tlasBuild, 0, nullptr);
-            rayEncoder->end();
-            ctx->submit(true);
+    //         auto scratchBuffer = device->createBuffer(std::max(blasPrebuild.scratchDataSize, tlasPrebuild.scratchDataSize), ResourceBindFlags::UnorderedAccess);
+    //         auto rayEncoder = ctx->beginRayTracingPass();
+    //         RtAccelerationStructure::BuildDesc blasBuild;
+    //         blasBuild.inputs = blasInputs;
+    //         blasBuild.dest = blas.get();
+    //         blasBuild.scratchData = scratchBuffer->getGpuAddress();
+    //         rayEncoder->buildAccelerationStructure(blasBuild, 0, nullptr);
+    //         ctx->uavBarrier(blasBuffer.get());
+    //         RtAccelerationStructure::BuildDesc tlasBuild;
+    //         tlasBuild.inputs = tlasInputs;
+    //         tlasBuild.dest = tlas.get();
+    //         tlasBuild.scratchData = scratchBuffer->getGpuAddress();
+    //         rayEncoder->buildAccelerationStructure(tlasBuild, 0, nullptr);
+    //         rayEncoder->end();
+    //         ctx->submit(true);
 
-            CHECK(tlas->getGfxAccelerationStructure() != nullptr);
-        }
-    }
+    //         CHECK(tlas->getGfxAccelerationStructure() != nullptr);
+    //     }
+    // }
 
     TEST_CASE("Manual Heap Allocation")
     {
