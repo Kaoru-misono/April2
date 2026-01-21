@@ -76,6 +76,7 @@ namespace april::core {
 } // namespace april::core
 
 #define AP_PROFILE_SCOPE(name) april::core::ScopedProfileEvent AP_UNIQUE_VAR_NAME(profile_scope_)(name)
+#define AP_PROFILE_FUNCTION() AP_PROFILE_SCOPE(std::source_location::current().function_name())
 #define AP_UNIQUE_VAR_NAME_CONCAT_IMPL(base, line) base ## line
 #define AP_UNIQUE_VAR_NAME_CONCAT(base, line) AP_UNIQUE_VAR_NAME_CONCAT_IMPL(base, line)
 #define AP_UNIQUE_VAR_NAME(base) AP_UNIQUE_VAR_NAME_CONCAT(base, __LINE__)

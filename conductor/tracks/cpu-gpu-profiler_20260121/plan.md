@@ -3,11 +3,11 @@
 ## Phase 1: Core Architecture & CPU Profiling (Core Module)
  Establish a robust, thread-safe profiling backbone inspired by Falcor/nvpro_core2.
 
-- [~] Task: Design and Implement `Profiler` Manager (`engine/core/source/core/profile/profiler.hpp|cpp`).
+- [x] Task: Design and Implement `Profiler` Manager (`engine/core/source/core/profile/profiler.hpp|cpp`). [c9ba787]
     - [ ] Create `Profiler` singleton/manager.
     - [ ] Implement `ProfilerEvent` structure to hold comprehensive data (name, file, line, thread ID, CPU start/end, GPU start/end, detailed stats).
     - [ ] Implement robust Thread-Local Storage (TLS) for lock-free event capture from worker threads.
-- [ ] Task: Implement Advanced `CpuTimer` and Macros.
+- [x] Task: Implement Advanced `CpuTimer` and Macros. [517d115]
     - [ ] Implement high-resolution `CpuTimer`.
     - [ ] Create macros `AP_PROFILE_SCOPE(name)`, `AP_PROFILE_FUNCTION()` that capture source location (`std::source_location`) for rich debugging context.
     - [ ] Test: Stress test with multiple threads to ensure data integrity and low overhead.
