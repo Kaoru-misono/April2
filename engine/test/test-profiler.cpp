@@ -60,7 +60,58 @@ TEST_CASE("MultiThreaded Profiling") {
     // but getThreadEventCount works with an ID.
     // However, we don't have the worker's ID here easily unless we capture it.
     // But since I added getThreadEventCount taking an ID, I can't check it unless I passed the ID out.
-    // For now, just ensure no crashes.
+    Profiler::get().shutdown();
+}
+
+TEST_CASE("Frames and Aggregation") {
+    Profiler::get().init();
+
+    for (int i = 0; i < 5; ++i) {
+        Profiler::get().beginFrame();
+        {
+            AP_PROFILE_SCOPE("FrameEvent");
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        Profiler::get().endFrame();
+    }
+
+    std::vector<Snapshot> frameSnapshots, asyncSnapshots;
+    Profiler::get().getSnapshots(frameSnapshots, asyncSnapshots);
+
+    CHECK(frameSnapshots.size() > 0);
+    bool found = false;
+    for (auto const& snap : frameSnapshots) {
+        for (size_t i = 0; i < snap.timerNames.size(); ++i) {
+            if (snap.timerNames[i] == "FrameEvent") {
+                found = true;
+                CHECK(snap.timerInfos[i].numAveraged == 5);
+                CHECK(snap.timerInfos[i].cpu.average > 0.0);
+            }
+        }
+    }
+    CHECK(found);
+
+    Profiler::get().shutdown();
+}
+
+TEST_CASE("JSON Export") {
+    Profiler::get().init();
+
+    Profiler::get().beginFrame();
+    {
+        AP_PROFILE_SCOPE("ExportEvent");
+    }
+    Profiler::get().endFrame();
+
+    Profiler::get().serializeToJson("test_profile.json");
     
+    // Check if file exists and has content
+    std::ifstream f("test_profile.json");
+    CHECK(f.good());
+    std::stringstream buffer;
+    buffer << f.rdbuf();
+    CHECK(buffer.str().find("ExportEvent") != std::string::npos);
+    f.close();
+
     Profiler::get().shutdown();
 }

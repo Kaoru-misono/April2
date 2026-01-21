@@ -26,10 +26,10 @@
 ## Phase 3: Data Aggregation & Rich Export
  Support complex analysis workflows.
 
-- [ ] Task: Implement Advanced Sliding Window & Aggregation.
+- [x] Task: Implement Advanced Sliding Window & Aggregation. [8c71d99]
     - [ ] Implement a history buffer (e.g., last 60-600 frames) to allow capturing intermittent spikes.
     - [ ] Implement frame-based aggregation (min/max/avg time per scope over the window) for statistical analysis, not just raw timeline data.
-- [ ] Task: Implement Full Chrome Tracing Export.
+- [x] Task: Implement Full Chrome Tracing Export. [8c71d99]
     - [ ] Create `serializeToJson()` supporting the full Chrome Tracing event format (ph: 'X' for complete events, args for metadata).
     - [ ] Include thread names and process metadata in the export.
     - [ ] Test: Verify complex nested timelines and multi-threaded data export correctly to `chrome://tracing`.

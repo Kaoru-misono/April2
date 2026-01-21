@@ -6,7 +6,7 @@
 #include <thread>
 #include <mutex>
 #include <source_location>
-#include <unordered_map>
+#include <map>
 #include <array>
 
 namespace april::core {
@@ -79,6 +79,10 @@ namespace april::core {
         auto init() -> void;
         auto shutdown() -> void;
 
+        // Frame management
+        auto beginFrame() -> void;
+        auto endFrame() -> void;
+
         // Core profiling API
         auto beginEvent(char const* name, char const* file, uint32_t line) -> void;
         auto endEvent() -> void;
@@ -95,6 +99,9 @@ namespace april::core {
         // UI Compatibility
         auto getSnapshots(std::vector<Snapshot>& frameSnapshots, std::vector<Snapshot>& asyncSnapshots) const -> void;
 
+        // Export
+        auto serializeToJson(std::string const& filePath) -> void;
+
     private:
         Profiler() = default;
         ~Profiler() = default;
@@ -104,12 +111,18 @@ namespace april::core {
 
         struct ThreadData
         {
-            std::vector<ProfilerEvent> events;
-            std::vector<size_t> openEventIndices; // Stack of indices into 'events'
+            std::vector<ProfilerEvent> currentFrameEvents;
+            std::vector<size_t> openEventIndices; // Stack of indices into 'currentFrameEvents'
+            
+            // History for aggregation (sliding window of frames)
+            static constexpr size_t kMaxHistoryFrames = 128;
+            std::vector<std::vector<ProfilerEvent>> history;
+            size_t historyWriteIndex = 0;
         };
 
         mutable std::mutex m_mutex;
-        std::unordered_map<std::thread::id, ThreadData> m_threadData;
+        std::map<std::thread::id, ThreadData> m_threadData;
+        uint32_t m_frameCount = 0;
 
         // Helper to access thread-local storage securely or look it up
         auto getThreadData() -> ThreadData&;
