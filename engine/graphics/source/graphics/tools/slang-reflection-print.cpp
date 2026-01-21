@@ -731,7 +731,7 @@ namespace rhi
         key("entry points");
         auto entry_point_count = program_layout->getEntryPointCount();
         WITH_ARRAY()
-        for (auto i = 0zu; i < entry_point_count; i++) {
+        for (size_t i = 0; i < entry_point_count; i++) {
             element();
             print_entry_point_layout(program_layout->getEntryPointByIndex(i), root_offsets);
         }
