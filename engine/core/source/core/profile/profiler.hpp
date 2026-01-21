@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <array>
 #include <chrono>
 #include <thread>
 #include <mutex>
@@ -60,6 +61,44 @@ namespace april::core
     };
 
     /**
+    * @brief Statistics for a single timer over a window of frames.
+    */
+    struct TimerStats
+    {
+        static constexpr uint32_t kMaxLastFrames = 128;
+
+        double last{0.0};
+        double average{0.0};
+        double absMinValue{0.0};
+        double absMaxValue{0.0};
+        uint32_t index{0};
+        std::array<double, kMaxLastFrames> times{};
+    };
+
+    /**
+    * @brief Aggregated information for a specific profiled scope.
+    */
+    struct TimerInfo
+    {
+        uint32_t numAveraged{0};
+        bool async{false};
+        uint32_t level{0};
+        TimerStats cpu;
+        TimerStats gpu;
+    };
+
+    /**
+    * @brief A point-in-time capture of aggregated profiling data.
+    */
+    struct Snapshot
+    {
+        std::string name;
+        std::vector<TimerInfo> timerInfos;
+        std::vector<std::string> timerNames;
+        std::vector<std::string> timerApiNames;
+    };
+
+    /**
     * @brief Central manager for the profiling system.
     *
     * Handles per-thread event storage and aggregation.
@@ -83,6 +122,11 @@ namespace april::core
         * @brief Ends the current open CPU event on the current thread.
         */
         auto endEvent() -> void;
+
+        /**
+        * @brief Captures aggregated data into snapshots for UI visualization.
+        */
+        auto getSnapshots(std::vector<Snapshot>& frameSnapshots, std::vector<Snapshot>& singleSnapshots) -> void;
 
         // TODO: Phase 3 - getEvents() and serialization
         // For testing purposes

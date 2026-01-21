@@ -77,15 +77,42 @@ namespace april::core
         data->openEvents.pop_back();
     }
 
-    auto Profiler::getThreadEventCount(std::thread::id id) -> size_t
-    {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        auto it = m_threadData.find(id);
-        if (it != m_threadData.end())
-        {
-            return it->second->events.size();
-        }
-        return 0;
-    }
+        auto Profiler::getThreadEventCount(std::thread::id id) -> size_t
 
-} // namespace april::core
+        {
+
+            std::lock_guard<std::mutex> lock(m_mutex);
+
+            auto it = m_threadData.find(id);
+
+            if (it != m_threadData.end())
+
+            {
+
+                return it->second->events.size();
+
+            }
+
+            return 0;
+
+        }
+
+    
+
+        auto Profiler::getSnapshots(std::vector<Snapshot>& frameSnapshots, std::vector<Snapshot>& singleSnapshots) -> void
+
+        {
+
+            std::lock_guard<std::mutex> lock(m_mutex);
+
+            // STUB: For now, just clear them to avoid using stale data
+
+            frameSnapshots.clear();
+
+            singleSnapshots.clear();
+
+        }
+
+    
+
+    } // namespace april::core
