@@ -30,6 +30,11 @@ namespace april::ui
     auto ElementProfiler::onRender(graphics::CommandContext* pContext) -> void {}
     auto ElementProfiler::onFileDrop(std::filesystem::path const& filename) -> void {}
 
+    auto ElementProfiler::addView(std::shared_ptr<ViewSettings> state) -> void
+    {
+        m_views.push_back({.state = state});
+    }
+
     auto ElementProfiler::add_settings_handler() -> void
     {
         auto readOpen = [](ImGuiContext*, ImGuiSettingsHandler* handler, const char* name) -> void* {

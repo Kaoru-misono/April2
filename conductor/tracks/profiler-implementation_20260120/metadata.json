@@ -1,8 +1,0 @@
-{
-  "track_id": "profiler-implementation_20260120",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-01-20T23:07:00Z",
-  "updated_at": "2026-01-20T23:07:00Z",
-  "description": "Complete the implementation of ElementProfiler from nvapp to April Engine."
-}
