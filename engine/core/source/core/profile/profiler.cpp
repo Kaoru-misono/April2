@@ -28,6 +28,15 @@ namespace april::core {
         return us.count();
     }
 
+    // --- Snapshot ---
+
+    auto Snapshot::appendToString(std::string& stats, bool full) const -> void
+    {
+        // Placeholder implementation
+        (void)stats;
+        (void)full;
+    }
+
     // --- Profiler ---
 
     auto Profiler::get() -> Profiler&
@@ -112,6 +121,14 @@ namespace april::core {
             return it->second.events.size();
         }
         return 0;
+    }
+
+    auto Profiler::getSnapshots(std::vector<Snapshot>& frameSnapshots, std::vector<Snapshot>& asyncSnapshots) const -> void
+    {
+        // Placeholder implementation for UI compatibility.
+        // In Phase 3, this will be populated with aggregated data from m_threadData.
+        frameSnapshots.clear();
+        asyncSnapshots.clear();
     }
 
     // --- ScopedProfileEvent ---

@@ -1,6 +1,6 @@
 # Implementation Plan - CPU/GPU Profiler
 
-## Phase 1: Core Architecture & CPU Profiling (Core Module)
+## Phase 1: Core Architecture & CPU Profiling (Core Module) [checkpoint: 55e1064]
  Establish a robust, thread-safe profiling backbone inspired by Falcor/nvpro_core2.
 
 - [x] Task: Design and Implement `Profiler` Manager (`engine/core/source/core/profile/profiler.hpp|cpp`). [c9ba787]

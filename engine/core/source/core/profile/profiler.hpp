@@ -7,6 +7,7 @@
 #include <mutex>
 #include <source_location>
 #include <unordered_map>
+#include <array>
 
 namespace april::core {
 
@@ -32,6 +33,43 @@ namespace april::core {
         std::chrono::high_resolution_clock::time_point m_startTime;
     };
 
+    // Forward declarations for UI compatibility
+    struct TimerStats
+    {
+        static constexpr uint32_t kMaxLastFrames = 128;
+
+        double last = 0.0;
+        double average = 0.0;
+        double absMinValue = 0.0;
+        double absMaxValue = 0.0;
+        uint32_t index = 0;
+        std::array<double, kMaxLastFrames> times = {};
+    };
+
+    struct TimerInfo
+    {
+        uint32_t numAveraged = 0;
+        bool accumulated = false;
+        bool async = false;
+        uint32_t level = 0;
+
+        TimerStats cpu;
+        TimerStats gpu;
+    };
+
+    class Snapshot
+    {
+    public:
+        std::string name;
+        size_t id = 0;
+
+        std::vector<TimerInfo> timerInfos;
+        std::vector<std::string> timerNames;
+        std::vector<std::string> timerApiNames;
+
+        auto appendToString(std::string& stats, bool full) const -> void;
+    };
+
     class Profiler
     {
     public:
@@ -46,6 +84,9 @@ namespace april::core {
 
         // Diagnostics / Query
         auto getThreadEventCount(std::thread::id threadId) const -> size_t;
+
+        // UI Compatibility
+        auto getSnapshots(std::vector<Snapshot>& frameSnapshots, std::vector<Snapshot>& asyncSnapshots) const -> void;
 
     private:
         Profiler() = default;
