@@ -16,6 +16,8 @@
 #include <slang-rhi.h>
 #include <string_view>
 
+namespace april::core { class Profiler; }
+
 namespace april::graphics
 {
     class CommandContext; // Forward declaration
@@ -271,7 +273,7 @@ namespace april::graphics
         };
 
         auto getDevice() const -> core::ref<Device>;
-        auto getProfiler() const -> Profiler*;
+        auto getProfiler() const -> core::Profiler*;
 
         /**
         * Flush the command list. This doesn't reset the command allocator, just submits the commands

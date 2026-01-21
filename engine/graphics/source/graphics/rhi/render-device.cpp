@@ -12,6 +12,7 @@
 #include "buffer.hpp"
 #include "command-context.hpp"
 #include "rhi-tools.hpp"
+#include "graphics/profile/gpu-profiler.hpp"
 #include "program/program-manager.hpp"
 #include "program/shader-variable.hpp"
 #include "tools/blob.hpp"
@@ -279,6 +280,7 @@ namespace april::graphics
     Device::Device(Desc const& desc) : m_desc(desc)
     {
         checkResult(slang::createGlobalSession(m_slangGlobalSession.writeRef()), "Failed to create Slang global session");
+        // ... (skipping some lines for context match if needed, but I'll try exact)
 
         if (m_desc.type == Type::Default)
         {
@@ -346,6 +348,7 @@ namespace april::graphics
         mp_frameFence->breakStrongReferenceToDevice();
 
         mp_programManager = std::make_unique<ProgramManager>(this);
+        mp_gpuProfiler = GpuProfiler::create(core::ref<Device>(this));
         // mp_profiler = std::make_unique<Profiler>(core::ref<Device>(this));
 
         mp_defaultSampler = createSampler(Sampler::Desc());
@@ -589,9 +592,14 @@ namespace april::graphics
         return mp_programManager.get();
     }
 
-    auto Device::getProfiler() const -> Profiler*
+    auto Device::getProfiler() const -> core::Profiler*
     {
         return nullptr; // mp_profiler.get();
+    }
+
+    auto Device::getGpuProfiler() const -> GpuProfiler*
+    {
+        return mp_gpuProfiler.get();
     }
 
     auto Device::getShaderCacheStats() const -> CacheStats

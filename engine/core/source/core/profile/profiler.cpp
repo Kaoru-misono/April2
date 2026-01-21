@@ -90,7 +90,8 @@ namespace april::core {
             .line = line,
             .threadId = std::this_thread::get_id(),
             .startCpuTime = startCpuTime,
-            .endCpuTime = 0.0
+            .endCpuTime = 0.0,
+            .gpuDuration = 0.0
         };
 
         data.events.push_back(event);
@@ -110,6 +111,26 @@ namespace april::core {
 
         auto now = std::chrono::high_resolution_clock::now();
         data.events[index].endCpuTime = std::chrono::duration<double, std::micro>(now.time_since_epoch()).count();
+    }
+
+    auto Profiler::addGpuEvent(char const* name, double duration) -> void
+    {
+        auto& data = getThreadData();
+        
+        // GPU events are currently added as "completed" events with 0 CPU duration 
+        // but with valid GPU duration.
+        // In the future, we might want to unify them better.
+        auto event = ProfilerEvent{
+            .name = name ? name : "",
+            .file = "",
+            .line = 0,
+            .threadId = std::this_thread::get_id(),
+            .startCpuTime = 0.0,
+            .endCpuTime = 0.0,
+            .gpuDuration = duration
+        };
+
+        data.events.push_back(event);
     }
 
     auto Profiler::getThreadEventCount(std::thread::id threadId) const -> size_t

@@ -19,6 +19,7 @@ namespace april::core {
         std::thread::id threadId;
         double startCpuTime;
         double endCpuTime;
+        double gpuDuration; // In microseconds
     };
 
     class CpuTimer
@@ -81,6 +82,12 @@ namespace april::core {
         // Core profiling API
         auto beginEvent(char const* name, char const* file, uint32_t line) -> void;
         auto endEvent() -> void;
+
+        /**
+         * Adds a GPU event that was resolved from the graphics module.
+         * Since GPU events are resolved asynchronously, they are added after they complete.
+         */
+        auto addGpuEvent(char const* name, double duration) -> void;
 
         // Diagnostics / Query
         auto getThreadEventCount(std::thread::id threadId) const -> size_t;

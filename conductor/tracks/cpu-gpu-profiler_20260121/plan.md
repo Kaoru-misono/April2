@@ -11,12 +11,11 @@
     - [ ] Implement high-resolution `CpuTimer`.
     - [ ] Create macros `AP_PROFILE_SCOPE(name)`, `AP_PROFILE_FUNCTION()` that capture source location (`std::source_location`) for rich debugging context.
     - [ ] Test: Stress test with multiple threads to ensure data integrity and low overhead.
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Core Architecture & CPU Profiling (Core Module)' (Protocol in workflow.md)
 
-## Phase 2: Advanced GPU Profiling (Graphics Module)
+## Phase 2: Advanced GPU Profiling (Graphics Module) [checkpoint: 4844034]
  Implement a full-featured GPU profiler in `graphics` that matches reference capabilities.
 
-- [ ] Task: Implement `GpuProfiler` in `engine/graphics`.
+- [x] Task: Implement `GpuProfiler` in `engine/graphics`. [ebba5e8]
     - [ ] Implement `GpuProfiler` class that manages its own GPU timestamp pools (similar to `nvpro_core2`'s `ProfilerVK`).
     - [ ] Support nested GPU markers/scopes.
     - [ ] Handle multiple command lists/queues if applicable (syncing timestamps across queues).

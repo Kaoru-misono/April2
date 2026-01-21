@@ -60,6 +60,12 @@ target_link_libraries(test-profiler-assets PRIVATE April_graphics April_ui)
 target_compile_features(test-profiler-assets PRIVATE cxx_std_23)
 target_compile_definitions(test-profiler-assets PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
 
+add_executable(test-gpu-profiler test-gpu-profiler.cpp)
+target_include_directories(test-gpu-profiler PRIVATE external/doctest)
+target_link_libraries(test-gpu-profiler PRIVATE April_graphics April_core)
+target_compile_features(test-gpu-profiler PRIVATE cxx_std_23)
+target_compile_definitions(test-gpu-profiler PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
+
 # Unified Test Suite
 add_executable(test-suite
     test-main.cpp

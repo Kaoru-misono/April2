@@ -30,10 +30,12 @@
 #include <vector>
 #include <string>
 
+namespace april::core { class Profiler; }
+
 namespace april::graphics
 {
     class ProgramManager;
-    class Profiler;
+    class GpuProfiler;
     class AftermathContext;
     class ShaderVariable;
 
@@ -353,7 +355,8 @@ namespace april::graphics
 
         auto getProgramManager() const -> ProgramManager*;
 
-        auto getProfiler() const -> Profiler*;
+        auto getProfiler() const -> core::Profiler*;
+        auto getGpuProfiler() const -> GpuProfiler*;
 
         auto getShaderCacheStats() const -> CacheStats;
         auto getPipelineCacheStats() const -> CacheStats;
@@ -529,6 +532,7 @@ namespace april::graphics
         ShaderModel m_defaultShaderModel{ShaderModel::Unknown};
 
         std::unique_ptr<ProgramManager> mp_programManager;
+        core::ref<GpuProfiler> mp_gpuProfiler;
         // std::unique_ptr<Profiler> mp_profiler;
 
         std::mutex m_globalGfxMutex;
