@@ -75,14 +75,14 @@ namespace april::ui
             float cpuTime = 0.f;
             float gpuTime = -1.f;
             std::vector<EntryNode> child;
-            april::core::ProfilerTimeline::TimerInfo timerInfo;
+            // april::core::ProfilerTimeline::TimerInfo timerInfo;
             size_t timerIndex = 0;
         };
 
         auto update_data() -> void;
-        auto add_entries(april::core::ProfilerTimeline::Snapshot const& snapshot,
-                            std::vector<EntryNode>& nodes,
-                            uint32_t startIndex, uint32_t endIndex, uint32_t currentLevel) -> uint32_t;
+        // auto add_entries(april::core::ProfilerTimeline::Snapshot const& snapshot,
+        //                     std::vector<EntryNode>& nodes,
+        //                     uint32_t startIndex, uint32_t endIndex, uint32_t currentLevel) -> uint32_t;
 
         auto display_table_node(EntryNode const& node, bool detailed, uint32_t defaultOpenLevels, uint32_t depth) -> void;
 
@@ -97,14 +97,14 @@ namespace april::ui
 
         auto add_settings_handler() -> void;
 
-        april::core::ProfilerManager* m_profiler = nullptr;
+        // april::core::ProfilerManager* m_profiler = nullptr;
         std::vector<View> m_views;
 
         // Data Cache
         std::vector<EntryNode> m_frameNodes;
         std::vector<EntryNode> m_singleNodes;
-        std::vector<april::core::ProfilerTimeline::Snapshot> m_frameSnapshots;
-        std::vector<april::core::ProfilerTimeline::Snapshot> m_singleSnapshots;
+        // std::vector<april::core::ProfilerTimeline::Snapshot> m_frameSnapshots;
+        // std::vector<april::core::ProfilerTimeline::Snapshot> m_singleSnapshots;
 
         bool m_show = false;
         bool m_vsync = true;

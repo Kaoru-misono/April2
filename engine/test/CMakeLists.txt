@@ -54,6 +54,12 @@ target_link_libraries(test-profiler-ui PRIVATE April_graphics April_ui)
 target_compile_features(test-profiler-ui PRIVATE cxx_std_23)
 target_compile_definitions(test-profiler-ui PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
 
+add_executable(test-profiler-assets test-profiler-assets.cpp)
+target_include_directories(test-profiler-assets PRIVATE external/doctest)
+target_link_libraries(test-profiler-assets PRIVATE April_graphics April_ui)
+target_compile_features(test-profiler-assets PRIVATE cxx_std_23)
+target_compile_definitions(test-profiler-assets PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
+
 # Unified Test Suite
 add_executable(test-suite
     test-main.cpp

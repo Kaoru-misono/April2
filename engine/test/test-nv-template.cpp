@@ -147,8 +147,8 @@ int main()
         imguiLayer->addElement(sampleElement);
         imguiLayer->addElement(core::make_ref<ElementLogger>(true));
 
-        april::core::GlobalProfiler::init("TestProfile");
-        imguiLayer->addElement(core::make_ref<ElementProfiler>());
+        // april::core::GlobalProfiler::init("TestProfile");
+        // imguiLayer->addElement(core::make_ref<ElementProfiler>());
 
         auto ctx = device->getCommandContext();
         bool closeWindow = false;
@@ -159,8 +159,8 @@ int main()
 
         while (!closeWindow)
         {
-            april::core::GlobalProfiler::getTimeline()->frameAdvance();
-            AP_PROFILE_SCOPE("Frame");
+            // april::core::GlobalProfiler::getTimeline()->frameAdvance();
+            // AP_PROFILE_SCOPE("Frame");
 
             window->onEvent();
 

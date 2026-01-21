@@ -1,13 +1,13 @@
 # Implementation Plan: ElementProfiler Completion
 
-## Phase 1: Foundation & Shared UI Elements
-- [~] Task: Integrate Icons & Fonts
-    - [ ] Include `IconsMaterialSymbols.h` and ensure icon constants are usable.
-    - [ ] Implement/Verify `april::ui::getMonospaceFont()` availability.
-- [ ] Task: Implement V-Sync Placeholder
-    - [ ] Add `isVsync()` and `setVsync(bool)` placeholder methods to `ElementProfiler`.
-    - [ ] Implement `draw_vsync_checkbox()` using these placeholders.
-- [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
+## Phase 1: Foundation & Shared UI Elements [checkpoint: b8990a9]
+- [x] Task: Integrate Icons & Fonts [bf0914d]
+    - [x] Include `IconsMaterialSymbols.h` and ensure icon constants are usable.
+    - [x] Implement/Verify `april::ui::getMonospaceFont()` availability.
+- [x] Task: Implement V-Sync Placeholder [bf0914d]
+    - [x] Add `isVsync()` and `setVsync(bool)` placeholder methods to `ElementProfiler`.
+    - [x] Implement `draw_vsync_checkbox()` using these placeholders.
+- [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md) [b8990a9]
 
 ## Phase 2: Data Handling & Table View
 - [ ] Task: Data Collection Refinement
