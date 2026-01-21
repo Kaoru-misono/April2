@@ -151,6 +151,9 @@ namespace april::core
         std::unordered_map<std::thread::id, std::shared_ptr<ThreadData>> m_threadData;
 
         auto getThreadData() -> std::shared_ptr<ThreadData>;
+
+        // Internal helper for UI testing
+        void frameFrameInfo(TimerInfo& info, const char* name, uint32_t level);
     };
 
     /**

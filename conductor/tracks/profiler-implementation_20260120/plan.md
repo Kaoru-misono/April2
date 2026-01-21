@@ -10,22 +10,22 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md) [b8990a9]
 
 ## Phase 2: Data Handling & Table View
-- [ ] Task: Data Collection Refinement
-    - [ ] Ensure `update_data` and `add_entries` correctly map `april::core` snapshots to `EntryNode` trees.
-- [ ] Task: Table View Completion
-    - [ ] Implement `display_table_node` with full detailed mode support and monospace font usage.
-    - [ ] Implement `render_table` with responsive grid support (side-by-side tables) and clipboard logging.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
+- [x] Task: Data Collection Refinement [6a9f356]
+    - [x] Ensure `update_data` and `add_entries` correctly map `april::core` snapshots to `EntryNode` trees.
+- [x] Task: Table View Completion [6a9f356]
+    - [x] Implement `display_table_node` with full detailed mode support and monospace font usage.
+    - [x] Implement `render_table` with responsive grid support (side-by-side tables) and clipboard logging.
+- [x] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md) [7228b9d]
 
 ## Phase 3: Graphical Visualizations (ImPlot)
-- [ ] Task: Bar Chart Implementation
-    - [ ] Implement `render_bar_chart` with stacked/horizontal support.
-- [ ] Task: Pie Chart Implementation
-    - [ ] Implement `render_pie_chart` and the recursive `render_pie_chart_node` for hierarchical rings.
-- [ ] Task: Line Chart Implementation
-    - [ ] Implement full `render_line_chart` including temporal smoothing for Y-axis and stacked GPU area fills.
-    - [ ] Add the interactive tooltip for frame-specific inspection.
-- [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)
+- [x] Task: Bar Chart Implementation [6a9f356]
+    - [x] Implement `render_bar_chart` with stacked/horizontal support.
+- [x] Task: Pie Chart Implementation [6a9f356]
+    - [x] Implement `render_pie_chart` and the recursive `render_pie_chart_node` for hierarchical rings.
+- [x] Task: Line Chart Implementation [6a9f356]
+    - [x] Implement full `render_line_chart` including temporal smoothing for Y-axis and stacked GPU area fills.
+    - [x] Add the interactive tooltip for frame-specific inspection.
+- [x] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md) [7228b9d]
 
 ## Phase 4: Persistence & Final Integration
 - [ ] Task: Settings Handler Migration

@@ -99,19 +99,151 @@ namespace april::core
 
     
 
-        auto Profiler::getSnapshots(std::vector<Snapshot>& frameSnapshots, std::vector<Snapshot>& singleSnapshots) -> void
+            auto Profiler::getSnapshots(std::vector<Snapshot>& frameSnapshots, std::vector<Snapshot>& singleSnapshots) -> void
 
-        {
+    
 
-            std::lock_guard<std::mutex> lock(m_mutex);
+            {
 
-            // STUB: For now, just clear them to avoid using stale data
+    
 
-            frameSnapshots.clear();
+                std::lock_guard<std::mutex> lock(m_mutex);
 
-            singleSnapshots.clear();
+    
 
-        }
+                frameSnapshots.clear();
+
+    
+
+                singleSnapshots.clear();
+
+    
+
+        
+
+    
+
+                // Add dummy data for testing UI
+
+    
+
+                Snapshot dummyFrame;
+
+    
+
+                dummyFrame.name = "Main Timeline";
+
+    
+
+                
+
+    
+
+                TimerInfo frameRoot;
+
+    
+
+                frameFrameInfo(frameRoot, "Frame", 0);
+
+    
+
+                dummyFrame.timerInfos.push_back(frameRoot);
+
+    
+
+                dummyFrame.timerNames.push_back("Frame");
+
+    
+
+                dummyFrame.timerApiNames.push_back("");
+
+    
+
+        
+
+    
+
+                TimerInfo gpuWork;
+
+    
+
+                frameFrameInfo(gpuWork, "GPU Work", 1);
+
+    
+
+                dummyFrame.timerInfos.push_back(gpuWork);
+
+    
+
+                dummyFrame.timerNames.push_back("GPU Work");
+
+    
+
+                dummyFrame.timerApiNames.push_back("Vulkan");
+
+    
+
+        
+
+    
+
+                frameSnapshots.push_back(dummyFrame);
+
+    
+
+            }
+
+    
+
+        
+
+    
+
+            // Helper for dummy data
+
+    
+
+            void Profiler::frameFrameInfo(TimerInfo& info, const char* name, uint32_t level)
+
+    
+
+            {
+
+    
+
+                info.level = level;
+
+    
+
+                info.numAveraged = 60;
+
+    
+
+                info.cpu.average = 16.6 * 1000.0;
+
+    
+
+                info.cpu.last = 16.6 * 1000.0;
+
+    
+
+                info.gpu.average = 12.0 * 1000.0;
+
+    
+
+                info.gpu.last = 12.0 * 1000.0;
+
+    
+
+                for(auto& t : info.cpu.times) t = info.cpu.average;
+
+    
+
+                for(auto& t : info.gpu.times) t = info.gpu.average;
+
+    
+
+            }
 
     
 
