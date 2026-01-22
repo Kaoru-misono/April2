@@ -113,7 +113,8 @@ namespace april::core {
             .threadId = std::this_thread::get_id(),
             .startCpuTime = startCpuTime,
             .endCpuTime = 0.0,
-            .gpuDuration = 0.0
+            .gpuDuration = 0.0,
+            .level = static_cast<uint32_t>(data.openEventIndices.size())
         };
 
         data.currentFrameEvents.push_back(event);
@@ -135,7 +136,7 @@ namespace april::core {
         data.currentFrameEvents[index].endCpuTime = std::chrono::duration<double, std::micro>(now.time_since_epoch()).count();
     }
 
-    auto Profiler::addGpuEvent(char const* name, double duration) -> void
+    auto Profiler::addGpuEvent(char const* name, double duration, uint32_t level) -> void
     {
         auto& data = getThreadData();
 
@@ -148,7 +149,8 @@ namespace april::core {
             .threadId = std::this_thread::get_id(),
             .startCpuTime = 0.0,
             .endCpuTime = 0.0,
-            .gpuDuration = duration
+            .gpuDuration = duration,
+            .level = level
         };
 
         data.currentFrameEvents.push_back(event);
@@ -192,6 +194,7 @@ namespace april::core {
                 info.gpu.absMinValue = 1e30;
                 uint32_t actualCount = 0;
 
+                uint32_t frameCounter = 0;
                 for (auto const& frame : data.history)
                 {
                     if (i < frame.size())
@@ -210,7 +213,15 @@ namespace april::core {
 
                         info.cpu.last = cpuDur;
                         info.gpu.last = gpuDur;
+
+                        if (frameCounter < TimerStats::kMaxLastFrames)
+                        {
+                            info.cpu.times[frameCounter] = cpuDur;
+                            info.gpu.times[frameCounter] = gpuDur;
+                        }
+
                         actualCount++;
+                        frameCounter++;
                     }
                 }
 
@@ -219,6 +230,9 @@ namespace april::core {
                     info.cpu.average = totalCpu / actualCount;
                     info.gpu.average = totalGpu / actualCount;
                     info.numAveraged = actualCount;
+                    info.level = event.level;
+                    info.cpu.index = actualCount; // Points to next or count
+                    info.gpu.index = actualCount;
                 }
                 else
                 {

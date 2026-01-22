@@ -46,6 +46,40 @@ TEST_CASE("ProfilerManager and Scopes") {
     Profiler::get().shutdown();
 }
 
+TEST_CASE("Hierarchical Profiling") {
+    Profiler::get().init();
+
+    Profiler::get().beginFrame();
+    {
+        AP_PROFILE_SCOPE("Outer");
+        {
+            AP_PROFILE_SCOPE("Inner");
+        }
+    }
+    Profiler::get().endFrame();
+
+    std::vector<Snapshot> frameSnapshots, asyncSnapshots;
+    Profiler::get().getSnapshots(frameSnapshots, asyncSnapshots);
+
+    REQUIRE(frameSnapshots.size() > 0);
+    auto const& snap = frameSnapshots[0];
+    
+    int foundCount = 0;
+    for (size_t i = 0; i < snap.timerNames.size(); ++i) {
+        if (snap.timerNames[i] == "Outer") {
+            CHECK(snap.timerInfos[i].level == 0);
+            foundCount++;
+        }
+        if (snap.timerNames[i] == "Inner") {
+            CHECK(snap.timerInfos[i].level == 1);
+            foundCount++;
+        }
+    }
+    CHECK(foundCount == 2);
+
+    Profiler::get().shutdown();
+}
+
 TEST_CASE("MultiThreaded Profiling") {
     Profiler::get().init();
     

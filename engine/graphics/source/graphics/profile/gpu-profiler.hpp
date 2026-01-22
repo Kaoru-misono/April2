@@ -23,6 +23,9 @@ namespace april::graphics
         auto beginEvent(CommandContext* pContext, char const* name) -> void;
         auto endEvent(CommandContext* pContext) -> void;
 
+        auto beginAsyncEvent(CommandContext* pContext, char const* name) -> uint32_t;
+        auto endAsyncEvent(CommandContext* pContext, uint32_t asyncId) -> void;
+
         auto resolve(CommandContext* pContext) -> void;
         
         /**
@@ -57,6 +60,12 @@ namespace april::graphics
         uint32_t m_activeEventCount = 0;
         
         std::vector<uint32_t> m_eventStack;
+
+        struct AsyncEvent : public Event
+        {
+            bool isFinished = false;
+        };
+        std::vector<AsyncEvent> m_asyncEvents;
     };
 
     struct ScopedGpuProfileEvent

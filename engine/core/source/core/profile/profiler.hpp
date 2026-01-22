@@ -20,6 +20,7 @@ namespace april::core {
         double startCpuTime;
         double endCpuTime;
         double gpuDuration; // In microseconds
+        uint32_t level = 0;
     };
 
     class CpuTimer
@@ -91,7 +92,7 @@ namespace april::core {
          * Adds a GPU event that was resolved from the graphics module.
          * Since GPU events are resolved asynchronously, they are added after they complete.
          */
-        auto addGpuEvent(char const* name, double duration) -> void;
+        auto addGpuEvent(char const* name, double duration, uint32_t level = 0) -> void;
 
         // Diagnostics / Query
         auto getThreadEventCount(std::thread::id threadId) const -> size_t;
@@ -105,7 +106,7 @@ namespace april::core {
     private:
         Profiler() = default;
         ~Profiler() = default;
-        
+
         Profiler(Profiler const&) = delete;
         auto operator=(Profiler const&) -> Profiler& = delete;
 
@@ -113,7 +114,7 @@ namespace april::core {
         {
             std::vector<ProfilerEvent> currentFrameEvents;
             std::vector<size_t> openEventIndices; // Stack of indices into 'currentFrameEvents'
-            
+
             // History for aggregation (sliding window of frames)
             static constexpr size_t kMaxHistoryFrames = 128;
             std::vector<std::vector<ProfilerEvent>> history;

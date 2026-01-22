@@ -100,6 +100,8 @@ namespace april::ui
         april::core::Profiler* m_profiler = nullptr;
         std::vector<View> m_views;
 
+        char m_filter[128] = {0};
+
         // Data Cache
         std::vector<EntryNode> m_frameNodes;
         std::vector<EntryNode> m_singleNodes;

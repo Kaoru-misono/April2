@@ -1,8 +1,0 @@
-{
-  "track_id": "cpu-gpu-profiler_20260121",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-01-21T10:00:00Z",
-  "updated_at": "2026-01-21T10:00:00Z",
-  "description": "High-performance CPU/GPU profiler with multi-threading, JSON export, and April RHI integration."
-}
