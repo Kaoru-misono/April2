@@ -101,9 +101,9 @@ namespace april::graphics
         return data;
     }
 
-    auto GpuMemoryHeap::allocate(size_t size, ResourceBindFlags bindFlags) -> Allocation
+    auto GpuMemoryHeap::allocate(size_t size, BufferUsage usage) -> Allocation
     {
-        size_t alignment = mp_device->getBufferDataAlignment(bindFlags);
+        size_t alignment = mp_device->getBufferDataAlignment(usage);
         return allocate(align_up(size, alignment), alignment);
     }
 
@@ -152,7 +152,7 @@ namespace april::graphics
             size,
             0,
             ResourceFormat::Unknown,
-            ResourceBindFlags::Vertex | ResourceBindFlags::Index | ResourceBindFlags::Constant,
+            BufferUsage::VertexBuffer | BufferUsage::IndexBuffer | BufferUsage::ConstantBuffer,
             m_memoryType
         );
         data.size = (uint32_t)size;

@@ -95,7 +95,7 @@ namespace april::graphics
         uint32_t arraySize
     ) -> core::ref<ShaderResourceView>
     {
-        AP_ASSERT(enum_has_any_flags(pTexture->getBindFlags(), ResourceBindFlags::ShaderResource));
+        AP_ASSERT(enum_has_any_flags(pTexture->getUsage(), TextureUsage::ShaderResource));
         rhi::ComPtr<rhi::ITextureView> handle{};
         rhi::TextureViewDesc desc = {};
         desc.format = getGFXFormat(depthToColorFormat(pTexture->getFormat()));
@@ -136,7 +136,7 @@ namespace april::graphics
         uint32_t arraySize
     ) -> core::ref<DepthStencilView>
     {
-        AP_ASSERT(enum_has_any_flags(pTexture->getBindFlags(), ResourceBindFlags::DepthStencil));
+        AP_ASSERT(enum_has_any_flags(pTexture->getUsage(), TextureUsage::DepthStencil));
         rhi::ComPtr<rhi::ITextureView> handle{};
         rhi::TextureViewDesc desc = {};
         desc.format = getGFXFormat(pTexture->getFormat());
@@ -182,7 +182,7 @@ namespace april::graphics
         uint32_t arraySize
     ) -> core::ref<UnorderedAccessView>
     {
-        AP_ASSERT(enum_has_any_flags(pTexture->getBindFlags(), ResourceBindFlags::UnorderedAccess));
+        AP_ASSERT(enum_has_any_flags(pTexture->getUsage(), TextureUsage::UnorderedAccess));
         rhi::ComPtr<rhi::ITextureView> handle{};
         rhi::TextureViewDesc desc = {};
         desc.format = getGFXFormat(pTexture->getFormat());
@@ -223,7 +223,7 @@ namespace april::graphics
         uint32_t arraySize
     ) -> core::ref<RenderTargetView>
     {
-        AP_ASSERT(enum_has_any_flags(pTexture->getBindFlags(), ResourceBindFlags::RenderTarget));
+        AP_ASSERT(enum_has_any_flags(pTexture->getUsage(), TextureUsage::RenderTarget));
         rhi::ComPtr<rhi::ITextureView> handle{};
         rhi::TextureViewDesc desc = {};
         desc.format = getGFXFormat(pTexture->getFormat());

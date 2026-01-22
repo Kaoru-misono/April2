@@ -4,8 +4,6 @@
 #include <core/log/log-sink.hpp>
 #include <imgui.h>
 #include <mutex>
-#include <vector>
-#include <string>
 
 namespace april::ui
 {

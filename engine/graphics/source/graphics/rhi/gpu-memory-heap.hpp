@@ -52,7 +52,7 @@ namespace april::graphics
         static auto create(core::ref<Device> p_device, MemoryType memoryType, size_t pageSize, core::ref<Fence> const& p_fence) -> core::ref<GpuMemoryHeap>;
 
         auto allocate(size_t size, size_t alignment = 1) -> Allocation;
-        auto allocate(size_t size, ResourceBindFlags bindFlags) -> Allocation;
+        auto allocate(size_t size, BufferUsage usage) -> Allocation;
         auto release(Allocation& data) -> void;
         auto getPageSize() const -> size_t { return m_pageSize; }
         auto executeDeferredReleases() -> void;

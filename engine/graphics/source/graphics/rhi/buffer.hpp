@@ -81,6 +81,24 @@ namespace april::graphics
     );
     AP_ENUM_REGISTER(MemoryType);
 
+    enum class BufferUsage: uint32_t
+    {
+        None = 0,
+        VertexBuffer = (1 << 0),
+        IndexBuffer = (1 << 1),
+        ConstantBuffer = (1 << 2),
+        ShaderResource = (1 << 3),
+        UnorderedAccess = (1 << 4),
+        IndirectArgument = (1 << 5),
+        CopySource = (1 << 6),
+        CopyDestination = (1 << 7),
+        AccelerationStructure = (1 << 8),
+        AccelerationStructureBuildInput = (1 << 9),
+        ShaderTable = (1 << 10),
+        Shared = (1 << 11),
+    };
+    AP_ENUM_CLASS_OPERATORS(BufferUsage);
+
     /**
      * Low-level buffer object
      * This class abstracts the API's buffer creation and management
@@ -97,20 +115,20 @@ namespace april::graphics
             size_t size,
             size_t structSize,
             ResourceFormat format,
-            ResourceBindFlags bindFlags,
+            BufferUsage usage,
             MemoryType memoryType,
             void const* pInitData
         );
 
         /// Constructor for raw buffer.
-        Buffer(core::ref<Device> p_device, size_t size, ResourceBindFlags bindFlags, MemoryType memoryType, void const* pInitData);
+        Buffer(core::ref<Device> p_device, size_t size, BufferUsage usage, MemoryType memoryType, void const* pInitData);
 
         /// Constructor for typed buffer.
         Buffer(
             core::ref<Device> p_device,
             ResourceFormat format,
             uint32_t elementCount,
-            ResourceBindFlags bindFlags,
+            BufferUsage usage,
             MemoryType memoryType,
             void const* pInitData
         );
@@ -120,17 +138,17 @@ namespace april::graphics
             core::ref<Device> p_device,
             uint32_t structSize,
             uint32_t elementCount,
-            ResourceBindFlags bindFlags,
+            BufferUsage usage,
             MemoryType memoryType,
             void const* pInitData,
             bool createCounter
         );
 
         /// Constructor with existing resource.
-        Buffer(core::ref<Device> p_device, rhi::IBuffer* pResource, size_t size, ResourceBindFlags bindFlags, MemoryType memoryType);
+        Buffer(core::ref<Device> p_device, rhi::IBuffer* pResource, size_t size, BufferUsage usage, MemoryType memoryType);
 
         /// Constructor with native handle.
-        Buffer(core::ref<Device> p_device, NativeHandle handle, size_t size, ResourceBindFlags bindFlags, MemoryType memoryType);
+        Buffer(core::ref<Device> p_device, NativeHandle handle, size_t size, BufferUsage usage, MemoryType memoryType);
 
         /// Destructor.
         ~Buffer();
@@ -232,6 +250,11 @@ namespace april::graphics
         auto getMemoryType() const -> MemoryType { return m_memoryType; }
 
         /**
+         * Get the buffer usage
+         */
+        auto getUsage() const -> BufferUsage { return m_usage; }
+
+        /**
          * Check if this is a typed buffer
          */
         auto isTyped() const -> bool { return m_format != ResourceFormat::Unknown; }
@@ -270,6 +293,7 @@ namespace april::graphics
         Slang::ComPtr<rhi::IBuffer> m_gfxBuffer{};
 
         MemoryType m_memoryType{};
+        BufferUsage m_usage{BufferUsage::None};
         uint32_t m_elementCount{0};
         ResourceFormat m_format{ResourceFormat::Unknown};
         uint32_t m_structSize{0};
@@ -291,6 +315,36 @@ namespace april::graphics
                 AP_UNREACHABLE();
             }
         #undef item_to_string
+    }
+
+    inline auto to_string(BufferUsage usages) -> std::string
+    {
+        std::string s;
+        if (usages == BufferUsage::None)
+        {
+            return "None";
+        }
+
+    #define item_to_string(item)                       \
+        if (enum_has_any_flags(usages, BufferUsage::item)) \
+        (s += (s.size() ? " | " : "") + std::string(#item))
+
+        item_to_string(VertexBuffer);
+        item_to_string(IndexBuffer);
+        item_to_string(ConstantBuffer);
+        item_to_string(ShaderResource);
+        item_to_string(UnorderedAccess);
+        item_to_string(IndirectArgument);
+        item_to_string(CopySource);
+        item_to_string(CopyDestination);
+        item_to_string(AccelerationStructure);
+        item_to_string(AccelerationStructureBuildInput);
+        item_to_string(ShaderTable);
+        item_to_string(Shared);
+
+    #undef item_to_string
+
+        return s;
     }
 
 } // namespace april::graphics

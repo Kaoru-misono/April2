@@ -12,7 +12,6 @@
 #include "buffer.hpp"
 #include "command-context.hpp"
 #include "rhi-tools.hpp"
-#include "graphics/profile/gpu-profiler.hpp"
 #include "program/program-manager.hpp"
 #include "program/shader-variable.hpp"
 #include "tools/blob.hpp"
@@ -348,7 +347,6 @@ namespace april::graphics
         mp_frameFence->breakStrongReferenceToDevice();
 
         mp_programManager = std::make_unique<ProgramManager>(this);
-        mp_gpuProfiler = GpuProfiler::create(core::ref<Device>(this));
         // mp_profiler = std::make_unique<Profiler>(core::ref<Device>(this));
 
         mp_defaultSampler = createSampler(Sampler::Desc());
@@ -397,38 +395,38 @@ namespace april::graphics
         m_gfxDevice.setNull();
     }
 
-    auto Device::createBuffer(size_t size, ResourceBindFlags bindFlags, MemoryType memoryType, void const* pInitData) -> core::ref<Buffer>
+    auto Device::createBuffer(size_t size, BufferUsage usage, MemoryType memoryType, void const* pInitData) -> core::ref<Buffer>
     {
-        return core::make_ref<Buffer>(core::ref<Device>(this), size, bindFlags, memoryType, pInitData);
+        return core::make_ref<Buffer>(core::ref<Device>(this), size, usage, memoryType, pInitData);
     }
 
     auto Device::createTypedBuffer(
         ResourceFormat format,
         uint32_t elementCount,
-        ResourceBindFlags bindFlags,
+        BufferUsage usage,
         MemoryType memoryType,
         void const* pInitData
     ) -> core::ref<Buffer>
     {
-        return core::make_ref<Buffer>(core::ref<Device>(this), format, elementCount, bindFlags, memoryType, pInitData);
+        return core::make_ref<Buffer>(core::ref<Device>(this), format, elementCount, usage, memoryType, pInitData);
     }
 
     auto Device::createStructuredBuffer(
         uint32_t structSize,
         uint32_t elementCount,
-        ResourceBindFlags bindFlags,
+        BufferUsage usage,
         MemoryType memoryType,
         void const* pInitData,
         bool createCounter
     ) -> core::ref<Buffer>
     {
-        return core::make_ref<Buffer>(core::ref<Device>(this), structSize, elementCount, bindFlags, memoryType, pInitData, createCounter);
+        return core::make_ref<Buffer>(core::ref<Device>(this), structSize, elementCount, usage, memoryType, pInitData, createCounter);
     }
 
     auto Device::createStructuredBuffer(
         ReflectionType const* pType,
         uint32_t elementCount,
-        ResourceBindFlags bindFlags,
+        BufferUsage usage,
         MemoryType memoryType,
         void const* pInitData,
         bool createCounter
@@ -443,29 +441,29 @@ namespace april::graphics
         }
 
         auto structStride = pResourceType->getStructType()->getSlangTypeLayout()->getStride();
-        return core::make_ref<Buffer>(core::ref<Device>(this), (uint32_t)structStride, elementCount, bindFlags, memoryType, pInitData, createCounter);
+        return core::make_ref<Buffer>(core::ref<Device>(this), (uint32_t)structStride, elementCount, usage, memoryType, pInitData, createCounter);
     }
 
     auto Device::createStructuredBuffer(
         ShaderVariable const& shaderVariable,
         uint32_t elementCount,
-        ResourceBindFlags bindFlags,
+        BufferUsage usage,
         MemoryType memoryType,
         void const* pInitData,
         bool createCounter
     ) -> core::ref<Buffer>
     {
-        return createStructuredBuffer(shaderVariable.getType(), elementCount, bindFlags, memoryType, pInitData, createCounter);
+        return createStructuredBuffer(shaderVariable.getType(), elementCount, usage, memoryType, pInitData, createCounter);
     }
 
-    auto Device::createBufferFromResource(rhi::IBuffer* pResource, size_t size, ResourceBindFlags bindFlags, MemoryType memoryType) -> core::ref<Buffer>
+    auto Device::createBufferFromResource(rhi::IBuffer* pResource, size_t size, BufferUsage usage, MemoryType memoryType) -> core::ref<Buffer>
     {
-        return core::make_ref<Buffer>(core::ref<Device>(this), pResource, size, bindFlags, memoryType);
+        return core::make_ref<Buffer>(core::ref<Device>(this), pResource, size, usage, memoryType);
     }
 
-    auto Device::createBufferFromNativeHandle(NativeHandle handle, size_t size, ResourceBindFlags bindFlags, MemoryType memoryType) -> core::ref<Buffer>
+    auto Device::createBufferFromNativeHandle(NativeHandle handle, size_t size, BufferUsage usage, MemoryType memoryType) -> core::ref<Buffer>
     {
-        return core::make_ref<Buffer>(core::ref<Device>(this), handle, size, bindFlags, memoryType);
+        return core::make_ref<Buffer>(core::ref<Device>(this), handle, size, usage, memoryType);
     }
 
     auto Device::createTexture1D(
@@ -474,10 +472,10 @@ namespace april::graphics
         uint32_t arraySize,
         uint32_t mipLevels,
         void const* pInitData,
-        ResourceBindFlags bindFlags
+        TextureUsage usage
     ) -> core::ref<Texture>
     {
-        return core::make_ref<Texture>(core::ref<Device>(this), Resource::Type::Texture1D, format, width, 1, 1, arraySize, mipLevels, 1, bindFlags, pInitData);
+        return core::make_ref<Texture>(core::ref<Device>(this), Resource::Type::Texture1D, format, width, 1, 1, arraySize, mipLevels, 1, usage, pInitData);
     }
 
     auto Device::createTexture2D(
@@ -487,10 +485,10 @@ namespace april::graphics
         uint32_t arraySize,
         uint32_t mipLevels,
         void const* pInitData,
-        ResourceBindFlags bindFlags
+        TextureUsage usage
     ) -> core::ref<Texture>
     {
-        return core::make_ref<Texture>(core::ref<Device>(this), Resource::Type::Texture2D, format, width, height, 1, arraySize, mipLevels, 1, bindFlags, pInitData);
+        return core::make_ref<Texture>(core::ref<Device>(this), Resource::Type::Texture2D, format, width, height, 1, arraySize, mipLevels, 1, usage, pInitData);
     }
 
     auto Device::createTexture3D(
@@ -500,10 +498,10 @@ namespace april::graphics
         ResourceFormat format,
         uint32_t mipLevels,
         void const* pInitData,
-        ResourceBindFlags bindFlags
+        TextureUsage usage
     ) -> core::ref<Texture>
     {
-        return core::make_ref<Texture>(core::ref<Device>(this), Resource::Type::Texture3D, format, width, height, depth, 1, mipLevels, 1, bindFlags, pInitData);
+        return core::make_ref<Texture>(core::ref<Device>(this), Resource::Type::Texture3D, format, width, height, depth, 1, mipLevels, 1, usage, pInitData);
     }
 
     auto Device::createTextureCube(
@@ -513,10 +511,10 @@ namespace april::graphics
         uint32_t arraySize,
         uint32_t mipLevels,
         void const* pInitData,
-        ResourceBindFlags bindFlags
+        TextureUsage usage
     ) -> core::ref<Texture>
     {
-        return core::make_ref<Texture>(core::ref<Device>(this), Resource::Type::TextureCube, format, width, height, 1, arraySize, mipLevels, 1, bindFlags, pInitData);
+        return core::make_ref<Texture>(core::ref<Device>(this), Resource::Type::TextureCube, format, width, height, 1, arraySize, mipLevels, 1, usage, pInitData);
     }
 
     auto Device::createTexture2DMS(
@@ -525,10 +523,10 @@ namespace april::graphics
         ResourceFormat format,
         uint32_t sampleCount,
         uint32_t arraySize,
-        ResourceBindFlags bindFlags
+        TextureUsage usage
     ) -> core::ref<Texture>
     {
-        return core::make_ref<Texture>(core::ref<Device>(this), Resource::Type::Texture2DMultisample, format, width, height, 1, arraySize, 1, sampleCount, bindFlags, nullptr);
+        return core::make_ref<Texture>(core::ref<Device>(this), Resource::Type::Texture2DMS, format, width, height, 1, arraySize, 1, sampleCount, usage, nullptr);
     }
 
     auto Device::createTextureFromResource(
@@ -541,11 +539,11 @@ namespace april::graphics
         uint32_t arraySize,
         uint32_t mipLevels,
         uint32_t sampleCount,
-        ResourceBindFlags bindFlags,
+        TextureUsage usage,
         Resource::State initState
     ) -> core::ref<Texture>
     {
-        return core::make_ref<Texture>(core::ref<Device>(this), pResource, type, format, width, height, depth, arraySize, mipLevels, sampleCount, bindFlags, initState);
+        return core::make_ref<Texture>(core::ref<Device>(this), pResource, type, format, width, height, depth, arraySize, mipLevels, sampleCount, usage, initState);
     }
 
     auto Device::createHeap(rhi::HeapDesc const& desc) -> Slang::ComPtr<rhi::IHeap>
@@ -647,13 +645,13 @@ namespace april::graphics
         AP_ASSERT(m_desc.type == Type::Vulkan);
     }
 
-    auto Device::getBufferDataAlignment(ResourceBindFlags bindFlags) -> size_t
+    auto Device::getBufferDataAlignment(BufferUsage usage) -> size_t
     {
-        if (enum_has_any_flags(bindFlags, ResourceBindFlags::Constant))
+        if (enum_has_any_flags(usage, BufferUsage::ConstantBuffer))
         {
             return kConstantBufferDataPlacementAlignment;
         }
-        if (enum_has_any_flags(bindFlags, ResourceBindFlags::Index))
+        if (enum_has_any_flags(usage, BufferUsage::IndexBuffer))
         {
             return kIndexBufferDataPlacementAlignment;
         }
@@ -687,29 +685,6 @@ namespace april::graphics
         {
             m_deferredReleases.pop();
         }
-    }
-
-
-    auto Device::getFormatBindFlags(ResourceFormat format) -> ResourceBindFlags
-    {
-        rhi::FormatSupport stateSet;
-        checkResult(m_gfxDevice->getFormatSupport(getGFXFormat(format), &stateSet), "Failed to get format supported resource states");
-
-        // TODO:
-        ResourceBindFlags flags = ResourceBindFlags::None;
-        // if (is_set(stateSet, rhi::ResourceState::ConstantBuffer)) flags |= ResourceBindFlags::Constant;
-        // if (is_set(stateSet, rhi::ResourceState::VertexBuffer)) flags |= ResourceBindFlags::Vertex;
-        // if (is_set(stateSet, rhi::ResourceState::IndexBuffer)) flags |= ResourceBindFlags::Index;
-        // if (is_set(stateSet, rhi::ResourceState::IndirectArgument)) flags |= ResourceBindFlags::IndirectArg;
-        // if (is_set(stateSet, rhi::ResourceState::StreamOutput)) flags |= ResourceBindFlags::StreamOutput;
-        // if (is_set(stateSet, rhi::ResourceState::ShaderResource)) flags |= ResourceBindFlags::ShaderResource;
-        // if (is_set(stateSet, rhi::ResourceState::RenderTarget)) flags |= ResourceBindFlags::RenderTarget;
-        // if (is_set(stateSet, rhi::ResourceState::DepthRead) || is_set(stateSet, rhi::ResourceState::DepthWrite)) flags |= ResourceBindFlags::DepthStencil;
-        // if (is_set(stateSet, rhi::ResourceState::UnorderedAccess)) flags |= ResourceBindFlags::UnorderedAccess;
-        // // TODO:
-        // if (is_set(stateSet, rhi::ResourceState::AccelerationStructureRead) | is_set(stateSet, rhi::ResourceState::AccelerationStructureWrite)) flags |= ResourceBindFlags::AccelerationStructure;
-        // flags |= ResourceBindFlags::Shared;
-        return flags;
     }
 
     auto Device::getTextureRowAlignment() const -> size_t

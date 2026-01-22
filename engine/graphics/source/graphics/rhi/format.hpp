@@ -31,29 +31,6 @@ namespace april::graphics
     AP_ENUM_CLASS_OPERATORS(TextureChannelFlags);
 
     /**
-     * These flags are hints the driver to what pipeline stages the resource will be bound to.
-     */
-    enum class ResourceBindFlags : uint32_t
-    {
-        None = 0x0,             ///< The resource will not be bound the pipeline. Use this to create a staging resource
-        Vertex = 0x1,           ///< The resource will be bound as a vertex-buffer
-        Index = 0x2,            ///< The resource will be bound as a index-buffer
-        Constant = 0x4,         ///< The resource will be bound as a constant-buffer
-        StreamOutput = 0x8,     ///< The resource will be bound to the stream-output stage as an output buffer
-        ShaderResource = 0x10,  ///< The resource will be bound as a shader-resource
-        UnorderedAccess = 0x20, ///< The resource will be bound as an UAV
-        RenderTarget = 0x40,    ///< The resource will be bound as a render-target
-        DepthStencil = 0x80,    ///< The resource will be bound as a depth-stencil buffer
-        IndirectArg = 0x100,    ///< The resource will be bound as an indirect argument buffer
-        Shared = 0x200,         ///< The resource will be shared with a different adapter. Mostly useful for sharing resoures with CUDA
-        AccelerationStructure = 0x80000000, ///< The resource will be bound as an acceleration structure
-
-        AllColorViews = ShaderResource | UnorderedAccess | RenderTarget,
-        AllDepthViews = ShaderResource | DepthStencil
-    };
-    AP_ENUM_CLASS_OPERATORS(ResourceBindFlags);
-
-    /**
      * Resource formats
      */
     enum class ResourceFormat : uint32_t
@@ -428,33 +405,6 @@ namespace april::graphics
             AP_UNREACHABLE();
         }
     #undef item_to_string
-    }
-
-    inline auto to_string(ResourceBindFlags flags) -> std::string const
-    {
-        std::string s;
-        if (flags == ResourceBindFlags::None)
-        {
-            return "None";
-        }
-
-    #define item_to_string(item)                       \
-        if (enum_has_any_flags(flags, ResourceBindFlags::item)) \
-        (s += (s.size() ? " | " : "") + std::string(#item))
-
-        item_to_string(Vertex);
-        item_to_string(Index);
-        item_to_string(Constant);
-        item_to_string(StreamOutput);
-        item_to_string(ShaderResource);
-        item_to_string(UnorderedAccess);
-        item_to_string(RenderTarget);
-        item_to_string(DepthStencil);
-        item_to_string(IndirectArg);
-        item_to_string(AccelerationStructure);
-    #undef item_to_string
-
-        return s;
     }
 
     struct ResourceFormat_info

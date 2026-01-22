@@ -36,7 +36,7 @@ TEST_SUITE("RHI Validation")
 
             const size_t elementCount = 1024;
             const size_t bufferSize = elementCount * sizeof(uint32_t);
-            auto buffer = device->createBuffer(bufferSize, ResourceBindFlags::ShaderResource | ResourceBindFlags::UnorderedAccess);
+            auto buffer = device->createBuffer(bufferSize, BufferUsage::ShaderResource | BufferUsage::UnorderedAccess);
             REQUIRE(buffer);
 
             std::vector<uint32_t> initData(elementCount);
@@ -70,7 +70,7 @@ TEST_SUITE("RHI Validation")
 
             const uint32_t width = 256;
             const uint32_t height = 256;
-            auto texture = device->createTexture2D(width, height, ResourceFormat::RGBA8Unorm, 1, 1, nullptr, ResourceBindFlags::ShaderResource | ResourceBindFlags::UnorderedAccess);
+            auto texture = device->createTexture2D(width, height, ResourceFormat::RGBA8Unorm, 1, 1, nullptr, TextureUsage::ShaderResource | TextureUsage::UnorderedAccess);
             REQUIRE(texture);
 
             std::vector<uint32_t> initData(width * height);
@@ -132,13 +132,13 @@ TEST_SUITE("RHI Validation")
             auto ctx = device->getCommandContext();
             REQUIRE(ctx);
 
-            auto texture = device->createTexture2D(1, 1, ResourceFormat::RGBA8Unorm, 1, 1, nullptr, ResourceBindFlags::ShaderResource);
+            auto texture = device->createTexture2D(1, 1, ResourceFormat::RGBA8Unorm, 1, 1, nullptr, TextureUsage::ShaderResource);
             REQUIRE(texture);
             uint32_t red = 0xFF0000FF;
             ctx->updateTextureData(texture.get(), &red);
             ctx->submit(true);
 
-            auto outputBuffer = device->createBuffer(sizeof(april::float4), ResourceBindFlags::UnorderedAccess);
+            auto outputBuffer = device->createBuffer(sizeof(april::float4), BufferUsage::UnorderedAccess);
             REQUIRE(outputBuffer);
 
             const char* shaderSource = R"(
@@ -199,7 +199,7 @@ TEST_SUITE("RHI Validation")
             REQUIRE(ctx);
 
             const uint32_t elementCount = 64;
-            auto buffer = device->createBuffer(elementCount * sizeof(uint32_t), ResourceBindFlags::UnorderedAccess);
+            auto buffer = device->createBuffer(elementCount * sizeof(uint32_t), BufferUsage::UnorderedAccess);
             REQUIRE(buffer);
 
             const char* shaderSource = R"(
@@ -256,7 +256,7 @@ TEST_SUITE("RHI Validation")
 
             const uint32_t width = 2;
             const uint32_t height = 2;
-            auto renderTarget = device->createTexture2D(width, height, ResourceFormat::RGBA8Unorm, 1, 1, nullptr, ResourceBindFlags::RenderTarget | ResourceBindFlags::ShaderResource);
+            auto renderTarget = device->createTexture2D(width, height, ResourceFormat::RGBA8Unorm, 1, 1, nullptr, TextureUsage::RenderTarget | TextureUsage::ShaderResource);
             REQUIRE(renderTarget);
 
             const char* shaderSource = R"(
@@ -469,7 +469,7 @@ TEST_SUITE("RHI Validation")
             REQUIRE(ctx);
 
             // Create a buffer for 2 uints
-            auto buffer = device->createBuffer(sizeof(uint32_t) * 2, ResourceBindFlags::ShaderResource | ResourceBindFlags::UnorderedAccess);
+            auto buffer = device->createBuffer(sizeof(uint32_t) * 2, BufferUsage::ShaderResource | BufferUsage::UnorderedAccess);
             REQUIRE(buffer);
 
             // Shader that writes to two separate regions

@@ -45,7 +45,7 @@ namespace april::graphics
         uint64_t rowCount = (pTexture->getHeight(mipLevel) + formatInfo.blockHeight - 1) / formatInfo.blockHeight;
         uint64_t size = pTexture->getDepth(mipLevel) * rowCount * pThis->m_rowSize;
 
-        pThis->m_buffer = pCtx->getDevice()->createBuffer(size, ResourceBindFlags::None, MemoryType::ReadBack, nullptr);
+        pThis->m_buffer = pCtx->getDevice()->createBuffer(size, BufferUsage::None, MemoryType::ReadBack, nullptr);
 
         pCtx->resourceBarrier(pTexture, Resource::State::CopySource);
         auto resourceEncoder = pCtx->getLowLevelData()->getGfxCommandEncoder();

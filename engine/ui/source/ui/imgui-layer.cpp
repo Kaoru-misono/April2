@@ -82,7 +82,7 @@ namespace april::ui
             1,
             1,
             pixels,
-            graphics::ResourceBindFlags::ShaderResource
+            graphics::TextureUsage::ShaderResource
         );
 
         m_fontSampler = mp_device->getDefaultSampler();
@@ -240,13 +240,13 @@ namespace april::ui
         if (!frameRes.vertexBuffer || frameRes.vertexCount < (uint32_t)pDrawData->TotalVtxCount)
         {
             frameRes.vertexCount = (uint32_t)pDrawData->TotalVtxCount + 5000;
-            frameRes.vertexBuffer = mp_device->createBuffer(frameRes.vertexCount * sizeof(ImDrawVert), ResourceBindFlags::Vertex, MemoryType::Upload);
+            frameRes.vertexBuffer = mp_device->createBuffer(frameRes.vertexCount * sizeof(ImDrawVert), BufferUsage::VertexBuffer, MemoryType::Upload);
         }
 
         if (!frameRes.indexBuffer || frameRes.indexCount < (uint32_t)pDrawData->TotalIdxCount)
         {
             frameRes.indexCount = (uint32_t)pDrawData->TotalIdxCount + 10000;
-            frameRes.indexBuffer = mp_device->createBuffer(frameRes.indexCount * sizeof(ImDrawIdx), ResourceBindFlags::Index, MemoryType::Upload);
+            frameRes.indexBuffer = mp_device->createBuffer(frameRes.indexCount * sizeof(ImDrawIdx), BufferUsage::IndexBuffer, MemoryType::Upload);
         }
 
         {

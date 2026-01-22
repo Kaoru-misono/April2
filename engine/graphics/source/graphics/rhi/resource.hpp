@@ -35,11 +35,15 @@ namespace april::graphics
         enum class Type
         {
             Buffer,               ///< Buffer. Can be bound to all shader-stages
-            Texture1D,            ///< 1D texture. Can be bound as render-target, shader-resource and UAV
-            Texture2D,            ///< 2D texture. Can be bound as render-target, shader-resource and UAV
-            Texture3D,            ///< 3D texture. Can be bound as render-target, shader-resource and UAV
-            TextureCube,          ///< Texture-cube. Can be bound as render-target, shader-resource and UAV
-            Texture2DMultisample, ///< 2D multi-sampled texture. Can be bound as render-target, shader-resource and UAV
+            Texture1D,
+            Texture1DArray,
+            Texture2D,
+            Texture2DArray,
+            Texture2DMS,
+            Texture2DMSArray,
+            Texture3D,
+            TextureCube,
+            TextureCubeArray,
         };
 
         /**
@@ -78,11 +82,6 @@ namespace april::graphics
         virtual ~Resource() = default;
 
         auto getDevice() const -> core::ref<Device>;
-
-        /**
-         * Get the bind flags
-         */
-        auto getBindFlags() const -> ResourceBindFlags { return m_bindFlags; }
 
         auto isStateGlobal() const -> bool { return m_state.isGlobal; }
 
@@ -171,11 +170,10 @@ namespace april::graphics
     protected:
         friend class CommandContext;
 
-        Resource(core::ref<Device> const& p_device, Type type, ResourceBindFlags bindFlags, uint64_t size);
+        Resource(core::ref<Device> const& p_device, Type type, uint64_t size);
 
         core::BreakableReference<Device> mp_device;
         Type m_type;
-        ResourceBindFlags m_bindFlags;
 
         struct ResourceState
         {
@@ -200,4 +198,6 @@ namespace april::graphics
 
     auto to_string(Resource::Type type) -> std::string const;
     auto to_string(Resource::State state) -> std::string const;
+
+    AP_ENUM_CLASS_OPERATORS(Resource::State);
 }

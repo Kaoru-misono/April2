@@ -13,26 +13,9 @@
 
 namespace april::graphics
 {
-    Resource::Resource(core::ref<Device> const& p_device, Type type, ResourceBindFlags bindFlags, uint64_t size)
-        : mp_device(p_device), m_type(type), m_bindFlags(bindFlags), m_size((size_t)size)
+    Resource::Resource(core::ref<Device> const& p_device, Type type, uint64_t size)
+        : mp_device(p_device), m_type(type), m_size((size_t)size)
     {
-        // Default initial state.
-        if (enum_has_any_flags(m_bindFlags, ResourceBindFlags::RenderTarget))
-        {
-            m_state.global = State::RenderTarget;
-        }
-        else if (enum_has_any_flags(m_bindFlags, ResourceBindFlags::DepthStencil))
-        {
-            m_state.global = State::DepthStencil;
-        }
-        else if (enum_has_any_flags(m_bindFlags, ResourceBindFlags::UnorderedAccess))
-        {
-            m_state.global = State::UnorderedAccess;
-        }
-        else if (enum_has_any_flags(m_bindFlags, ResourceBindFlags::ShaderResource))
-        {
-            m_state.global = State::ShaderResource;
-        }
     }
 
     auto to_string(Resource::Type type) -> std::string const
@@ -44,7 +27,7 @@ namespace april::graphics
         case Resource::Type::Texture2D: return "Texture2D";
         case Resource::Type::Texture3D: return "Texture3D";
         case Resource::Type::TextureCube: return "TextureCube";
-        case Resource::Type::Texture2DMultisample: return "Texture2DMultisample";
+        case Resource::Type::Texture2DMS: return "Texture2DMS";
         default: AP_UNREACHABLE(); return "";
         }
     }

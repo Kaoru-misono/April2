@@ -54,7 +54,7 @@ TEST_SUITE("ResourceBinding")
         root["gCB"]["b"] = 42;
 
         // Test Texture Binding
-        auto texture = device->createTexture2D(128, 128, ResourceFormat::RGBA8Unorm, 1, 1, nullptr, ResourceBindFlags::ShaderResource);
+        auto texture = device->createTexture2D(128, 128, ResourceFormat::RGBA8Unorm, 1, 1, nullptr, TextureUsage::ShaderResource);
         REQUIRE(texture);
         root["gTex"] = texture;
 

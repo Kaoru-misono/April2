@@ -19,12 +19,12 @@ namespace april::graphics
             Device* p_device,
             NativeHandle handle,
             size_t size,
-            ResourceBindFlags bindFlags,
+            BufferUsage usage,
             MemoryType memoryType
         ) -> Slang::ComPtr<rhi::IBuffer>
         {
             rhi::BufferDesc bufDesc = {};
-            prepareGFXBufferDesc(bufDesc, Resource::State::Undefined, size, 0, ResourceFormat::Unknown, bindFlags, memoryType);
+            prepareGFXBufferDesc(bufDesc, Resource::State::Undefined, size, 0, ResourceFormat::Unknown, usage, memoryType);
 
 //             rhi::InteropHandle gfxNativeHandle = {};
 //             // Assuming handle contains the raw pointer/handle based on platform
@@ -51,11 +51,11 @@ namespace april::graphics
         size_t size,
         size_t structSize,
         ResourceFormat format,
-        ResourceBindFlags bindFlags,
+        BufferUsage usage,
         MemoryType memoryType,
         void const* pInitData
     )
-        : Resource(p_device, Type::Buffer, bindFlags, size), m_memoryType(memoryType)
+        : Resource(p_device, Type::Buffer, size), m_memoryType(memoryType), m_usage(usage)
     {
         AP_ASSERT(size > 0, "Can't create GPU buffer of size zero");
 
@@ -63,21 +63,21 @@ namespace april::graphics
         // TODO: Revisit this check in the future.
         AP_ASSERT(size <= (1ull << 32), "Creating GPU buffer of size {} bytes. Buffers above 4GB are not currently well supported.", size);
 
-        if (m_memoryType != MemoryType::DeviceLocal && enum_has_any_flags(m_bindFlags, ResourceBindFlags::Shared))
+        if (m_memoryType != MemoryType::DeviceLocal && enum_has_any_flags(m_usage, BufferUsage::Shared))
         {
             AP_ERROR("Can't create shared resource with CPU access other than 'None'.");
         }
 
         // Align size if needed
-        m_size = align_up(m_size, mp_device->getBufferDataAlignment(bindFlags));
+        m_size = align_up(m_size, mp_device->getBufferDataAlignment(m_usage));
         m_structSize = (uint32_t)structSize;
         m_format = format;
 
         if (m_memoryType == MemoryType::DeviceLocal)
         {
             m_state.global = Resource::State::Common;
-            // if (enum_has_any_flags(m_bindFlags, ResourceBindFlags::AccelerationStructure))
-            //     m_state.global = Resource::State::AccelerationStructureRead | Resource::State::AccelerationStructureWrite;
+            if (enum_has_any_flags(m_usage, BufferUsage::AccelerationStructure))
+                 m_state.global = Resource::State::AccelerationStructureRead | Resource::State::AccelerationStructureWrite;
         }
         else if (m_memoryType == MemoryType::Upload)
         {
@@ -88,7 +88,7 @@ namespace april::graphics
             m_state.global = Resource::State::CopyDest;
         }
 
-        m_gfxBuffer = createBufferResource(mp_device, m_state.global, m_size, m_structSize, m_format, m_bindFlags, m_memoryType);
+        m_gfxBuffer = createBufferResource(mp_device, m_state.global, m_size, m_structSize, m_format, m_usage, m_memoryType);
 
         if (pInitData)
             setBlob(pInitData, 0, size);
@@ -96,19 +96,19 @@ namespace april::graphics
         m_elementCount = (uint32_t)size;
     }
 
-    Buffer::Buffer(core::ref<Device> p_device, size_t size, ResourceBindFlags bindFlags, MemoryType memoryType, void const* pInitData)
-        : Buffer(p_device, size, 0, ResourceFormat::Unknown, bindFlags, memoryType, pInitData)
+    Buffer::Buffer(core::ref<Device> p_device, size_t size, BufferUsage usage, MemoryType memoryType, void const* pInitData)
+        : Buffer(p_device, size, 0, ResourceFormat::Unknown, usage, memoryType, pInitData)
     {}
 
     Buffer::Buffer(
         core::ref<Device> p_device,
         ResourceFormat format,
         uint32_t elementCount,
-        ResourceBindFlags bindFlags,
+        BufferUsage usage,
         MemoryType memoryType,
         void const* pInitData
     )
-        : Buffer(p_device, (size_t)getFormatBytesPerBlock(format) * elementCount, 0, format, bindFlags, memoryType, pInitData)
+        : Buffer(p_device, (size_t)getFormatBytesPerBlock(format) * elementCount, 0, format, usage, memoryType, pInitData)
     {
         m_elementCount = elementCount;
     }
@@ -117,12 +117,12 @@ namespace april::graphics
         core::ref<Device> p_device,
         uint32_t structSize,
         uint32_t elementCount,
-        ResourceBindFlags bindFlags,
+        BufferUsage usage,
         MemoryType memoryType,
         void const* pInitData,
         bool createCounter
     )
-        : Buffer(p_device, (size_t)structSize * elementCount, structSize, ResourceFormat::Unknown, bindFlags, memoryType, pInitData)
+        : Buffer(p_device, (size_t)structSize * elementCount, structSize, ResourceFormat::Unknown, usage, memoryType, pInitData)
     {
         m_elementCount = elementCount;
         static const uint32_t zero = 0;
@@ -134,7 +134,7 @@ namespace april::graphics
                 sizeof(uint32_t),
                 sizeof(uint32_t),
                 ResourceFormat::Unknown,
-                ResourceBindFlags::UnorderedAccess,
+                BufferUsage::UnorderedAccess,
                 MemoryType::DeviceLocal,
                 &zero
             );
@@ -142,15 +142,15 @@ namespace april::graphics
     }
 
     // TODO: Its wasteful to create a buffer just to replace it afterwards with the supplied one!
-    Buffer::Buffer(core::ref<Device> p_device, rhi::IBuffer* pResource, size_t size, ResourceBindFlags bindFlags, MemoryType memoryType)
-        : Buffer(p_device, size, 0, ResourceFormat::Unknown, bindFlags, memoryType, nullptr)
+    Buffer::Buffer(core::ref<Device> p_device, rhi::IBuffer* pResource, size_t size, BufferUsage usage, MemoryType memoryType)
+        : Buffer(p_device, size, 0, ResourceFormat::Unknown, usage, memoryType, nullptr)
     {
         AP_ASSERT(pResource);
         m_gfxBuffer = pResource;
     }
 
-    Buffer::Buffer(core::ref<Device> p_device, NativeHandle handle, size_t size, ResourceBindFlags bindFlags, MemoryType memoryType)
-        : Buffer(p_device, gfxResourceFromNativeHandle(p_device.get(), handle, size, bindFlags, memoryType), size, bindFlags, memoryType)
+    Buffer::Buffer(core::ref<Device> p_device, NativeHandle handle, size_t size, BufferUsage usage, MemoryType memoryType)
+        : Buffer(p_device, gfxResourceFromNativeHandle(p_device.get(), handle, size, usage, memoryType), size, usage, memoryType)
     {}
 
     Buffer::~Buffer()
@@ -281,3 +281,4 @@ namespace april::graphics
         return m_gfxBuffer->getDeviceAddress();
     }
 } // namespace april::graphics
+

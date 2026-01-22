@@ -43,8 +43,9 @@ namespace april::graphics
 {
     // Forward declarations
     enum class ResourceFormat : uint32_t;
-    enum class ResourceBindFlags : uint32_t;
     enum class MemoryType : uint32_t;
+    enum class BufferUsage : uint32_t;
+    enum class TextureUsage : uint32_t;
 
     auto getGFXFormat(ResourceFormat format) -> rhi::Format;
     
@@ -59,13 +60,16 @@ namespace april::graphics
 {
     auto getGFXResourceState(Resource::State state) -> rhi::ResourceState;
 
+    auto getGFXBufferUsage(BufferUsage usage) -> rhi::BufferUsage;
+    auto getGFXTextureUsage(TextureUsage usage) -> rhi::TextureUsage;
+
     auto createBufferResource(
         core::ref<Device> p_device,
         Resource::State initState,
         size_t size,
         size_t elementSize,
         ResourceFormat format,
-        ResourceBindFlags bindFlags,
+        BufferUsage usage,
         MemoryType memoryType
     ) -> Slang::ComPtr<rhi::IBuffer>;
 
@@ -75,7 +79,7 @@ namespace april::graphics
         size_t size,
         size_t elementSize,
         ResourceFormat format,
-        ResourceBindFlags bindFlags,
+        BufferUsage usage,
         MemoryType memoryType
     ) -> void;
 }

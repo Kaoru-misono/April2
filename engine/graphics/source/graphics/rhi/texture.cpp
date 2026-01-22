@@ -28,7 +28,7 @@ namespace april::graphics
                 return rhi::TextureType::Texture1D;
             case Resource::Type::Texture2D:
                 return rhi::TextureType::Texture2D;
-            case Resource::Type::Texture2DMultisample:
+            case Resource::Type::Texture2DMS:
                 return rhi::TextureType::Texture2DMS;
             case Resource::Type::TextureCube:
                 return rhi::TextureType::TextureCube;
@@ -39,43 +39,41 @@ namespace april::graphics
             }
         }
 
-        auto getTextureUsage(graphics::ResourceBindFlags flags) -> rhi::TextureUsage
+        auto getTextureUsage(graphics::TextureUsage flags) -> rhi::TextureUsage
         {
-            using namespace rhi;
-
-            TextureUsage usage = TextureUsage::None;
+            rhi::TextureUsage usage = rhi::TextureUsage::None;
 
             // 1. Shader Resource (SRV)
-            if (enum_has_any_flags(flags, ResourceBindFlags::ShaderResource))
+            if (enum_has_any_flags(flags, graphics::TextureUsage::ShaderResource))
             {
-                usage |= TextureUsage::ShaderResource;
+                usage |= rhi::TextureUsage::ShaderResource;
             }
 
             // 2. Unordered Access (UAV)
-            if (enum_has_any_flags(flags, ResourceBindFlags::UnorderedAccess))
+            if (enum_has_any_flags(flags, graphics::TextureUsage::UnorderedAccess))
             {
-                usage |= TextureUsage::UnorderedAccess;
+                usage |= rhi::TextureUsage::UnorderedAccess;
             }
 
             // 3. Render Target (RTV)
-            if (enum_has_any_flags(flags, ResourceBindFlags::RenderTarget))
+            if (enum_has_any_flags(flags, graphics::TextureUsage::RenderTarget))
             {
-                usage |= TextureUsage::RenderTarget;
+                usage |= rhi::TextureUsage::RenderTarget;
             }
 
             // 4. Depth Stencil (DSV)
-            if (enum_has_any_flags(flags, ResourceBindFlags::DepthStencil))
+            if (enum_has_any_flags(flags, graphics::TextureUsage::DepthStencil))
             {
-                usage |= TextureUsage::DepthStencil;
+                usage |= rhi::TextureUsage::DepthStencil;
             }
 
             // 5. Shared
-            if (enum_has_any_flags(flags, ResourceBindFlags::Shared))
+            if (enum_has_any_flags(flags, graphics::TextureUsage::Shared))
             {
-                usage |= TextureUsage::Shared;
+                usage |= rhi::TextureUsage::Shared;
             }
 
-            usage |= TextureUsage::CopySource | TextureUsage::CopyDestination;
+            usage |= rhi::TextureUsage::CopySource | rhi::TextureUsage::CopyDestination;
 
             return usage;
         }
@@ -97,10 +95,10 @@ namespace april::graphics
         uint32_t arraySize,
         uint32_t mipLevels,
         uint32_t sampleCount,
-        ResourceBindFlags bindFlags,
+        TextureUsage usage,
         void const* pInitData
     )
-        : Resource(p_device, type, bindFlags, 0)
+        : Resource(p_device, type, 0)
         , m_format(format)
         , m_width(width)
         , m_height(height)
@@ -108,6 +106,7 @@ namespace april::graphics
         , m_mipLevels(mipLevels)
         , m_arraySize(arraySize)
         , m_sampleCount(sampleCount)
+        , m_usage(usage)
     {
         AP_ASSERT(m_type != Type::Buffer, "Texture type cannot be Buffer.");
         AP_ASSERT(m_format != ResourceFormat::Unknown, "Texture format cannot be Unknown.");
@@ -117,7 +116,7 @@ namespace april::graphics
 
         if (autoGenerateMips)
         {
-            m_bindFlags |= ResourceBindFlags::RenderTarget;
+            m_usage |= TextureUsage::RenderTarget;
         }
 
         if (m_mipLevels == kMaxPossible)
@@ -126,11 +125,17 @@ namespace april::graphics
             m_mipLevels = bitScanReverse(dims) + 1;
         }
 
+        // Default initial state.
+        if (enum_has_any_flags(m_usage, TextureUsage::RenderTarget)) m_state.global = Resource::State::RenderTarget;
+        else if (enum_has_any_flags(m_usage, TextureUsage::DepthStencil)) m_state.global = Resource::State::DepthStencil;
+        else if (enum_has_any_flags(m_usage, TextureUsage::UnorderedAccess)) m_state.global = Resource::State::UnorderedAccess;
+        else if (enum_has_any_flags(m_usage, TextureUsage::ShaderResource)) m_state.global = Resource::State::ShaderResource;
+
         m_state.perSubresource.resize(m_mipLevels * m_arraySize, m_state.global);
 
         rhi::TextureDesc desc = {};
         desc.type = getGfxTextureType(m_type);
-        desc.usage = getTextureUsage(bindFlags);
+        desc.usage = getTextureUsage(m_usage);
         desc.defaultState = rhi::ResourceState::General;
         desc.memoryType = rhi::MemoryType::DeviceLocal;
 
@@ -144,17 +149,17 @@ namespace april::graphics
         desc.sampleCount = m_sampleCount;
         desc.sampleQuality = 0;
 
-        if (enum_has_any_flags(m_bindFlags, ResourceBindFlags::RenderTarget | ResourceBindFlags::DepthStencil))
+        if (enum_has_any_flags(m_usage, TextureUsage::RenderTarget | TextureUsage::DepthStencil))
         {
             rhi::ClearValue clearValue = {};
-            if (enum_has_any_flags(m_bindFlags, ResourceBindFlags::DepthStencil))
+            if (enum_has_any_flags(m_usage, TextureUsage::DepthStencil))
             {
                 clearValue.depthStencil.depth = 1.0f;
             }
             desc.optimalClearValue = &clearValue;
         }
 
-        if (enum_has_any_flags(m_bindFlags, ResourceBindFlags::Shared))
+        if (enum_has_any_flags(m_usage, TextureUsage::Shared))
         {
             desc.usage |= rhi::TextureUsage::Shared;
         }
@@ -196,10 +201,10 @@ namespace april::graphics
         uint32_t arraySize,
         uint32_t mipLevels,
         uint32_t sampleCount,
-        ResourceBindFlags bindFlags,
+        TextureUsage usage,
         Resource::State initState
     )
-        : Resource(pDevice, type, bindFlags, 0), m_width(width), m_height(height), m_depth(depth), m_mipLevels(mipLevels), m_sampleCount(sampleCount), m_arraySize(arraySize), m_format(format)
+        : Resource(pDevice, type, 0), m_width(width), m_height(height), m_depth(depth), m_mipLevels(mipLevels), m_sampleCount(sampleCount), m_arraySize(arraySize), m_format(format), m_usage(usage)
     {
         m_gfxTexture = pTexture;
         m_state.global = initState;
@@ -425,3 +430,4 @@ namespace april::graphics
     }
 
 } // namespace april::graphics
+

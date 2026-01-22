@@ -119,7 +119,8 @@ namespace april::graphics
                 pContext->uavBarrier(pBuffer->getUAVCounter().get());
             }
 
-            bool insertBarrier = !enum_has_any_flags(pResource->getBindFlags(), ResourceBindFlags::AccelerationStructure);
+            bool isAccelerationStructure = pBuffer && enum_has_any_flags(pBuffer->getUsage(), BufferUsage::AccelerationStructure);
+            bool insertBarrier = !isAccelerationStructure;
             if (insertBarrier)
             {
                 insertBarrier = !pContext->resourceBarrier(pResource, isUav ? Resource::State::UnorderedAccess : Resource::State::ShaderResource);
@@ -451,7 +452,7 @@ namespace april::graphics
         rhi::ShaderOffset gfxOffset = getGFXShaderOffset(bindLoc);
         if (isUavType(bindLoc.getType()))
         {
-            if (pBuffer && !enum_has_any_flags(pBuffer->getBindFlags(), ResourceBindFlags::UnorderedAccess))
+            if (pBuffer && !enum_has_any_flags(pBuffer->getUsage(), BufferUsage::UnorderedAccess))
             {
                 AP_ERROR("Trying to bind buffer created without UnorderedAccess flag as a UAV.");
             }
@@ -461,7 +462,7 @@ namespace april::graphics
         }
         else if (isSrvType(bindLoc.getType()))
         {
-            if (pBuffer && !enum_has_any_flags(pBuffer->getBindFlags(), ResourceBindFlags::ShaderResource))
+            if (pBuffer && !enum_has_any_flags(pBuffer->getUsage(), BufferUsage::ShaderResource))
             {
                 AP_ERROR("Trying to bind buffer created without ShaderResource flag as an SRV.");
             }
@@ -516,7 +517,7 @@ namespace april::graphics
         rhi::ShaderOffset gfxOffset = getGFXShaderOffset(bindLocation);
         if (isUavType(bindLocation.getType()))
         {
-            if (pTexture && !enum_has_any_flags(pTexture->getBindFlags(), ResourceBindFlags::UnorderedAccess))
+            if (pTexture && !enum_has_any_flags(pTexture->getUsage(), TextureUsage::UnorderedAccess))
             {
                 AP_ERROR("Trying to bind texture created without UnorderedAccess flag as a UAV.");
             }
@@ -526,7 +527,7 @@ namespace april::graphics
         }
         else if (isSrvType(bindLocation.getType()))
         {
-            if (pTexture && !enum_has_any_flags(pTexture->getBindFlags(), ResourceBindFlags::ShaderResource))
+            if (pTexture && !enum_has_any_flags(pTexture->getUsage(), TextureUsage::ShaderResource))
             {
                 AP_ERROR("Trying to bind texture created without ShaderResource flag as an SRV.");
             }

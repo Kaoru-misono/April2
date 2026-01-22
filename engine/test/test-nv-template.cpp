@@ -5,14 +5,12 @@
 #include <graphics/rhi/command-context.hpp>
 #include <graphics/rhi/swapchain.hpp>
 #include <graphics/rhi/texture.hpp>
-#include <graphics/rhi/buffer.hpp>      // [新增] Buffer
-#include <graphics/rhi/query-heap.hpp>  // [新增] QueryHeap
+#include <graphics/rhi/buffer.hpp>
+#include <graphics/rhi/query-heap.hpp>
 #include <graphics/rhi/resource-views.hpp>
 #include "ui/imgui-layer.hpp"
 #include "ui/element.hpp"
 #include "ui/element/element-logger.hpp"
-#include "ui/element/element-profiler.hpp"
-#include <core/profile/profiler.hpp>
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -35,7 +33,7 @@ public:
 
         m_viewportTexture = device->createTexture2D(
             1, 1, ResourceFormat::RGBA32Float, 1, 1, nullptr,
-            ResourceBindFlags::ShaderResource | ResourceBindFlags::RenderTarget
+            TextureUsage::ShaderResource | TextureUsage::RenderTarget
         );
         m_viewportTexture->setName("ViewportTexture");
     }
@@ -127,10 +125,9 @@ int main()
         auto queryHeap = QueryHeap::create(device, QueryHeap::Type::Timestamp, 2);
         auto timestampBuffer = device->createBuffer(
             sizeof(uint64_t) * 2,
-            ResourceBindFlags::None,
+            BufferUsage::None,
             MemoryType::ReadBack
         );
-        timestampBuffer->setName("Timestamp Readback");
 
         // 4. Initialize ImGuiLayer
         ImGuiLayerDesc layerDesc;
@@ -140,14 +137,11 @@ int main()
         auto imguiLayer = core::make_ref<ImGuiLayer>();
         imguiLayer->init(layerDesc);
 
-        ImPlot::CreateContext(); // Fix crash
-
         // 5. Add Elements
         auto sampleElement = core::make_ref<SampleElement>();
         imguiLayer->addElement(sampleElement);
         imguiLayer->addElement(core::make_ref<ElementLogger>(true));
 
-        // april::core::GlobalProfiler::init("TestProfile");
         // imguiLayer->addElement(core::make_ref<ElementProfiler>());
 
         auto ctx = device->getCommandContext();
@@ -159,42 +153,52 @@ int main()
 
         while (!closeWindow)
         {
-            // april::core::GlobalProfiler::getTimeline()->frameAdvance();
-            // AP_PROFILE_SCOPE("Frame");
-
-            window->onEvent();
-
-            ctx->writeTimestamp(queryHeap.get(), 0);
-
-            // Logic
-            if (frame % 60 == 0) AP_INFO("Frame {}", frame);
-            frame++;
-
-            auto fw = window->getFramebufferWidth();
-            auto fh = window->getFramebufferHeight();
-
-            if (fw > 0 && fh > 0)
             {
-                if (swapchain->getDesc().width != fw || swapchain->getDesc().height != fh)
+
                 {
-                    swapchain->resize(fw, fh);
+                    window->onEvent();
                 }
 
-                auto backBuffer = swapchain->acquireNextImage();
-                if (!backBuffer) continue;
+                ctx->writeTimestamp(queryHeap.get(), 0);
 
-                imguiLayer->beginFrame();
-                imguiLayer->endFrame(ctx, backBuffer->getRTV());
+                // Logic
+                {
+                    if (frame % 60 == 0) AP_INFO("Frame {}", frame);
+                    frame++;
 
-                ctx->resourceBarrier(backBuffer.get(), Resource::State::Present);
+                    auto fw = window->getFramebufferWidth();
+                    auto fh = window->getFramebufferHeight();
 
-                ctx->writeTimestamp(queryHeap.get(), 1);
+                    if (fw > 0 && fh > 0)
+                    {
+                        if (swapchain->getDesc().width != fw || swapchain->getDesc().height != fh)
+                        {
+                            swapchain->resize(fw, fh);
+                        }
+                    }
+                }
 
-                ctx->resolveQuery(queryHeap.get(), 0, 2, timestampBuffer.get(), 0);
+                auto fw = window->getFramebufferWidth();
+                auto fh = window->getFramebufferHeight();
 
-                ctx->submit();
-                swapchain->present();
-                device->endFrame();
+                if (fw > 0 && fh > 0)
+                {
+                    auto backBuffer = swapchain->acquireNextImage();
+                    if (!backBuffer) continue;
+
+                    imguiLayer->beginFrame();
+                    imguiLayer->endFrame(ctx, backBuffer->getRTV());
+
+                    ctx->resourceBarrier(backBuffer.get(), Resource::State::Present);
+
+                    ctx->writeTimestamp(queryHeap.get(), 1);
+
+                    ctx->resolveQuery(queryHeap.get(), 0, 2, timestampBuffer.get(), 0);
+
+                    ctx->submit();
+                    swapchain->present();
+                    device->endFrame();
+                }
 
                 uint64_t* pData = reinterpret_cast<uint64_t*>(timestampBuffer->map());
                 if (pData)
@@ -212,7 +216,6 @@ int main()
             }
         }
 
-        ImPlot::DestroyContext();
         imguiLayer->terminate();
     }
     catch (const std::exception& e)

@@ -170,7 +170,7 @@ namespace april::graphics
          */
         auto createBuffer(
             size_t size,
-            ResourceBindFlags bindFlags = ResourceBindFlags::ShaderResource | ResourceBindFlags::UnorderedAccess,
+            BufferUsage usage = BufferUsage::ShaderResource | BufferUsage::UnorderedAccess,
             MemoryType memoryType = MemoryType::DeviceLocal,
             void const* pInitData = nullptr
         ) -> core::ref<Buffer>;
@@ -181,7 +181,7 @@ namespace april::graphics
         auto createTypedBuffer(
             ResourceFormat format,
             uint32_t elementCount,
-            ResourceBindFlags bindFlags = ResourceBindFlags::ShaderResource | ResourceBindFlags::UnorderedAccess,
+            BufferUsage usage = BufferUsage::ShaderResource | BufferUsage::UnorderedAccess,
             MemoryType memoryType = MemoryType::DeviceLocal,
             void const* pInitData = nullptr
         ) -> core::ref<Buffer>;
@@ -192,12 +192,12 @@ namespace april::graphics
         template<typename T>
         auto createTypedBuffer(
             uint32_t elementCount,
-            ResourceBindFlags bindFlags = ResourceBindFlags::ShaderResource | ResourceBindFlags::UnorderedAccess,
+            BufferUsage usage = BufferUsage::ShaderResource | BufferUsage::UnorderedAccess,
             MemoryType memoryType = MemoryType::DeviceLocal,
             T const* pInitData = nullptr
         ) -> core::ref<Buffer>
         {
-            return createTypedBuffer(detail::FormatForElementType<T>::kFormat, elementCount, bindFlags, memoryType, pInitData);
+            return createTypedBuffer(detail::FormatForElementType<T>::kFormat, elementCount, usage, memoryType, pInitData);
         }
 
         /**
@@ -206,7 +206,7 @@ namespace april::graphics
         auto createStructuredBuffer(
             uint32_t structSize,
             uint32_t elementCount,
-            ResourceBindFlags bindFlags = ResourceBindFlags::ShaderResource | ResourceBindFlags::UnorderedAccess,
+            BufferUsage usage = BufferUsage::ShaderResource | BufferUsage::UnorderedAccess,
             MemoryType memoryType = MemoryType::DeviceLocal,
             void const* pInitData = nullptr,
             bool createCounter = false
@@ -218,7 +218,7 @@ namespace april::graphics
         auto createStructuredBuffer(
             ReflectionType const* pType,
             uint32_t elementCount,
-            ResourceBindFlags bindFlags = ResourceBindFlags::ShaderResource | ResourceBindFlags::UnorderedAccess,
+            BufferUsage usage = BufferUsage::ShaderResource | BufferUsage::UnorderedAccess,
             MemoryType memoryType = MemoryType::DeviceLocal,
             void const* pInitData = nullptr,
             bool createCounter = false
@@ -230,7 +230,7 @@ namespace april::graphics
         auto createStructuredBuffer(
             ShaderVariable const& shaderVariable,
             uint32_t elementCount,
-            ResourceBindFlags bindFlags = ResourceBindFlags::ShaderResource | ResourceBindFlags::UnorderedAccess,
+            BufferUsage usage = BufferUsage::ShaderResource | BufferUsage::UnorderedAccess,
             MemoryType memoryType = MemoryType::DeviceLocal,
             void const* pInitData = nullptr,
             bool createCounter = false
@@ -239,12 +239,12 @@ namespace april::graphics
         /**
          * Create a new buffer from an existing resource.
          */
-        auto createBufferFromResource(rhi::IBuffer* pResource, size_t size, ResourceBindFlags bindFlags, MemoryType memoryType) -> core::ref<Buffer>;
+        auto createBufferFromResource(rhi::IBuffer* pResource, size_t size, BufferUsage usage, MemoryType memoryType) -> core::ref<Buffer>;
 
         /**
          * Create a new buffer from an existing native handle.
          */
-        auto createBufferFromNativeHandle(NativeHandle handle, size_t size, ResourceBindFlags bindFlags, MemoryType memoryType) -> core::ref<Buffer>;
+        auto createBufferFromNativeHandle(NativeHandle handle, size_t size, BufferUsage usage, MemoryType memoryType) -> core::ref<Buffer>;
 
         /**
          * Create a 1D texture.
@@ -255,7 +255,7 @@ namespace april::graphics
             uint32_t arraySize = 1,
             uint32_t mipLevels = Resource::kMaxPossible,
             void const* pInitData = nullptr,
-            ResourceBindFlags bindFlags = ResourceBindFlags::ShaderResource
+            TextureUsage usage = TextureUsage::ShaderResource
         ) -> core::ref<Texture>;
 
         /**
@@ -268,7 +268,7 @@ namespace april::graphics
             uint32_t arraySize = 1,
             uint32_t mipLevels = Resource::kMaxPossible,
             void const* pInitData = nullptr,
-            ResourceBindFlags bindFlags = ResourceBindFlags::ShaderResource
+            TextureUsage usage = TextureUsage::ShaderResource
         ) -> core::ref<Texture>;
 
         /**
@@ -281,7 +281,7 @@ namespace april::graphics
             ResourceFormat format,
             uint32_t mipLevels = Resource::kMaxPossible,
             void const* pInitData = nullptr,
-            ResourceBindFlags bindFlags = ResourceBindFlags::ShaderResource
+            TextureUsage usage = TextureUsage::ShaderResource
         ) -> core::ref<Texture>;
 
         /**
@@ -294,7 +294,7 @@ namespace april::graphics
             uint32_t arraySize = 1,
             uint32_t mipLevels = Resource::kMaxPossible,
             void const* pInitData = nullptr,
-            ResourceBindFlags bindFlags = ResourceBindFlags::ShaderResource
+            TextureUsage usage = TextureUsage::ShaderResource
         ) -> core::ref<Texture>;
 
         /**
@@ -306,7 +306,7 @@ namespace april::graphics
             ResourceFormat format,
             uint32_t sampleCount,
             uint32_t arraySize = 1,
-            ResourceBindFlags bindFlags = ResourceBindFlags::ShaderResource
+            TextureUsage usage = TextureUsage::ShaderResource
         ) -> core::ref<Texture>;
 
         /**
@@ -322,7 +322,7 @@ namespace april::graphics
             uint32_t arraySize,
             uint32_t mipLevels,
             uint32_t sampleCount,
-            ResourceBindFlags bindFlags,
+            TextureUsage usage,
             Resource::State initState
         ) -> core::ref<Texture>;
 
@@ -417,7 +417,7 @@ namespace april::graphics
          */
         auto getDefaultSampler() const -> core::ref<Sampler> const& { return mp_defaultSampler; }
 
-        auto getBufferDataAlignment(ResourceBindFlags bindFlags) -> size_t;
+        auto getBufferDataAlignment(BufferUsage usage) -> size_t;
 
         auto getUploadHeap() const -> core::ref<GpuMemoryHeap> const& { return mp_uploadHeap; }
         auto getReadBackHeap() const -> core::ref<GpuMemoryHeap> const& { return mp_readBackHeap; }
@@ -454,11 +454,6 @@ namespace april::graphics
         auto getDefaultShaderModel() const -> ShaderModel { return m_defaultShaderModel; }
 
         // auto getCurrentTransientResourceHeap() -> rhi::ITransientResourceHeap*;
-
-        /**
-         * Get the supported bind-flags for a specific format.
-         */
-        auto getFormatBindFlags(ResourceFormat format) -> ResourceBindFlags;
 
         /// Get the texture row memory alignment in bytes.
         auto getTextureRowAlignment() const -> size_t;

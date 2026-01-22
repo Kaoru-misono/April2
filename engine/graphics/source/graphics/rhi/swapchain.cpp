@@ -61,7 +61,7 @@ namespace april::graphics
             1,
             1,
             1,
-            ResourceBindFlags::RenderTarget,
+            TextureUsage::RenderTarget,
             Resource::State::Undefined
         );
 

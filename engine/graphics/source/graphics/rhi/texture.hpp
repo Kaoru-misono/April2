@@ -19,6 +19,23 @@ namespace april::graphics
     class Sampler;
     class CommandContext;
 
+    enum class TextureUsage: uint32_t
+    {
+        None = 0,
+        ShaderResource = (1 << 0),
+        UnorderedAccess = (1 << 1),
+        RenderTarget = (1 << 2),
+        DepthStencil = (1 << 3),
+        Present = (1 << 4),
+        CopySource = (1 << 5),
+        CopyDestination = (1 << 6),
+        ResolveSource = (1 << 7),
+        ResolveDestination = (1 << 8),
+        Typeless = (1 << 9),
+        Shared = (1 << 10),
+    };
+    AP_ENUM_CLASS_OPERATORS(TextureUsage);
+
     /**
      * Abstracts the API texture objects
      */
@@ -54,7 +71,7 @@ namespace april::graphics
             uint32_t arraySize,
             uint32_t mipLevels,
             uint32_t sampleCount,
-            ResourceBindFlags bindFlags,
+            TextureUsage usage,
             void const* pInitData
         );
 
@@ -69,7 +86,7 @@ namespace april::graphics
             uint32_t arraySize,
             uint32_t mipLevels,
             uint32_t sampleCount,
-            ResourceBindFlags bindFlags,
+            TextureUsage usage,
             Resource::State initState
         );
 
@@ -135,6 +152,11 @@ namespace april::graphics
         auto getSubresourceCount() const -> uint32_t { return m_mipLevels * m_arraySize; }
 
         /**
+         * Get the texture usage
+         */
+        auto getUsage() const -> TextureUsage { return m_usage; }
+
+        /**
          * Get the resource format
          */
         auto getFormat() const -> ResourceFormat { return m_format; }
@@ -143,7 +165,7 @@ namespace april::graphics
             core::ref<Device> pDevice,
             std::span<const std::filesystem::path> paths,
             bool loadAsSrgb,
-            ResourceBindFlags bindFlags = ResourceBindFlags::ShaderResource,
+            TextureUsage usage = TextureUsage::ShaderResource,
             Bitmap::ImportFlags importFlags = Bitmap::ImportFlags::None
         ) -> core::ref<Texture>;
 
@@ -152,7 +174,7 @@ namespace april::graphics
             const std::filesystem::path& path,
             bool generateMipLevels,
             bool loadAsSrgb,
-            ResourceBindFlags bindFlags = ResourceBindFlags::ShaderResource,
+            TextureUsage usage = TextureUsage::ShaderResource,
             Bitmap::ImportFlags importFlags = Bitmap::ImportFlags::None
         );
 
@@ -274,6 +296,7 @@ namespace april::graphics
         bool m_releaseRtvsAfterGenMips{true};
         std::filesystem::path m_sourcePath;
         Bitmap::ImportFlags m_importFlags = Bitmap::ImportFlags::None;
+        TextureUsage m_usage{TextureUsage::None};
 
         ResourceFormat m_format{ResourceFormat::Unknown};
         uint32_t m_width{0};
@@ -285,4 +308,33 @@ namespace april::graphics
         bool m_isSparse{false};
         int3 m_sparsePageRes{0};
     };
+
+    inline auto to_string(TextureUsage usages) -> std::string
+    {
+        std::string s;
+        if (usages == TextureUsage::None)
+        {
+            return "None";
+        }
+
+    #define item_to_string(item)                       \
+        if (enum_has_any_flags(usages, TextureUsage::item)) \
+        (s += (s.size() ? " | " : "") + std::string(#item))
+
+        item_to_string(ShaderResource);
+        item_to_string(UnorderedAccess);
+        item_to_string(RenderTarget);
+        item_to_string(DepthStencil);
+        item_to_string(Present);
+        item_to_string(CopySource);
+        item_to_string(CopyDestination);
+        item_to_string(ResolveSource);
+        item_to_string(ResolveDestination);
+        item_to_string(Typeless);
+        item_to_string(Shared);
+
+    #undef item_to_string
+
+        return s;
+    }
 } // namespace april::graphics

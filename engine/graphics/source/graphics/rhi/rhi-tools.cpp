@@ -116,17 +116,30 @@ namespace april::graphics
         }
     }
 
-    auto getGFXBufferUsage(ResourceBindFlags flags) -> rhi::BufferUsage
+    auto getGFXBufferUsage(BufferUsage usage) -> rhi::BufferUsage
     {
-        rhi::BufferUsage usage = rhi::BufferUsage::None;
-        if (enum_has_any_flags(flags, ResourceBindFlags::Vertex)) usage |= rhi::BufferUsage::VertexBuffer;
-        if (enum_has_any_flags(flags, ResourceBindFlags::Index)) usage |= rhi::BufferUsage::IndexBuffer;
-        if (enum_has_any_flags(flags, ResourceBindFlags::Constant)) usage |= rhi::BufferUsage::ConstantBuffer;
-        if (enum_has_any_flags(flags, ResourceBindFlags::ShaderResource)) usage |= rhi::BufferUsage::ShaderResource;
-        if (enum_has_any_flags(flags, ResourceBindFlags::UnorderedAccess)) usage |= rhi::BufferUsage::UnorderedAccess;
-        if (enum_has_any_flags(flags, ResourceBindFlags::IndirectArg)) usage |= rhi::BufferUsage::IndirectArgument;
-        if (enum_has_any_flags(flags, ResourceBindFlags::AccelerationStructure)) usage |= rhi::BufferUsage::AccelerationStructure;
-        return usage;
+        rhi::BufferUsage res = rhi::BufferUsage::None;
+        if (enum_has_any_flags(usage, BufferUsage::VertexBuffer)) res |= rhi::BufferUsage::VertexBuffer;
+        if (enum_has_any_flags(usage, BufferUsage::IndexBuffer)) res |= rhi::BufferUsage::IndexBuffer;
+        if (enum_has_any_flags(usage, BufferUsage::ConstantBuffer)) res |= rhi::BufferUsage::ConstantBuffer;
+        if (enum_has_any_flags(usage, BufferUsage::ShaderResource)) res |= rhi::BufferUsage::ShaderResource;
+        if (enum_has_any_flags(usage, BufferUsage::UnorderedAccess)) res |= rhi::BufferUsage::UnorderedAccess;
+        if (enum_has_any_flags(usage, BufferUsage::IndirectArgument)) res |= rhi::BufferUsage::IndirectArgument;
+        if (enum_has_any_flags(usage, BufferUsage::AccelerationStructure)) res |= rhi::BufferUsage::AccelerationStructure;
+        return res;
+    }
+
+    auto getGFXTextureUsage(TextureUsage usage) -> rhi::TextureUsage
+    {
+        rhi::TextureUsage res = rhi::TextureUsage::None;
+        if (enum_has_any_flags(usage, TextureUsage::ShaderResource)) res |= rhi::TextureUsage::ShaderResource;
+        if (enum_has_any_flags(usage, TextureUsage::UnorderedAccess)) res |= rhi::TextureUsage::UnorderedAccess;
+        if (enum_has_any_flags(usage, TextureUsage::RenderTarget)) res |= rhi::TextureUsage::RenderTarget;
+        if (enum_has_any_flags(usage, TextureUsage::DepthStencil)) res |= rhi::TextureUsage::DepthStencil;
+        if (enum_has_any_flags(usage, TextureUsage::Present)) res |= rhi::TextureUsage::Present;
+        if (enum_has_any_flags(usage, TextureUsage::Shared)) res |= rhi::TextureUsage::Shared;
+        res |= rhi::TextureUsage::CopySource | rhi::TextureUsage::CopyDestination;
+        return res;
     }
 
     auto prepareGFXBufferDesc(
@@ -135,7 +148,7 @@ namespace april::graphics
         size_t size,
         size_t elementSize,
         ResourceFormat format,
-        ResourceBindFlags bindFlags,
+        BufferUsage usage,
         MemoryType memoryType
     ) -> void
     {
@@ -157,7 +170,7 @@ namespace april::graphics
             AP_UNREACHABLE();
             break;
         }
-        bufDesc.usage = getGFXBufferUsage(bindFlags);
+        bufDesc.usage = getGFXBufferUsage(usage);
         bufDesc.defaultState = getGFXResourceState(initState);
     }
 
@@ -167,7 +180,7 @@ namespace april::graphics
         size_t size,
         size_t elementSize,
         ResourceFormat format,
-        ResourceBindFlags bindFlags,
+        BufferUsage usage,
         MemoryType memoryType
     ) -> Slang::ComPtr<rhi::IBuffer>
     {
@@ -175,7 +188,7 @@ namespace april::graphics
 
         // Create the buffer
         rhi::BufferDesc bufDesc = {};
-        prepareGFXBufferDesc(bufDesc, initState, size, elementSize, format, bindFlags, memoryType);
+        prepareGFXBufferDesc(bufDesc, initState, size, elementSize, format, usage, memoryType);
 
         Slang::ComPtr<rhi::IBuffer> p_apiHandle;
         checkResult(p_device->getGfxDevice()->createBuffer(bufDesc, nullptr, p_apiHandle.writeRef()), "Failed to create buffer resource");
