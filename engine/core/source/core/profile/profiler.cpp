@@ -1,4 +1,5 @@
 #include "profiler.hpp"
+
 #include <sstream>
 #include <algorithm>
 #include <fstream>
@@ -101,7 +102,7 @@ namespace april::core {
     auto Profiler::beginEvent(char const* name, char const* file, uint32_t line) -> void
     {
         auto& data = getThreadData();
-        
+
         auto now = std::chrono::high_resolution_clock::now();
         auto startCpuTime = std::chrono::duration<double, std::micro>(now.time_since_epoch()).count();
 
@@ -137,8 +138,8 @@ namespace april::core {
     auto Profiler::addGpuEvent(char const* name, double duration) -> void
     {
         auto& data = getThreadData();
-        
-        // GPU events are currently added as "completed" events with 0 CPU duration 
+
+        // GPU events are currently added as "completed" events with 0 CPU duration
         // but with valid GPU duration.
         auto event = ProfilerEvent{
             .name = name ? name : "",
@@ -167,7 +168,7 @@ namespace april::core {
     auto Profiler::getSnapshots(std::vector<Snapshot>& frameSnapshots, std::vector<Snapshot>& asyncSnapshots) const -> void
     {
         auto lock = std::lock_guard<std::mutex>{m_mutex};
-        
+
         frameSnapshots.clear();
         asyncSnapshots.clear();
 
@@ -176,24 +177,24 @@ namespace april::core {
             if (data.history.empty()) continue;
 
             auto snapshot = Snapshot{};
-            snapshot.name = "Thread"; 
+            snapshot.name = "Thread";
 
             auto const& lastFrame = data.history.back();
-            
+
             for (size_t i = 0; i < lastFrame.size(); ++i)
             {
                 auto const& event = lastFrame[i];
                 auto info = TimerInfo{};
-                
+
                 double totalCpu = 0.0;
                 double totalGpu = 0.0;
-                info.cpu.absMinValue = 1e30; 
+                info.cpu.absMinValue = 1e30;
                 info.gpu.absMinValue = 1e30;
                 uint32_t actualCount = 0;
 
                 for (auto const& frame : data.history)
                 {
-                    if (i < frame.size()) 
+                    if (i < frame.size())
                     {
                         auto const& hEvent = frame[i];
                         double cpuDur = hEvent.endCpuTime - hEvent.startCpuTime;
@@ -206,7 +207,7 @@ namespace april::core {
                         info.cpu.absMaxValue = std::max(info.cpu.absMaxValue, cpuDur);
                         info.gpu.absMinValue = std::min(info.gpu.absMinValue, gpuDur);
                         info.gpu.absMaxValue = std::max(info.gpu.absMaxValue, gpuDur);
-                        
+
                         info.cpu.last = cpuDur;
                         info.gpu.last = gpuDur;
                         actualCount++;
@@ -248,7 +249,7 @@ namespace april::core {
     auto Profiler::serializeToJson(std::string const& filePath) -> void
     {
         auto lock = std::lock_guard<std::mutex>{m_mutex};
-        
+
         auto outFile = std::ofstream{filePath};
         if (!outFile.is_open()) return;
 
