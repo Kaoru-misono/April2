@@ -232,7 +232,7 @@ namespace april::graphics
         /**
          * Map the buffer.
          */
-        auto map() const -> void*;
+        auto map(rhi::CpuAccessMode mode = rhi::CpuAccessMode::Write) const -> void*;
 
         /**
          * Unmap the buffer

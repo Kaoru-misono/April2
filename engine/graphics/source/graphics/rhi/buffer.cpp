@@ -200,7 +200,7 @@ namespace april::graphics
         if (m_memoryType == MemoryType::Upload)
         {
             bool wasMapped = m_mappedPtr != nullptr;
-            uint8_t* pDst = (uint8_t*)map() + offset;
+            uint8_t* pDst = (uint8_t*)map(rhi::CpuAccessMode::Write) + offset;
             std::memcpy(pDst, pData, size);
             if (!wasMapped)
                 unmap();
@@ -225,7 +225,7 @@ namespace april::graphics
         if (m_memoryType == MemoryType::ReadBack)
         {
             bool wasMapped = m_mappedPtr != nullptr;
-            const uint8_t* pSrc = (const uint8_t*)map() + offset;
+            const uint8_t* pSrc = (const uint8_t*)map(rhi::CpuAccessMode::Read) + offset;
             std::memcpy(pData, pSrc, size);
             if (!wasMapped)
                 unmap();
@@ -241,13 +241,12 @@ namespace april::graphics
         }
     }
 
-    auto Buffer::map() const -> void*
+    auto Buffer::map(rhi::CpuAccessMode mode) const -> void*
     {
-        AP_ASSERT(m_memoryType == MemoryType::Upload || m_memoryType == MemoryType::ReadBack);
-        // TODO: AccessMode from memoryType
-        if (!m_mappedPtr)
-            checkResult(mp_device->getGfxDevice()->mapBuffer(m_gfxBuffer, rhi::CpuAccessMode::Write, &m_mappedPtr), "Failed to map buffer");
-
+        if (m_mappedPtr == nullptr)
+        {
+            checkResult(mp_device->getGfxDevice()->mapBuffer(m_gfxBuffer, mode, &m_mappedPtr), "Failed to map buffer");
+        }
         return m_mappedPtr;
     }
 
