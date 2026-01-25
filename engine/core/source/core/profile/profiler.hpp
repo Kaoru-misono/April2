@@ -8,6 +8,22 @@
 namespace april::core
 {
     /**
+     * Interface for GPU profiling data providers.
+     * This allows the graphics module to inject GPU events into the core profiler.
+     */
+    class IGpuProfiler
+    {
+    public:
+        virtual ~IGpuProfiler() = default;
+
+        /**
+         * Collects all ready GPU events.
+         * @return Vector of GPU-originated profiler events.
+         */
+        virtual auto collectEvents() -> std::vector<ProfileEvent> = 0;
+    };
+
+    /**
      * Foundational Profiler class.
      * Manages CPU and (future) GPU profiling events.
      */
@@ -28,11 +44,23 @@ namespace april::core
          */
         auto endEvent(const char* name) -> void;
 
+        /**
+         * Registers a GPU profiler provider.
+         */
+        auto registerGpuProfiler(IGpuProfiler* pGpuProfiler) -> void { m_gpuProfiler = pGpuProfiler; }
+
+        /**
+         * Returns the registered GPU profiler.
+         */
+        auto getGpuProfiler() const -> IGpuProfiler* { return m_gpuProfiler; }
+
     private:
         Profiler() = default;
         ~Profiler() = default;
         Profiler(const Profiler&) = delete;
         Profiler& operator=(const Profiler&) = delete;
+
+        IGpuProfiler* m_gpuProfiler{nullptr};
     };
 
     /**

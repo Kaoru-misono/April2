@@ -9,3 +9,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 - [x] **Track: Profiler Phase 3: GPU Profiling**
 *Link: [./tracks/gpu-profiling_20260126/](./tracks/gpu-profiling_20260126/)*
 
+- [ ] **Track: Profiler Phase 4: Synchronization**
+*Link: [./tracks/profiler-synchronization_20260126/](./tracks/profiler-synchronization_20260126/)*

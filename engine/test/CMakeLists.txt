@@ -58,6 +58,7 @@ add_executable(test-suite
     source/test-logger-refactor.cpp
     source/test-log-enhancement.cpp
     test-profiler.cpp
+    test-gpu-profiler.cpp
 )
 target_include_directories(test-suite PRIVATE external/doctest)
 target_link_libraries(test-suite PRIVATE April_graphics)

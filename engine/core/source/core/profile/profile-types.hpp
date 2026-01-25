@@ -32,7 +32,7 @@ namespace april::core
         const char* name;
         uint32_t threadId;
         ProfileEventType type;
-        uint8_t padding[11]; 
+        uint8_t padding[11];
     };
 
     static_assert(sizeof(ProfileEvent) == 32, "ProfileEvent must be exactly 32 bytes");

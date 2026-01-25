@@ -15,11 +15,13 @@
 #include "program/program-manager.hpp"
 #include "program/shader-variable.hpp"
 #include "tools/blob.hpp"
+#include "graphics/profile/gpu-profiler.hpp"
 
 #include <core/error/assert.hpp>
 #include <core/log/logger.hpp>
 #include <core/math/math.hpp>
 #include <core/tools/enum-flags.hpp>
+#include <core/profile/profiler.hpp>
 
 #include <algorithm>
 
@@ -363,6 +365,9 @@ namespace april::graphics
 
         mp_commandContext = std::unique_ptr<CommandContext>(new CommandContext(this, m_gfxCommandQueue));
 
+        mp_gpuProfiler = GpuProfiler::create(core::ref<Device>(this));
+        core::Profiler::get().registerGpuProfiler(mp_gpuProfiler.get());
+
         // TODO: Do we need to flush here?
         mp_commandContext->submit();
 
@@ -619,6 +624,11 @@ namespace april::graphics
 
     auto Device::endFrame() -> void
     {
+        if (mp_gpuProfiler)
+        {
+            mp_gpuProfiler->endFrame(mp_commandContext.get());
+        }
+
         mp_commandContext->submit();
         executeDeferredReleases();
 

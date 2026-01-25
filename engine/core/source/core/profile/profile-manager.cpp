@@ -1,4 +1,5 @@
 #include "profile-manager.hpp"
+#include "profiler.hpp"
 #include <algorithm>
 
 namespace april::core
@@ -42,7 +43,17 @@ namespace april::core
             }
         }
 
-        // Sort events by timestamp to ensure correct temporal order across threads
+        // Aggregate GPU events if a provider is registered
+        if (auto* pGpuProfiler = Profiler::get().getGpuProfiler())
+        {
+            auto gpuEvents = pGpuProfiler->collectEvents();
+            if (!gpuEvents.empty())
+            {
+                allEvents.insert(allEvents.end(), gpuEvents.begin(), gpuEvents.end());
+            }
+        }
+
+        // Sort events by timestamp to ensure correct temporal order across threads and GPU
         std::sort(allEvents.begin(), allEvents.end(), [](const ProfileEvent& a, const ProfileEvent& b) {
             if (a.timestamp != b.timestamp) return a.timestamp < b.timestamp;
             return a.type < b.type; // Consistent ordering for simultaneous events

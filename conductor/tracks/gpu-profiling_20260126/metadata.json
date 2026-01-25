@@ -1,0 +1,8 @@
+{
+  "track_id": "gpu-profiling_20260126",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-26T01:52:00Z",
+  "updated_at": "2026-01-26T01:52:00Z",
+  "description": "Implement Profiler Phase 3: GPU timestamp query support with asynchronous readback and decoupled core/graphics integration."
+}
