@@ -30,10 +30,10 @@ Implement the core conversion logic from `ProfileEvent` to Chrome Trace JSON.
 - [x] Task: Verify TDD tests pass. [4b57549]
 - [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
-## Phase 3: Integration & End-to-End Test
+## Phase 3: Integration & End-to-End Test [checkpoint: a574a0b]
 Verify the exporter works with real data collected from the `ProfileManager`.
 
-- [ ] Task: Add an integration test in `test-profiler.cpp` or a new test.
-    - [ ] Start profiling, record some dummy events, flush, and export.
-    - [ ] Manually verify the output file `test_profile.json` in a Chrome Trace viewer.
+- [x] Task: Add an integration test in `test-profiler.cpp` or a new test. [a574a0b]
+    - [x] Start profiling, record some dummy events, flush, and export.
+    - [x] Manually verify the output file `test_profile.json` in a Chrome Trace viewer.
 - [ ] Task: Conductor - User Manual Verification 'Phase 3' (Protocol in workflow.md)

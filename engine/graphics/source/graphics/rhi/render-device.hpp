@@ -423,7 +423,7 @@ namespace april::graphics
         auto getTimestampQueryHeap() const -> core::ref<QueryHeap> const& { return mp_timestampQueryHeap; }
         auto releaseResource(ISlangUnknown* pResource) -> void;
 
-        auto getGpuTimestampFrequency() const -> double { return m_gpuTimestampFrequency; } // ms/tick
+        auto getGpuTimestampFrequency() const -> uint64_t { return m_gpuTimestampFrequency; }
 
         auto getInfo() const -> Info const& { return m_info; }
 
@@ -519,7 +519,7 @@ namespace april::graphics
         core::ref<Fence> mp_frameFence;
 
         std::unique_ptr<CommandContext> mp_commandContext;
-        double m_gpuTimestampFrequency{0.0};
+        uint64_t m_gpuTimestampFrequency{};
 
         Info m_info;
         Limits m_limits;

@@ -35,8 +35,7 @@ TEST_SUITE("GpuProfiler")
         // 4. Flush and Verify
         auto events = ProfileManager::get().flush();
         
-        bool foundGpuBegin = false;
-        bool foundGpuEnd = false;
+        bool foundGpuComplete = false;
 
         for (const auto& e : events)
         {
@@ -44,14 +43,12 @@ TEST_SUITE("GpuProfiler")
             {
                 if (e.threadId == 0xFFFFFFFF)
                 {
-                    if (e.type == ProfileEventType::Begin) foundGpuBegin = true;
-                    if (e.type == ProfileEventType::End) foundGpuEnd = true;
+                    if (e.type == ProfileEventType::Complete) foundGpuComplete = true;
                 }
             }
         }
 
-        CHECK(foundGpuBegin);
-        CHECK(foundGpuEnd);
+        CHECK(foundGpuComplete);
     }
 
     TEST_CASE("GPU Event Timing Alignment")
@@ -68,9 +65,9 @@ TEST_SUITE("GpuProfiler")
         }
 
         // 3. Capture CPU time around the frame that contains the zone
-        auto cpuStart = std::chrono::duration_cast<std::chrono::nanoseconds>(Timer::now().time_since_epoch()).count();
+        auto cpuStartNs = std::chrono::duration_cast<std::chrono::nanoseconds>(Timer::now().time_since_epoch()).count();
         pDevice->endFrame();
-        auto cpuEnd = std::chrono::duration_cast<std::chrono::nanoseconds>(Timer::now().time_since_epoch()).count();
+        auto cpuEndNs = std::chrono::duration_cast<std::chrono::nanoseconds>(Timer::now().time_since_epoch()).count();
 
         // 4. Process more frames to trigger readback
         for (int i = 0; i < 2; ++i) pDevice->endFrame();
@@ -87,7 +84,8 @@ TEST_SUITE("GpuProfiler")
                 // According to our calibration, GPU start is aligned with the midpoint of submit call
                 // So it should be reasonably within [cpuStart, cpuEnd]
                 // Allow some tolerance for timer precision and rolling average warmup
-                CHECK(e.timestamp >= static_cast<uint64_t>(cpuStart - 50000000)); // 50ms tolerance for startup jitter
+                const double cpuStartUs = static_cast<double>(cpuStartNs) / 1000.0;
+                CHECK(e.timestamp >= cpuStartUs - 50000.0); // 50ms tolerance for startup jitter
             }
         }
         CHECK(found);

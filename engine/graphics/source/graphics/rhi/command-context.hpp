@@ -1,11 +1,14 @@
 #pragma once
 
+#include "foundation/object.hpp"
 #include "fwd.hpp"
 #include "blit-context.hpp"
 #include "graphics-pipeline.hpp"
 #include "compute-pipeline.hpp"
 #include "ray-tracing-pipeline.hpp"
 #include "program/program.hpp"
+#include "resource.hpp"
+#include "rhi/buffer.hpp"
 #include "texture.hpp"
 #include "sampler.hpp"
 #include "ray-tracing-acceleration-structure.hpp"
@@ -38,6 +41,7 @@ namespace april::graphics
         auto insertDebugMarker(std::string_view name, float4 color = {1.0, 1.0f, 1.0f, 1.0f}) -> void;
 
         auto writeTimestamp(QueryHeap* pHeap, uint32_t index) -> void;
+        auto writeTimestamp(core::ref<QueryHeap> const& pHeap, uint32_t index) -> void { writeTimestamp(pHeap.get(), index); }
 
         auto end() -> void;
 
@@ -155,6 +159,40 @@ namespace april::graphics
         auto resolveResource(core::ref<Texture> const& src, core::ref<Texture> const& dst) -> void;
         auto resolveSubresource(core::ref<Texture> const& src, uint32_t srcSubresource, core::ref<Texture> const& dst, uint32_t dstSubresource) -> void;
 
+        auto drawIndirect(
+            uint32_t maxCommandCount,
+            core::ref<Buffer> const& argBuffer,
+            uint64_t argBufferOffset,
+            core::ref<Buffer> const& countBuffer,
+            uint64_t countBufferOffset
+        ) -> void
+        {
+            drawIndirect(
+                maxCommandCount,
+                argBuffer.get(),
+                argBufferOffset,
+                countBuffer.get(),
+                countBufferOffset
+            );
+        }
+
+        auto drawIndexedIndirect(
+            uint32_t maxCommandCount,
+            core::ref<Buffer> const& argBuffer,
+            uint64_t argBufferOffset,
+            core::ref<Buffer> const& countBuffer,
+            uint64_t countBufferOffset
+        ) -> void
+        {
+            drawIndexedIndirect(
+                maxCommandCount,
+                argBuffer.get(),
+                argBufferOffset,
+                countBuffer.get(),
+                countBufferOffset
+            );
+        }
+
     private:
         auto applyState(
             std::vector<Viewport> const& viewports,
@@ -205,6 +243,14 @@ namespace april::graphics
         */
         auto clearUAVCounter(core::ref<Buffer> const& buffer, uint32_t value) -> void;
 
+        // Helpers for use core::ref
+        auto bindPipeline(core::ref<ComputePipeline> const& pipeline, core::ref<ProgramVariables> const& vars) -> void { bindPipeline(pipeline.get(), vars.get()); }
+        auto dispatchIndirect(core::ref<Buffer> const& argBuffer, uint64_t argBufferOffset) -> void { dispatchIndirect(argBuffer.get(), argBufferOffset); }
+
+        auto clearUAV(core::ref<UnorderedAccessView> const& uav, float4 const& value) -> void { clearUAV(uav.get(), value); }
+        auto clearUAV(core::ref<UnorderedAccessView> const& uav, uint4 const& value) -> void { clearUAV(uav.get(), value); }
+
+
     private:
         CommandContext* mp_context{nullptr};
         ComputePipeline* m_lastBoundComputePipeline{nullptr};
@@ -251,10 +297,6 @@ namespace april::graphics
     public:
         CommandContext(Device* device, rhi::ICommandQueue* queue);
         ~CommandContext();
-
-        // --- Frame Lifecycle ---
-        auto beginFrame() -> void;
-        auto endFrame() -> void;
 
         // --- Pass Creators ---
         auto beginRenderPass(
@@ -322,12 +364,14 @@ namespace april::graphics
         auto clearRtv(RenderTargetView const* rtv, float4 const& color) -> void;
         auto clearDsv(DepthStencilView const* dsv, float depth, uint8_t stencil, bool clearDepth = true, bool clearStencil = true) -> void;
         auto clearTexture(Texture* texture, float4 const& clearColor = {0, 0, 0, 1}) -> void;
+        auto clearBuffer(Buffer const* buffer) -> void;
 
         auto resourceBarrier(Resource const* resource, Resource::State newState, ResourceViewInfo const* viewInfo = nullptr) -> bool;
         auto uavBarrier(Resource const* resource) -> void;
+        auto bufferBarrier(Buffer const* buffer, Resource::State newState) -> bool;
 
         auto copyBuffer(Buffer const* dst, Buffer const* src) -> void;
-        auto copyTexture(Texture* const dst, Texture const* src) -> void;
+        auto copyTexture(Texture const* dst, Texture const* src) -> void;
         auto copySubresource(Texture const* dst, uint32_t dstSubresourceIdx, Texture const* src, uint32_t srcSubresourceIdx) -> void;
         auto copyBufferRegion(Buffer const* dst, uint64_t dstOffset, Buffer const* src, uint64_t srcOffset, uint64_t numBytes) -> void;
 
@@ -390,9 +434,77 @@ namespace april::graphics
         auto bindCustomGPUDescriptorPool() -> void;
         auto unbindCustomGPUDescriptorPool() -> void;
 
+        // Helper for use core::ref<T>
+        auto clearRtv(core::ref<RenderTargetView> const& rtv, float4 const& color) -> void { clearRtv(rtv.get(), color); }
+        auto clearDsv(core::ref<DepthStencilView> const& dsv, float depth, uint8_t stencil, bool clearDepth = true, bool clearStencil = true) -> void { clearDsv(dsv.get(), depth, stencil, clearDepth, clearStencil); }
+        auto clearTexture(core::ref<Texture> const& texture, float4 const& clearColor = {0, 0, 0, 1}) -> void { clearTexture(texture.get(), clearColor); }
+        auto clearBuffer(core::ref<Buffer> const& buffer) -> void { clearBuffer(buffer.get()); }
+
+        auto resourceBarrier(core::ref<Resource> const& resource, Resource::State newState, ResourceViewInfo const* viewInfo = nullptr) -> bool { return resourceBarrier(resource.get(), newState, viewInfo); }
+        auto uavBarrier(core::ref<Resource> const& resource) -> void { uavBarrier(resource.get()); }
+        auto bufferBarrier(core::ref<Buffer> const& buffer, Resource::State newState) -> bool { return bufferBarrier(buffer.get(), newState); }
+
+        auto copyBuffer(core::ref<Buffer> const& dst, core::ref<Buffer> const& src) -> void { copyBuffer(dst.get(), src.get()); }
+        auto copyTexture(core::ref<Texture> const& dst, core::ref<Texture> const& src) -> void { copyTexture(dst.get(), src.get()); }
+        auto copySubresource(core::ref<Texture> const& dst, uint32_t dstSubresourceIdx, core::ref<Texture> const& src, uint32_t srcSubresourceIdx) -> void { copySubresource(dst.get(), dstSubresourceIdx, src.get(), srcSubresourceIdx); }
+        auto copyBufferRegion(core::ref<Buffer> const& dst, uint64_t dstOffset, core::ref<Buffer> const& src, uint64_t srcOffset, uint64_t numBytes) -> void { copyBufferRegion(dst.get(), dstOffset, src.get(), srcOffset, numBytes); }
+
+        auto copySubresourceRegion(
+            core::ref<Texture> const& dst,
+            uint32_t dstSubresource,
+            core::ref<Texture> const& src,
+            uint32_t srcSubresource,
+            uint3 const& dstOffset = uint3(0),
+            uint3 const& srcOffset = uint3(0),
+            uint3 const& size = uint3(kUintMax)
+        ) -> void
+        {
+            copySubresourceRegion(
+                dst.get(),
+                dstSubresource,
+                src.get(),
+                srcSubresource,
+                dstOffset,
+                srcOffset,
+                size
+            );
+        }
+
+        auto updateSubresourceData(
+            core::ref<Texture> const& dst,
+            uint32_t subresource,
+            void const* pData,
+            uint3 const& offset = uint3(0),
+            uint3 const& size = uint3(kUintMax)
+        ) -> void
+        {
+            updateSubresourceData(
+                dst.get(),
+                subresource,
+                pData,
+                offset,
+                size
+            );
+        }
+
+        auto updateTextureData(core::ref<Texture> const& texture, void const* data) -> void { updateTextureData(texture.get(), data); }
+        auto updateBuffer(core::ref<Buffer> const& buffer, void const* data, size_t offset = 0, size_t numBytes = 0) -> void { updateBuffer(buffer.get(), data, offset, numBytes); }
+        auto readBuffer(core::ref<Buffer> const& buffer, void* data, size_t offset = 0, size_t numBytes = 0) -> void { readBuffer(buffer.get(), data, offset, numBytes); }
+
+        template<typename T>
+        auto readBuffer(core::ref<Buffer> const& buffer, size_t firstElement = 0, size_t elementCount = 0) -> std::vector<T>
+        {
+            return readBuffer<T>(buffer.get(), firstElement, elementCount);
+        }
+
+        auto readTextureSubresource(core::ref<Texture> texture, uint32_t subresourceIndex) -> std::vector<uint8_t> { return readTextureSubresource(texture.get(), subresourceIndex); }
+        auto asyncReadTextureSubresource(core::ref<Texture> texture, uint32_t subresourceIndex) -> ReadTextureTask::SharedPtr { return asyncReadTextureSubresource(texture.get(), subresourceIndex); };
+
+        auto writeTimestamp(core::ref<QueryHeap> const& pHeap, uint32_t index) -> void { writeTimestamp(pHeap.get(), index); }
+        auto resolveQuery(core::ref<QueryHeap> const& pHeap, uint32_t index, uint32_t count, core::ref<Buffer> const& buffer, uint64_t offset) -> void { resolveQuery(pHeap.get(), index, count, buffer.get(), offset); }
+
     private:
         auto textureBarrier(Texture const* texture, Resource::State newState) -> bool;
-        auto bufferBarrier(Buffer const* buffer, Resource::State newState) -> bool;
         auto subresourceBarriers(Texture const* texture, Resource::State newState, ResourceViewInfo const* viewInfo) -> bool;
         auto apiSubresourceBarrier(
             Texture const* texture,

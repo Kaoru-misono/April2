@@ -228,16 +228,6 @@ namespace april::graphics
         return core::ref<Device>(mp_device);
     }
 
-    auto CommandContext::beginFrame() -> void
-    {
-        // TODO
-    }
-
-    auto CommandContext::endFrame() -> void
-    {
-        // TODO
-    }
-
     auto CommandContext::bindDescriptorHeaps() -> void {}
 
     auto CommandContext::bindCustomGPUDescriptorPool() -> void
@@ -654,6 +644,11 @@ namespace april::graphics
         clearRtv(texture->getRTV().get(), clearColor);
     }
 
+    auto CommandContext::clearBuffer(Buffer const* buffer) -> void
+    {
+        m_gfxEncoder->clearBuffer(buffer->getGfxBufferResource());
+    }
+
     auto CommandContext::resourceBarrier(Resource const* resource, Resource::State newState, ResourceViewInfo const* viewInfo) -> bool
     {
         auto texture = dynamic_cast<Texture const*>(resource);
@@ -712,7 +707,7 @@ namespace april::graphics
         m_commandsPending = true;
     }
 
-    auto CommandContext::copyTexture(Texture* const dst, Texture const* src) -> void
+    auto CommandContext::copyTexture(Texture const* dst, Texture const* src) -> void
     {
         resourceBarrier(dst, Resource::State::CopyDest);
         resourceBarrier(src, Resource::State::CopySource);

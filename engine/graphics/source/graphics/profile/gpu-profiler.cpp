@@ -4,18 +4,33 @@
 #include <graphics/rhi/fence.hpp>
 #include <core/profile/timer.hpp>
 #include <core/error/assert.hpp>
+#include <core/log/logger.hpp>
+
+#include <cstring>
 
 namespace april::graphics
 {
     GpuProfiler::GpuProfiler(core::ref<Device> pDevice)
         : mp_device(pDevice)
     {
-        // Create readback buffer for timestamps
+        for (auto& heap : m_queryHeaps)
+        {
+            heap = QueryHeap::create(pDevice, QueryHeap::Type::Timestamp, kMaxQueriesPerFrame);
+            heap->breakStrongReferenceToDevice();
+        }
+
+        mp_resolveBuffer = pDevice->createBuffer(
+            kReadbackBufferSize,
+            BufferUsage::UnorderedAccess | BufferUsage::CopySource | BufferUsage::CopyDestination,
+            MemoryType::DeviceLocal
+        );
+
         mp_readbackBuffer = pDevice->createBuffer(
             kReadbackBufferSize,
-            BufferUsage::None,
+            BufferUsage::CopyDestination,
             MemoryType::ReadBack
         );
+
         mp_mappedReadback = mp_readbackBuffer->mapAs<uint64_t>(rhi::CpuAccessMode::Read);
 
         m_frameData.resize(kMaxFramesInFlight);
@@ -34,6 +49,7 @@ namespace april::graphics
     {
         if (mp_readbackBuffer && mp_mappedReadback)
         {
+            mp_readbackBuffer->unmap();
             mp_mappedReadback = nullptr;
         }
     }
@@ -45,21 +61,28 @@ namespace april::graphics
 
     auto GpuProfiler::beginFrameCalibration(CommandContext* p_context) -> void
     {
-        m_calibrationQueryIndex = allocateQuery();
-        p_context->writeTimestamp(mp_device->getTimestampQueryHeap().get(), m_calibrationQueryIndex);
-    }
+        auto& currentHeap = m_queryHeaps[m_currentFrameIndex];
 
-    auto GpuProfiler::endFrameCalibration() -> void
-    {
-        // This is called just before submit in Device::endFrame to capture CPU time
-        // Wait, the spec says "before and after submit".
-        // I will handle the capture in Device::endFrame and pass it to a method.
+        m_queriesUsedInFrame = 0;
+        m_currentFrameEvents.clear();
+
+        currentHeap->reset();
+
+        auto& frame = m_frameData[m_currentFrameIndex];
+
+        frame.calibrationQueryIndex = allocateQuery();
+
+        p_context->writeTimestamp(currentHeap.get(), frame.calibrationQueryIndex);
+
+        frame.queryCount = m_queriesUsedInFrame;
     }
 
     auto GpuProfiler::beginZone(CommandContext* p_context, char const* name) -> void
     {
+        if (m_queriesUsedInFrame >= kMaxQueriesPerFrame) return;
+
         uint32_t startIdx = allocateQuery();
-        p_context->writeTimestamp(mp_device->getTimestampQueryHeap().get(), startIdx);
+        p_context->writeTimestamp(m_queryHeaps[m_currentFrameIndex].get(), startIdx);
 
         GpuEvent event;
         event.name = name;
@@ -71,156 +94,155 @@ namespace april::graphics
 
     auto GpuProfiler::endZone(CommandContext* p_context, char const* name) -> void
     {
-        uint32_t endIdx = allocateQuery();
-        p_context->writeTimestamp(mp_device->getTimestampQueryHeap().get(), endIdx);
+        if (m_queriesUsedInFrame >= kMaxQueriesPerFrame) return;
 
-        // Find matching event
+        uint32_t endIdx = allocateQuery();
+        p_context->writeTimestamp(m_queryHeaps[m_currentFrameIndex], endIdx);
+
         for (auto it = m_currentFrameEvents.rbegin(); it != m_currentFrameEvents.rend(); ++it)
         {
-            if (std::string(it->name) == name && it->endQueryIndex == 0) // Basic matching
+            if (it->endQueryIndex == 0 && strcmp(it->name, name) == 0)
             {
                 it->endQueryIndex = endIdx;
-                break;
+                return;
             }
         }
+        AP_WARN("GpuProfiler: Mismatched endZone for '{}'", name);
     }
 
     auto GpuProfiler::endFrame(CommandContext* p_context) -> void
     {
         auto& globalFence = mp_device->getGlobalFence();
-        // 1. Process completed frames (from previous calls)
-        for (uint32_t i = 0; i < kMaxFramesInFlight; ++i)
+        uint64_t completedValue = globalFence->getCurrentValue();
+
+        // ---------------------------------------------------------
+        // 1. (Readback)
+        // ---------------------------------------------------------
         {
-            auto& f = m_frameData[i];
-            if (f.queryCount > 0 && f.cpuReferenceNs != 0 && globalFence->getCurrentValue() >= f.fenceValue)
+            std::lock_guard<std::mutex> lock(m_eventMutex);
+
+            uint64_t freq = mp_device->getGpuTimestampFrequency();
+            double nsPerTick = 1e9 / static_cast<double>(freq);
+
+            for (uint32_t i = 0; i < kMaxFramesInFlight; ++i)
             {
-                // Read back results
-                uint64_t* pFrameTimestamps = mp_mappedReadback + (f.bufferOffset / sizeof(uint64_t));
+                auto& f = m_frameData[i];
 
-                std::lock_guard<std::mutex> lock(m_eventMutex);
-                double freq = mp_device->getGpuTimestampFrequency(); // ms/tick
-
-                // Synchronization Logic
-                const uint32_t frameBase = f.queryBase;
-                const uint32_t frameEnd = frameBase + f.queryCount;
-                if (f.calibrationQueryIndex != 0xFFFFFFFF &&
-                    f.calibrationQueryIndex >= frameBase &&
-                    f.calibrationQueryIndex < frameEnd)
+                if (f.queryCount > 0 && f.fenceValue > 0 && completedValue >= f.fenceValue)
                 {
-                    uint32_t localIndex = f.calibrationQueryIndex - frameBase;
-                    uint64_t gpuBaseTicks = pFrameTimestamps[localIndex];
-                    double gpuBaseNs = static_cast<double>(gpuBaseTicks) * freq * 1000000.0;
-                    double currentOffset = static_cast<double>(f.cpuReferenceNs) - gpuBaseNs;
+                    uint64_t* pTimestamps = mp_mappedReadback + (f.bufferOffset / sizeof(uint64_t));
 
-                    m_offsetHistory.emplace_back(currentOffset);
-                    if (m_offsetHistory.size() > kMaxOffsetHistory)
+                    uint64_t gpuCalibTick = pTimestamps[f.calibrationQueryIndex];
+                    // TODO: make it really poison.
+                    constexpr uint64_t kPoisonTick = 0xCDCDCDCDCDCDCDCDull;
+
+                    if (gpuCalibTick == 0 || gpuCalibTick == kPoisonTick)
                     {
-                        m_offsetHistory.erase(m_offsetHistory.begin());
-                    }
-
-                    double sum = 0.0;
-                    for (double off : m_offsetHistory) sum += off;
-                    m_timeOffsetNs = sum / m_offsetHistory.size();
-                }
-
-                for (const auto& e : f.events)
-                {
-                    if (e.startQueryIndex < frameBase || e.startQueryIndex >= frameEnd ||
-                        e.endQueryIndex < frameBase || e.endQueryIndex >= frameEnd)
-                    {
+                        f.queryCount = 0;
+                        f.fenceValue = 0;
+                        f.events.clear();
                         continue;
                     }
 
-                    uint32_t localStart = e.startQueryIndex - frameBase;
-                    uint32_t localEnd = e.endQueryIndex - frameBase;
-                    uint64_t startTicks = pFrameTimestamps[localStart];
-                    uint64_t endTicks = pFrameTimestamps[localEnd];
+                    if (gpuCalibTick > 0)
+                    {
+                        double gpuCalibNs = static_cast<double>(gpuCalibTick) * nsPerTick;
+                        double offset = static_cast<double>(f.cpuReferenceNs) - gpuCalibNs;
 
-                    auto translate = [&](uint64_t ticks) -> uint64_t {
-                        double gpuNs = static_cast<double>(ticks) * freq * 1000000.0;
-                        return static_cast<uint64_t>(gpuNs + m_timeOffsetNs);
-                    };
+                        if (m_timeOffsetNs == 0.0) m_timeOffsetNs = offset;
+                        else m_timeOffsetNs = m_timeOffsetNs * 0.9 + offset * 0.1;
+                    }
 
-                    core::ProfileEvent beginEvent;
-                    beginEvent.name = e.name;
-                    beginEvent.timestamp = translate(startTicks);
-                    beginEvent.type = core::ProfileEventType::Begin;
-                    beginEvent.threadId = 0xFFFFFFFF; // Special marker for GPU
+                    for (const auto& e : f.events)
+                    {
+                        if (e.endQueryIndex == 0) continue;
 
-                    core::ProfileEvent endEvent;
-                    endEvent.name = e.name;
-                    endEvent.timestamp = translate(endTicks);
-                    endEvent.type = core::ProfileEventType::End;
-                    endEvent.threadId = 0xFFFFFFFF;
+                        uint64_t tStart = pTimestamps[e.startQueryIndex];
+                        uint64_t tEnd   = pTimestamps[e.endQueryIndex];
 
-                    m_readyEvents.emplace_back(beginEvent);
-                    m_readyEvents.emplace_back(endEvent);
+                        if (tStart == 0 || tEnd == 0 || tEnd < tStart) continue;
+
+                        auto toCpuNs = [&](uint64_t ticks) -> double {
+                            double gNs = static_cast<double>(ticks) * nsPerTick;
+                            return gNs + m_timeOffsetNs;
+                        };
+
+                        core::ProfileEvent outEvent;
+                        outEvent.name = e.name;
+                        const double startNs = toCpuNs(tStart);
+                        const double endNs = toCpuNs(tEnd);
+                        outEvent.timestamp = startNs / 1000.0;
+                        outEvent.duration = (endNs - startNs) / 1000.0;
+                        if (outEvent.duration < 0.001)
+                        {
+                            outEvent.duration = 0.001;
+                        }
+                        outEvent.type = core::ProfileEventType::Complete;
+                        outEvent.threadId = 0xFFFFFFFF; // GPU Thread ID
+                        m_readyEvents.push_back(outEvent);
+                    }
+
+                    f.queryCount = 0;
+                    f.fenceValue = 0;
+                    f.events.clear();
                 }
-
-                f.queryCount = 0; // Mark as processed
-                f.cpuReferenceNs = 0;
-                f.events.clear();
             }
         }
 
-        // 2. Prepare current frame for submission
+        // ---------------------------------------------------------
+        // 2. (Resolve & Copy)
+        // ---------------------------------------------------------
         auto& frame = m_frameData[m_currentFrameIndex];
-
-        const uint32_t frameQueryBase = m_currentFrameIndex * kMaxQueriesPerFrame;
-        frame.queryBase = frameQueryBase;
-
-        // Resolve queries to readback buffer
         if (m_queriesUsedInFrame > 0)
         {
+            p_context->bufferBarrier(mp_resolveBuffer, Resource::State::UnorderedAccess);
             p_context->resolveQuery(
-                mp_device->getTimestampQueryHeap().get(),
-                frameQueryBase,
-                m_queriesUsedInFrame,
-                mp_readbackBuffer.get(),
-                frame.bufferOffset
+                m_queryHeaps[m_currentFrameIndex],
+                0,                      // Start Index
+                m_queriesUsedInFrame,   // Count
+                mp_resolveBuffer,
+                frame.bufferOffset      // Dest Offset
             );
+
+            p_context->bufferBarrier(mp_resolveBuffer, Resource::State::CopySource);
+            p_context->bufferBarrier(mp_readbackBuffer, Resource::State::CopyDest);
+
+            p_context->copyBuffer(
+                mp_readbackBuffer,
+                mp_resolveBuffer
+            );
+            p_context->bufferBarrier(mp_readbackBuffer, Resource::State::GenericRead);
         }
 
         frame.events = std::move(m_currentFrameEvents);
         frame.queryCount = m_queriesUsedInFrame;
-        frame.frameId = m_activeFrameCount++;
-        frame.calibrationQueryIndex = m_calibrationQueryIndex;
-        frame.cpuReferenceNs = 0; // Will be set by Device::endFrame after submit
 
-        // Advance frame index
         m_currentFrameIndex = (m_currentFrameIndex + 1) % kMaxFramesInFlight;
 
-        // Reset counters for next frame
         m_queriesUsedInFrame = 0;
-        m_currentFrameEvents.clear();
-        m_calibrationQueryIndex = 0xFFFFFFFF;
     }
 
     auto GpuProfiler::postSubmit(CommandContext* p_context, uint64_t cpuReferenceNs, uint64_t fenceValue) -> void
     {
-        uint32_t lastIdx = (m_currentFrameIndex + kMaxFramesInFlight - 1) % kMaxFramesInFlight;
-        m_frameData[lastIdx].cpuReferenceNs = cpuReferenceNs;
-        m_frameData[lastIdx].fenceValue = fenceValue;
+        uint32_t submittedFrameIdx = (m_currentFrameIndex + kMaxFramesInFlight - 1) % kMaxFramesInFlight;
+        m_frameData[submittedFrameIdx].fenceValue = fenceValue;
+        m_frameData[submittedFrameIdx].cpuReferenceNs = cpuReferenceNs;
 
         beginFrameCalibration(p_context);
+    }
+
+    auto GpuProfiler::allocateQuery() -> uint32_t
+    {
+        AP_ASSERT(m_queriesUsedInFrame < kMaxQueriesPerFrame, "GpuProfiler exceeded per-frame query limit");
+        return m_queriesUsedInFrame++;
     }
 
     auto GpuProfiler::collectEvents() -> std::vector<core::ProfileEvent>
     {
         std::lock_guard<std::mutex> lock(m_eventMutex);
-        return std::move(m_readyEvents);
-    }
+        std::vector<core::ProfileEvent> events = std::move(m_readyEvents);
 
-    auto GpuProfiler::allocateQuery() -> uint32_t
-    {
-        AP_ASSERT(m_queriesUsedInFrame < kMaxQueriesPerFrame, "GpuProfiler exceeded per-frame query limit ({})", kMaxQueriesPerFrame);
-        uint32_t frameBase = m_currentFrameIndex * kMaxQueriesPerFrame;
-        return frameBase + m_queriesUsedInFrame++;
-    }
-
-    auto GpuProfiler::releaseQuery(uint32_t index) -> void
-    {
-        (void)index;
+        return events;
     }
 }
 

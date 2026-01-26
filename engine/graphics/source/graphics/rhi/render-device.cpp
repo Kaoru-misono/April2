@@ -341,7 +341,7 @@ namespace april::graphics
 
         m_supportedShaderModel = querySupportedShaderModel(m_gfxDevice);
         m_defaultShaderModel = std::min(kDefaultShaderModel, m_supportedShaderModel);
-        m_gpuTimestampFrequency = 1000.0 / (double)deviceInfo.timestampFrequency;
+        m_gpuTimestampFrequency = deviceInfo.timestampFrequency;
 
         checkResult(m_gfxDevice->getQueue(rhi::QueueType::Graphics, m_gfxCommandQueue.writeRef()), "Failed to get command queue");
 

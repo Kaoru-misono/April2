@@ -12,27 +12,29 @@ namespace april::core
      */
     enum class ProfileEventType : uint8_t
     {
-        Begin,
-        End
+        Complete,
+        Instant
     };
 
     /**
      * Cache-optimized profiler event structure.
      * Members:
-     * - uint64_t timestamp (8 bytes)
+     * - double timestamp (8 bytes)
+     * - double duration (8 bytes)
      * - const char* name (8 bytes)
      * - uint32_t threadId (4 bytes)
      * - ProfileEventType type (1 byte)
-     * - padding (11 bytes)
+     * - padding (3 bytes)
      * Total: 32 bytes
      */
     struct alignas(32) ProfileEvent
     {
-        uint64_t timestamp;
+        double timestamp;
+        double duration;
         const char* name;
         uint32_t threadId;
         ProfileEventType type;
-        uint8_t padding[11];
+        uint8_t padding[3];
     };
 
     static_assert(sizeof(ProfileEvent) == 32, "ProfileEvent must be exactly 32 bytes");
@@ -50,9 +52,8 @@ namespace april::core
 
         /**
          * Records a new event in the buffer.
-         * @return Pointer to the recorded event, or nullptr if buffer is full.
          */
-        auto record(const char* name, ProfileEventType type) -> ProfileEvent*;
+        auto record(const char* name, double startUs, double durationUs, ProfileEventType type = ProfileEventType::Complete) -> void;
 
         /**
          * Resets the buffer for the next frame.

@@ -7,6 +7,7 @@
 #include <graphics/rhi/fence.hpp>
 #include <graphics/rhi/buffer.hpp>
 
+#include <array>
 #include <vector>
 #include <mutex>
 
@@ -89,7 +90,13 @@ namespace april::graphics
         auto allocateQuery() -> uint32_t;
         auto releaseQuery(uint32_t index) -> void;
 
+        static constexpr uint32_t kMaxFramesInFlight = Device::kInFlightFrameCount;
+        static constexpr uint32_t kMaxQueriesPerFrame = 1024;
+        static constexpr uint32_t kReadbackBufferSize = kMaxFramesInFlight * kMaxQueriesPerFrame * sizeof(uint64_t);
+
         core::BreakableReference<Device> mp_device;
+        std::array<core::ref<QueryHeap>, kMaxFramesInFlight> m_queryHeaps;
+        core::ref<Buffer> mp_resolveBuffer;
         core::ref<Buffer> mp_readbackBuffer;
         uint64_t* mp_mappedReadback = nullptr;
 
@@ -108,10 +115,6 @@ namespace april::graphics
         double m_timeOffsetNs = 0.0;
         std::vector<double> m_offsetHistory;
         static constexpr size_t kMaxOffsetHistory = 32;
-
-        static constexpr uint32_t kMaxFramesInFlight = Device::kInFlightFrameCount;
-        static constexpr uint32_t kMaxQueriesPerFrame = 1024;
-        static constexpr uint32_t kReadbackBufferSize = kMaxFramesInFlight * kMaxQueriesPerFrame * sizeof(uint64_t);
     };
 }
 

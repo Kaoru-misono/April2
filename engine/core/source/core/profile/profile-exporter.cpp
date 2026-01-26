@@ -1,8 +1,10 @@
 #include "profile-exporter.hpp"
 #include "profile-manager.hpp"
+#include "core/log/logger.hpp"
 #include <fstream>
 #include <format>
 #include <iostream>
+#include <limits>
 
 namespace april::core
 {
@@ -29,16 +31,26 @@ namespace april::core
         }
 
         // 3. Write Events
+        constexpr double kInvalidTimestamp = static_cast<double>(std::numeric_limits<int64_t>::max());
         for (auto const& event : events)
         {
+            if (event.timestamp == 0.0 || event.timestamp >= kInvalidTimestamp)
+            {
+                AP_WARN("Filtered event: {} ts={}", event.name ? event.name : "Unknown", event.timestamp);
+                continue;
+            }
             ofs << ",\n";
 
-            char const ph = (event.type == ProfileEventType::Begin) ? 'B' : 'E';
-            uint64_t const tsUs = event.timestamp / 1000;
-
-            // Standard Event Format: { "name": "...", "cat": "PERF", "ph": "...", "ts": ..., "pid": 0, "tid": ... }
-            ofs << std::format("    {{ \"name\": \"{}\", \"cat\": \"PERF\", \"ph\": \"{}\", \"ts\": {}, \"pid\": 0, \"tid\": {} }}",
-                event.name ? event.name : "Unknown", ph, tsUs, event.threadId);
+            if (event.type == ProfileEventType::Instant)
+            {
+                ofs << std::format("    {{ \"name\": \"{}\", \"cat\": \"PERF\", \"ph\": \"i\", \"ts\": {}, \"pid\": 0, \"tid\": {} }}",
+                    event.name ? event.name : "Unknown", event.timestamp, event.threadId);
+            }
+            else
+            {
+                ofs << std::format("    {{ \"name\": \"{}\", \"cat\": \"PERF\", \"ph\": \"X\", \"ts\": {}, \"dur\": {}, \"pid\": 0, \"tid\": {} }}",
+                    event.name ? event.name : "Unknown", event.timestamp, event.duration, event.threadId);
+            }
         }
 
         ofs << "\n  ]\n}";

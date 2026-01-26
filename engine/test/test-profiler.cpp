@@ -42,30 +42,26 @@ TEST_SUITE("ProfilerCollection")
         t1.join();
         t2.join();
 
-        // Each thread creates 2 events (Begin + End)
-        CHECK(events.size() == 4);
+        // Each thread creates 1 complete event
+        CHECK(events.size() == 2);
 
-        bool foundT1Begin = false, foundT1End = false;
-        bool foundT2Begin = false, foundT2End = false;
+        bool foundT1 = false;
+        bool foundT2 = false;
 
         for (const auto& e : events)
         {
             if (e.name && std::string(e.name) == "Thread1")
             {
-                if (e.type == ProfileEventType::Begin) foundT1Begin = true;
-                if (e.type == ProfileEventType::End) foundT1End = true;
+                if (e.type == ProfileEventType::Complete) foundT1 = true;
             }
             if (e.name && std::string(e.name) == "Thread2")
             {
-                if (e.type == ProfileEventType::Begin) foundT2Begin = true;
-                if (e.type == ProfileEventType::End) foundT2End = true;
+                if (e.type == ProfileEventType::Complete) foundT2 = true;
             }
         }
 
-        CHECK(foundT1Begin);
-        CHECK(foundT1End);
-        CHECK(foundT2Begin);
-        CHECK(foundT2End);
+        CHECK(foundT1);
+        CHECK(foundT2);
 
         // Verify temporal ordering (sorting by timestamp)
         if (!events.empty())
@@ -89,7 +85,7 @@ TEST_SUITE("ProfilerCollection")
         auto end = Timer::now();
 
         double totalMs = Timer::calcDuration(start, end);
-        double avgNs = (totalMs * 1000000.0) / (kIterations * 2.0); // 2 events per iteration
+        double avgNs = (totalMs * 1000000.0) / kIterations; // 1 event per iteration
 
         MESSAGE("Average overhead per event: ", avgNs, " ns");
         

@@ -16,7 +16,7 @@ namespace april
         {
             AP_CRITICAL("{}", msg);
             if (diag) AP_CRITICAL("[Diagnostics]\n{}", static_cast<char const*>(diag->getBufferPointer()));
-            std::exit(1);
+            std::abort();
         }
     }
 
@@ -26,7 +26,7 @@ namespace april
         {
             AP_CRITICAL("{} (Error: {:#x})", msg, static_cast<uint32_t>(res));
             if (diag) AP_CRITICAL("[Diagnostics]\n{}", static_cast<char const*>(diag->getBufferPointer()));
-            std::exit(1);
+            std::abort();
         }
     }
 
@@ -48,7 +48,7 @@ namespace april::graphics
     enum class TextureUsage : uint32_t;
 
     auto getGFXFormat(ResourceFormat format) -> rhi::Format;
-    
+
     // Resource::State is tricky to forward declare because it's nested.
     // We'll use a raw uint32_t or just include resource.hpp in the .cpp only.
     // But getGFXResourceState is used in many places.

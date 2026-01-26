@@ -36,6 +36,7 @@ namespace april::graphics
          * @return New object, or throws an exception if creation failed.
          */
         static auto create(core::ref<Device> p_device, Type type, uint32_t count) -> core::ref<QueryHeap>;
+        auto reset() -> void;
 
         auto getGfxQueryPool() const -> rhi::IQueryPool* { return m_gfxQueryPool.get(); }
         auto getQueryCount() const -> uint32_t { return m_count; }

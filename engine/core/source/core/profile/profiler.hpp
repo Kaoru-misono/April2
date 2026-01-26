@@ -1,9 +1,8 @@
 #pragma once
 
 #include "profile-types.hpp"
-#include <string>
-#include <source_location>
-#include <string_view>
+#include "timer.hpp"
+#include <chrono>
 
 namespace april::core
 {
@@ -33,21 +32,14 @@ namespace april::core
         static auto get() -> Profiler&;
 
         /**
-         * Marks the beginning of a profiling event.
-         * @param name The name of the event.
-         */
-        auto startEvent(const char* name) -> void;
-
-        /**
-         * Marks the end of a profiling event.
-         * @param name The name of the event.
-         */
-        auto endEvent(const char* name) -> void;
-
-        /**
          * Registers a GPU profiler provider.
          */
         auto registerGpuProfiler(IGpuProfiler* pGpuProfiler) -> void { m_gpuProfiler = pGpuProfiler; }
+
+        /**
+         * Records a complete event with explicit timing.
+         */
+        auto recordEvent(const char* name, double startUs, double durationUs, ProfileEventType type = ProfileEventType::Complete) -> void;
 
         /**
          * Returns the registered GPU profiler.
@@ -69,18 +61,23 @@ namespace april::core
     class ScopedProfileZone
     {
     public:
-        ScopedProfileZone(const char* name) : m_name(name)
-        {
-            Profiler::get().startEvent(m_name);
-        }
+        ScopedProfileZone(const char* name) : m_name(name), m_start(Timer::now()) {}
 
         ~ScopedProfileZone()
         {
-            Profiler::get().endEvent(m_name);
+            auto const end = Timer::now();
+            auto const startUs = std::chrono::duration<double, std::micro>(m_start.time_since_epoch()).count();
+            auto durationUs = std::chrono::duration<double, std::micro>(end - m_start).count();
+            if (durationUs < 0.001)
+            {
+                durationUs = 0.001;
+            }
+            Profiler::get().recordEvent(m_name, startUs, durationUs, ProfileEventType::Complete);
         }
 
     private:
         const char* m_name;
+        Timer::TimePoint m_start;
     };
 }
 

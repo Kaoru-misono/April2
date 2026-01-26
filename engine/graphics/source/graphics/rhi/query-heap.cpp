@@ -27,9 +27,13 @@ namespace april::graphics
             break;
         default:
             AP_UNREACHABLE();
-            break;
         }
         checkResult(p_device->getGfxDevice()->createQueryPool(desc, m_gfxQueryPool.writeRef()), "Failed to create query pool");
+    }
+
+    auto QueryHeap::reset() -> void
+    {
+        m_gfxQueryPool->reset();
     }
 
     auto QueryHeap::breakStrongReferenceToDevice() -> void
