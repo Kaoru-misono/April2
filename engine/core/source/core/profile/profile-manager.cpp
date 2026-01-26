@@ -4,6 +4,23 @@
 
 namespace april::core
 {
+    ProfileManager::ProfileManager()
+    {
+        // Pre-register GPU Queue
+        m_threadNames[0xFFFFFFFF] = "GPU Queue";
+    }
+
+    auto ProfileManager::registerThreadName(uint32_t tid, std::string const& name) -> void
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_threadNames[tid] = name;
+    }
+
+    auto ProfileManager::getThreadNames() const -> std::map<uint32_t, std::string> const&
+    {
+        return m_threadNames;
+    }
+
     auto ProfileManager::get() -> ProfileManager&
     {
         static ProfileManager instance;
