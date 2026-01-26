@@ -8,8 +8,6 @@
 #include <graphics/rhi/buffer.hpp>
 
 #include <vector>
-#include <string>
-#include <queue>
 #include <mutex>
 
 namespace april::graphics
@@ -111,7 +109,7 @@ namespace april::graphics
         std::vector<double> m_offsetHistory;
         static constexpr size_t kMaxOffsetHistory = 32;
 
-        static constexpr uint32_t kMaxFramesInFlight = 3;
+        static constexpr uint32_t kMaxFramesInFlight = Device::kInFlightFrameCount;
         static constexpr uint32_t kMaxQueriesPerFrame = 1024;
         static constexpr uint32_t kReadbackBufferSize = kMaxFramesInFlight * kMaxQueriesPerFrame * sizeof(uint64_t);
     };

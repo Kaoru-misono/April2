@@ -195,9 +195,9 @@ int main()
 
                     ctx->resolveQuery(queryHeap.get(), 0, 2, timestampBuffer.get(), 0);
 
-                    ctx->submit();
-                    swapchain->present();
+                    // ctx->submit();
                     device->endFrame();
+                    swapchain->present();
                 }
 
                 uint64_t* pData = reinterpret_cast<uint64_t*>(timestampBuffer->map());

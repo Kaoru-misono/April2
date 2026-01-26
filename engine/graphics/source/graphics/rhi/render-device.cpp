@@ -24,8 +24,8 @@
 #include <core/profile/profiler.hpp>
 
 #include <core/profile/timer.hpp>
-
 #include <algorithm>
+#include <ranges>
 
 namespace april::graphics
 {
@@ -632,17 +632,48 @@ namespace april::graphics
             mp_gpuProfiler->endFrame(mp_commandContext.get());
         }
 
+        auto payload = mp_commandContext->finish();
+
+        uint64_t nextFenceValue = mp_frameFence->getSignaledValue() + 1;
+        mp_frameFence->updateSignaledValue(nextFenceValue);
+
+        auto waitFences = payload.waitFences | std::views::keys | std::ranges::to<std::vector>();
+        auto waitValues = payload.waitFences | std::views::values | std::ranges::to<std::vector>();
+
+        auto signalFences = payload.signalFences | std::views::keys | std::ranges::to<std::vector>();
+        auto signalValues = payload.signalFences | std::views::values | std::ranges::to<std::vector>();
+
+        signalFences.emplace_back(mp_frameFence->getGfxFence());
+        signalValues.emplace_back(nextFenceValue);
+
+        auto commandBuffer = payload.commandBuffer.get();
+
+        rhi::SubmitDesc submitDesc = {};
+        submitDesc.commandBuffers = payload.commandBuffer ? &commandBuffer : nullptr;
+        submitDesc.commandBufferCount = payload.commandBuffer ? 1 : 0;
+
+        submitDesc.waitFences = waitFences.data();
+        submitDesc.waitFenceValues = waitValues.data();
+        submitDesc.waitFenceCount = (uint32_t)waitFences.size();
+
+        submitDesc.signalFences = signalFences.data();
+        submitDesc.signalFenceValues = signalValues.data();
+        submitDesc.signalFenceCount = (uint32_t)signalFences.size();
+
         auto cpuStart = core::Timer::now();
-        mp_commandContext->submit();
+
+        checkResult(m_gfxCommandQueue->submit(submitDesc), "Failed to submit frame command buffer");
+
         auto cpuEnd = core::Timer::now();
 
         if (mp_gpuProfiler)
         {
             auto avg = cpuStart + (cpuEnd - cpuStart) / 2;
+
             mp_gpuProfiler->postSubmit(
                 mp_commandContext.get(),
                 std::chrono::duration_cast<std::chrono::nanoseconds>(avg.time_since_epoch()).count(),
-                mp_frameFence->getSignaledValue()
+                nextFenceValue
             );
         }
 
@@ -657,7 +688,7 @@ namespace april::graphics
     auto Device::wait() -> void
     {
         mp_commandContext->submit(true);
-        mp_commandContext->signal(mp_frameFence.get());
+        // mp_commandContext->signal(mp_frameFence.get());
         executeDeferredReleases();
     }
 

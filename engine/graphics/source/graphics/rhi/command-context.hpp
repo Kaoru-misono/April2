@@ -238,6 +238,13 @@ namespace april::graphics
         RtProgramVariables* m_lastBoundRtVars{nullptr};
     };
 
+    struct SubmissionPayload
+    {
+        rhi::ComPtr<rhi::ICommandBuffer> commandBuffer{nullptr};
+        std::vector<std::pair<rhi::IFence*, uint64_t>> waitFences;
+        std::vector<std::pair<rhi::IFence*, uint64_t>> signalFences;
+    };
+
     class CommandContext final : public core::Object
     {
         APRIL_OBJECT(CommandContext)
@@ -245,9 +252,11 @@ namespace april::graphics
         CommandContext(Device* device, rhi::ICommandQueue* queue);
         ~CommandContext();
 
+        // --- Frame Lifecycle ---
         auto beginFrame() -> void;
         auto endFrame() -> void;
 
+        // --- Pass Creators ---
         auto beginRenderPass(
             ColorTargets const& pColorTargets,
             DepthStencilTarget const& pDepthStencilTarget = {}
@@ -255,6 +264,7 @@ namespace april::graphics
         auto beginComputePass() -> core::ref<ComputePassEncoder>;
         auto beginRayTracingPass() -> core::ref<RayTracingPassEncoder>;
 
+        // --- Helpers ---
         class ReadTextureTask
         {
         public:
@@ -274,49 +284,48 @@ namespace april::graphics
             uint32_t m_depth{0};
         };
 
-        auto getDevice() const -> core::ref<Device>;
-        auto getProfiler() const -> core::Profiler*;
+        // --- Submission & Synchronization ---
 
         /**
-        * Flush the command list. This doesn't reset the command allocator, just submits the commands
-        * @param[in] wait If true, will block execution until the GPU finished processing the commands
-        */
+         * Finishes recording and returns the submission payload.
+         * This resets the context for new recording.
+         * Call this from worker threads in a multi-threaded renderer.
+         */
+        auto finish() -> SubmissionPayload;
+
+        /**
+         * Convenience wrapper: Calls finish() and immediately submits to the queue.
+         * Use this for single-threaded rendering or immediate resource operations.
+         * @param wait If true, CPU will wait for GPU completion (idle wait).
+         */
         auto submit(bool wait = false) -> void;
 
         auto hasPendingCommands() const -> bool { return m_commandsPending; }
         auto setPendingCommands(bool commandsPending) -> void { m_commandsPending = commandsPending; }
 
         /**
-        * Signal a fence immediately.
-        * @param pFence The fence to signal.
-        * @param value The value to signal. If Fence::kAuto, the signaled value will be auto-incremented.
-        * @return Returns the signaled value.
-        */
-        auto signal(Fence* fence, uint64_t value = Fence::kAuto) -> uint64_t;
+         * Enqueue a fence to signal when this batch completes.
+         */
+        auto enqueueSignal(Fence* fence, uint64_t value = Fence::kAuto) -> void;
 
         /**
-        * Wait for a fence to be signaled on the device.
-        * Queues a device-side wait and returns immediately.
-        * The device will wait until the fence reaches or exceeds the specified value.
-        * @param pFence The fence to wait for.
-        * @param value The value to wait for. If Fence::kAuto, wait for the last signaled value.
-        */
+         * Enqueue a fence to wait before this batch starts.
+         */
+        auto enqueueWait(Fence* fence) -> void;
+
+        /**
+         * CPU-side wait. Warning: This blocks the calling thread.
+         */
         auto wait(Fence* fence, uint64_t value = Fence::kAuto) -> void;
 
-        // Because can not insert memory barriers inside render passes, we do it here.
+        // --- Resource Commands ---
         auto clearRtv(RenderTargetView const* rtv, float4 const& color) -> void;
         auto clearDsv(DepthStencilView const* dsv, float depth, uint8_t stencil, bool clearDepth = true, bool clearStencil = true) -> void;
         auto clearTexture(Texture* texture, float4 const& clearColor = {0, 0, 0, 1}) -> void;
-        /**
-        * Insert a resource barrier
-        * if pViewInfo is nullptr, will transition the entire resource. Otherwise, it will only transition the subresource in the view
-        * @return true if a barrier commands were recorded for the entire resource-view, otherwise false (for example, when the current
-        * resource state is the same as the new state or when only some subresources were transitioned)
-        */
+
         auto resourceBarrier(Resource const* resource, Resource::State newState, ResourceViewInfo const* viewInfo = nullptr) -> bool;
         auto uavBarrier(Resource const* resource) -> void;
 
-        // auto copyResource(Resource const* dst, Resource const* src) -> void;
         auto copyBuffer(Buffer const* dst, Buffer const* src) -> void;
         auto copyTexture(Texture* const dst, Texture const* src) -> void;
         auto copySubresource(Texture const* dst, uint32_t dstSubresourceIdx, Texture const* src, uint32_t srcSubresourceIdx) -> void;
@@ -361,6 +370,7 @@ namespace april::graphics
         auto readTextureSubresource(Texture const* texture, uint32_t subresourceIndex) -> std::vector<uint8_t>;
         auto asyncReadTextureSubresource(Texture const* texture, uint32_t subresourceIndex) -> ReadTextureTask::SharedPtr;
 
+        // --- Debug & Profiling ---
         auto pushDebugGroup(std::string_view name, float4 color = {1.0, 1.0f, 1.0f, 1.0f}) -> void;
         auto popDebugGroup() -> void;
         auto insertDebugMarker(std::string_view name, float4 color = {1.0, 1.0f, 1.0f, 1.0f}) -> void;
@@ -368,13 +378,13 @@ namespace april::graphics
         auto writeTimestamp(QueryHeap* pHeap, uint32_t index) -> void;
         auto resolveQuery(QueryHeap* pHeap, uint32_t index, uint32_t count, Buffer const* buffer, uint64_t offset) -> void;
 
+        // --- Accessors ---
+        auto getDevice() const -> core::ref<Device>;
+        auto getProfiler() const -> core::Profiler*; // Assuming Device holds Profiler
         auto getGfxCommandQueue() const -> rhi::ICommandQueue* { return mp_gfxCommandQueue; }
         auto getGfxCommandEncoder() const -> rhi::ICommandEncoder* { return m_gfxEncoder; }
 
         auto getCommandQueueNativeHandle() const -> rhi::NativeHandle;
-        auto getCommandBufferNativeHandle() const -> rhi::NativeHandle;
-
-        auto getFence() const -> core::ref<Fence> const& { return mp_fence; }
 
         auto bindDescriptorHeaps() -> void;
         auto bindCustomGPUDescriptorPool() -> void;
@@ -401,13 +411,14 @@ namespace april::graphics
             uint3 const& size = uint3(kUintMax)
         ) -> void;
 
-        auto submitCommandBuffer() -> void;
-
         Device* mp_device{nullptr};
         rhi::ICommandQueue* mp_gfxCommandQueue{};
         rhi::ComPtr<rhi::ICommandEncoder> m_gfxEncoder{};
-        rhi::ComPtr<rhi::ICommandBuffer> mp_commandBuffer{};
-        core::ref<Fence> mp_fence{};
+
+        // Pending synchronization primitives
+        std::vector<std::pair<rhi::IFence*, uint64_t>> m_pendingWaitFences{};
+        std::vector<std::pair<rhi::IFence*, uint64_t>> m_pendingSignalFences{};
+
         bool m_commandsPending{false};
     };
 }

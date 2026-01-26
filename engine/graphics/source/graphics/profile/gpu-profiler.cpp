@@ -4,7 +4,6 @@
 #include <graphics/rhi/fence.hpp>
 #include <core/profile/timer.hpp>
 #include <core/error/assert.hpp>
-#include <iostream>
 
 namespace april::graphics
 {

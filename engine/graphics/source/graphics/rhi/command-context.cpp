@@ -22,6 +22,7 @@
 #include <core/tools/enum-flags.hpp>
 #include <core/math/math.hpp>
 #include <slang-rhi.h>
+#include <ranges>
 
 namespace april::graphics
 {
@@ -64,8 +65,13 @@ namespace april::graphics
 
         pThis->m_fence = pCtx->getDevice()->createFence();
         pThis->m_fence->breakStrongReferenceToDevice();
+
+        // FIX: Optimized fence handling.
+        // Instead of submit() then signal() (which causes two batches),
+        // we enqueue the signal and submit once.
+        pCtx->enqueueSignal(pThis->m_fence.get());
         pCtx->submit(false);
-        pCtx->signal(pThis->m_fence.get());
+
         pThis->m_rowCount = (uint32_t)rowCount;
         pThis->m_depth = pTexture->getDepth(mipLevel);
 
@@ -75,6 +81,8 @@ namespace april::graphics
     auto CommandContext::ReadTextureTask::getData(void* pData, size_t size) const -> void
     {
         AP_ASSERT(size == size_t(m_rowCount) * m_actualRowSize * m_depth);
+
+        // This wait is a CPU blocking wait, which is acceptable for ReadBack tasks
         m_fence->wait();
 
         uint8_t* pDst = reinterpret_cast<uint8_t*>(pData);
@@ -105,9 +113,6 @@ namespace april::graphics
     CommandContext::CommandContext(Device* device, rhi::ICommandQueue* queue)
         : mp_device(device), mp_gfxCommandQueue(queue)
     {
-        mp_fence = mp_device->createFence();
-        mp_fence->breakStrongReferenceToDevice();
-
         m_gfxEncoder = mp_gfxCommandQueue->createCommandEncoder();
     }
 
@@ -117,38 +122,105 @@ namespace april::graphics
     {
         rhi::NativeHandle gfxNativeHandle = {};
         checkResult(mp_gfxCommandQueue->getNativeHandle(&gfxNativeHandle), "Failed to get command queue native handle");
-
         return gfxNativeHandle;
     }
 
-    auto CommandContext::getCommandBufferNativeHandle() const -> rhi::NativeHandle
+    auto CommandContext::finish() -> SubmissionPayload
     {
-        rhi::NativeHandle gfxNativeHandle = {};
-        checkResult(mp_commandBuffer->getNativeHandle(&gfxNativeHandle), "Failed to get command buffer native handle");
+        SubmissionPayload payload;
 
-        return gfxNativeHandle;
+        if (m_commandsPending)
+        {
+            // Close the Slang/RHI encoder to produce the command buffer
+            checkResult(m_gfxEncoder->finish(payload.commandBuffer.writeRef()), "Failed to close command buffer");
+        }
+        else
+        {
+            payload.commandBuffer = nullptr;
+        }
+
+        // Move pending fences to payload
+        // This transfers ownership of the pending lists to the caller
+        payload.waitFences = std::move(m_pendingWaitFences);
+        payload.signalFences = std::move(m_pendingSignalFences);
+
+        // Reset local state for next frame/pass
+        // Note: m_pendingWaitFences/signalFences are already empty after std::move
+        m_commandsPending = false;
+
+        // Prepare new encoder for next use
+        m_gfxEncoder = mp_gfxCommandQueue->createCommandEncoder();
+
+        return payload;
     }
 
-    auto CommandContext::submitCommandBuffer() -> void
+    // [Refactored] submit() is now a convenience wrapper around finish()
+    auto CommandContext::submit(bool wait) -> void
     {
-        checkResult(m_gfxEncoder->finish(mp_commandBuffer.writeRef()), "Failed to close command buffer");
+        // 1. Finish recording and get payload
+        auto payload = finish();
 
-        rhi::ICommandBuffer* commandBuffer = mp_commandBuffer;
+        // 2. If there's nothing to execute and no fences to signal/wait, skip
+        if (!payload.commandBuffer && payload.waitFences.empty() && payload.signalFences.empty())
+        {
+            return;
+        }
 
-        rhi::IFence* signalFence = mp_fence->getGfxFence();
-        uint64_t signalValue = mp_fence->updateSignaledValue(mp_fence->getSignaledValue() + 1);
+        // 3. Prepare RHI submission descriptor
+        // Convert the vectors to raw pointer arrays required by RHI C-API
+        auto waitFences = payload.waitFences | std::views::keys | std::ranges::to<std::vector>();
+        auto waitValues = payload.waitFences | std::views::values | std::ranges::to<std::vector>();
 
+        auto signalFences = payload.signalFences | std::views::keys | std::ranges::to<std::vector>();
+        auto signalValues = payload.signalFences | std::views::values | std::ranges::to<std::vector>();
+
+        auto commandBuffer = payload.commandBuffer.get();
         rhi::SubmitDesc submitDesc = {};
-        submitDesc.commandBuffers = &commandBuffer;
-        submitDesc.commandBufferCount = 1;
-        submitDesc.signalFences = &signalFence;
-        submitDesc.signalFenceValues = &signalValue;
-        submitDesc.signalFenceCount = 1;
+        submitDesc.commandBuffers = payload.commandBuffer ? &commandBuffer : nullptr;
+        submitDesc.commandBufferCount = payload.commandBuffer ? 1 : 0;
 
+        submitDesc.waitFences = waitFences.data();
+        submitDesc.waitFenceValues = waitValues.data();
+        submitDesc.waitFenceCount = (uint32_t)waitFences.size();
+
+        submitDesc.signalFences = signalFences.data();
+        submitDesc.signalFenceValues = signalValues.data();
+        submitDesc.signalFenceCount = (uint32_t)signalFences.size();
+
+        // 4. Submit to Queue (The actual GPU kick)
         checkResult(mp_gfxCommandQueue->submit(submitDesc), "Failed to submit command buffer");
 
-        mp_commandBuffer = {};
-        m_gfxEncoder = mp_gfxCommandQueue->createCommandEncoder();
+        // 5. Handle bind descriptors (usually needed after reset/submit in some APIs)
+        bindDescriptorHeaps();
+
+        // 6. Optional CPU wait (Blocking)
+        if (wait)
+        {
+            mp_gfxCommandQueue->waitOnHost();
+        }
+    }
+
+    auto CommandContext::enqueueSignal(Fence* fence, uint64_t value) -> void
+    {
+        AP_ASSERT(fence, "'fence' must not be null");
+        uint64_t signalValue = fence->updateSignaledValue(value);
+        m_pendingSignalFences.emplace_back(fence->getGfxFence(), signalValue);
+    }
+
+    auto CommandContext::enqueueWait(Fence* fence) -> void
+    {
+        AP_ASSERT(fence, "'fence' must not be null");
+        m_pendingWaitFences.emplace_back(fence->getGfxFence(), fence->getSignaledValue());
+    }
+
+    auto CommandContext::wait(Fence* fence, uint64_t value) -> void
+    {
+        AP_ASSERT(fence, "'fence' must not be null");
+        uint64_t waitValue = value == Fence::kAuto ? fence->getSignaledValue() : value;
+        rhi::IFence* fences[] = {fence->getGfxFence()};
+        uint64_t waitValues[] = {waitValue};
+
+        checkResult(mp_device->getGfxDevice()->waitForFences(1, fences, waitValues, true, UINTMAX_MAX), "Failed to wait for fence");
     }
 
     auto CommandContext::getDevice() const -> core::ref<Device>
@@ -164,49 +236,6 @@ namespace april::graphics
     auto CommandContext::endFrame() -> void
     {
         // TODO
-    }
-
-    auto CommandContext::submit(bool wait) -> void
-    {
-        if (m_commandsPending)
-        {
-            submitCommandBuffer();
-            m_commandsPending = false;
-        }
-        else
-        {
-            signal(mp_fence.get());
-        }
-
-        bindDescriptorHeaps();
-
-        if (wait)
-        {
-            mp_fence->wait();
-        }
-    }
-
-    auto CommandContext::signal(Fence* fence, uint64_t value) -> uint64_t
-    {
-        AP_ASSERT(fence, "'fence' must not be null");
-        uint64_t signalValue = fence->updateSignaledValue(value);
-        auto gfxFence = fence->getGfxFence();
-        mp_gfxCommandQueue->submit(rhi::SubmitDesc{
-            .signalFences = &gfxFence,
-            .signalFenceValues = &signalValue,
-            .signalFenceCount = 1,
-        });
-        return signalValue;
-    }
-
-    auto CommandContext::wait(Fence* fence, uint64_t value) -> void
-    {
-        AP_ASSERT(fence, "'fence' must not be null");
-        uint64_t waitValue = value == Fence::kAuto ? fence->getSignaledValue() : value;
-        rhi::IFence* fences[] = {fence->getGfxFence()};
-        uint64_t waitValues[] = {waitValue};
-
-        checkResult(mp_device->getGfxDevice()->waitForFences(1, fences, waitValues, true, UINTMAX_MAX), "Failed to wait for fence");
     }
 
     auto CommandContext::bindDescriptorHeaps() -> void {}
