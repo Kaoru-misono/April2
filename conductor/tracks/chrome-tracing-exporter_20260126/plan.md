@@ -14,20 +14,20 @@ Prepare the `ProfileManager` to support thread naming and define the basic expor
     - [x] Create `engine/core/source/profiler_exporter.cpp`.
 - [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
-## Phase 2: JSON Formatting & Export Logic
+## Phase 2: JSON Formatting & Export Logic [checkpoint: 7aac77d]
 Implement the core conversion logic from `ProfileEvent` to Chrome Trace JSON.
 
-- [ ] Task: Write TDD tests for JSON formatting.
-    - [ ] Create `engine/test/source/test-profile-exporter.cpp`.
-    - [ ] Define tests for timestamp conversion (ns to us).
-    - [ ] Define tests for event type mapping (Begin/End).
-    - [ ] Define tests for metadata event generation (thread names).
-- [ ] Task: Implement `ProfileExporter::exportToFile`.
-    - [ ] Use `std::ofstream` for efficient file writing.
-    - [ ] Implement metadata event writing at the start of the JSON array.
-    - [ ] Loop through `ProfileEvent` vector and format each as a JSON object.
-    - [ ] Ensure correct JSON comma separation and array closure.
-- [ ] Task: Verify TDD tests pass.
+- [x] Task: Write TDD tests for JSON formatting. [4b57549]
+    - [x] Create `engine/test/source/test-profile-exporter.cpp`.
+    - [x] Define tests for timestamp conversion (ns to us).
+    - [x] Define tests for event type mapping (Begin/End).
+    - [x] Define tests for metadata event generation (thread names).
+- [x] Task: Implement `ProfileExporter::exportToFile`. [4b57549]
+    - [x] Use `std::ofstream` for efficient file writing.
+    - [x] Implement metadata event writing at the start of the JSON array.
+    - [x] Loop through `ProfileEvent` vector and format each as a JSON object.
+    - [x] Ensure correct JSON comma separation and array closure.
+- [x] Task: Verify TDD tests pass. [4b57549]
 - [ ] Task: Conductor - User Manual Verification 'Phase 2' (Protocol in workflow.md)
 
 ## Phase 3: Integration & End-to-End Test
