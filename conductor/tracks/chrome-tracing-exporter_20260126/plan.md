@@ -2,16 +2,16 @@
 
 This plan covers the implementation of the `ProfileExporter` class to support Chrome Trace Event Format export for the April engine's profiler.
 
-## Phase 1: Foundation & Registry Enhancement
+## Phase 1: Foundation & Registry Enhancement [checkpoint: b2efc01]
 Prepare the `ProfileManager` to support thread naming and define the basic exporter structure.
 
 - [x] Task: Enhance `ProfileManager` with a thread name registry. [d1aea28]
     - [x] Add `std::map<uint32_t, std::string> m_threadNames` to `ProfileManager`.
     - [x] Add `auto registerThreadName(uint32_t tid, std::string const& name) -> void`.
     - [x] Pre-register `0xFFFFFFFF` as "GPU Queue" in `ProfileManager` initialization.
-- [ ] Task: Define `ProfileExporter` skeleton.
-    - [ ] Create `engine/core/library/profiler_exporter.hpp` with the `exportToFile` static interface.
-    - [ ] Create `engine/core/source/profiler_exporter.cpp`.
+- [x] Task: Define `ProfileExporter` skeleton. [1107ef4]
+    - [x] Create `engine/core/library/profiler_exporter.hpp` with the `exportToFile` static interface.
+    - [x] Create `engine/core/source/profiler_exporter.cpp`.
 - [ ] Task: Conductor - User Manual Verification 'Phase 1' (Protocol in workflow.md)
 
 ## Phase 2: JSON Formatting & Export Logic

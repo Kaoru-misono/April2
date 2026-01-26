@@ -49,6 +49,7 @@ add_executable(test-profiler-full
     test-profiler.cpp
     test-gpu-profiler.cpp
     test-thread-registry.cpp
+    test-profile-exporter.cpp
 )
 target_include_directories(test-profiler-full PRIVATE external/doctest)
 target_link_libraries(test-profiler-full PRIVATE April_graphics)
