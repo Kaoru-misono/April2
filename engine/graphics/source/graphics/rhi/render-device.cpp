@@ -23,6 +23,8 @@
 #include <core/tools/enum-flags.hpp>
 #include <core/profile/profiler.hpp>
 
+#include <core/profile/timer.hpp>
+
 #include <algorithm>
 
 namespace april::graphics
@@ -370,6 +372,7 @@ namespace april::graphics
 
         // TODO: Do we need to flush here?
         mp_commandContext->submit();
+        mp_gpuProfiler->beginFrameCalibration(mp_commandContext.get());
 
         this->decRef(false);
 
@@ -629,12 +632,25 @@ namespace april::graphics
             mp_gpuProfiler->endFrame(mp_commandContext.get());
         }
 
+        auto cpuStart = core::Timer::now();
         mp_commandContext->submit();
+        auto cpuEnd = core::Timer::now();
+
+        if (mp_gpuProfiler)
+        {
+            auto avg = cpuStart + (cpuEnd - cpuStart) / 2;
+            mp_gpuProfiler->postSubmit(
+                mp_commandContext.get(),
+                std::chrono::duration_cast<std::chrono::nanoseconds>(avg.time_since_epoch()).count(),
+                mp_frameFence->getSignaledValue()
+            );
+        }
+
         executeDeferredReleases();
 
         if (m_desc.enableRaytracingValidation)
         {
-             flushRaytracingValidation();
+            flushRaytracingValidation();
         }
     }
 

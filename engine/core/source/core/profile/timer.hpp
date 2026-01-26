@@ -14,6 +14,9 @@ namespace april::core
         using Clock = std::chrono::high_resolution_clock;
         using TimePoint = Clock::time_point;
 
+        Timer() = default; // TODO:
+        ~Timer() = default; // TODO:
+
         /**
          * Returns the current time point.
          */
@@ -33,5 +36,8 @@ namespace april::core
          * Calculates duration between two time points in nanoseconds.
          */
         static auto calcDurationNanoseconds(TimePoint start, TimePoint end) -> int64_t;
+
+    private:
+        // TODO:
     };
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "rhi/command-context.hpp"
 #include <core/profile/profiler.hpp>
 #include <graphics/rhi/fwd.hpp>
 #include <graphics/rhi/query-heap.hpp>
@@ -23,6 +24,7 @@ namespace april::graphics
     public:
         struct GpuEvent
         {
+            // NOTE: name must have static or long-lived storage; do not pass temporary/dynamic strings.
             const char* name;
             uint32_t startQueryIndex;
             uint32_t endQueryIndex;
@@ -32,10 +34,13 @@ namespace april::graphics
         struct FrameData
         {
             uint32_t frameId;
-            core::ref<Fence> fence;
+            uint64_t fenceValue;
             std::vector<GpuEvent> events;
             uint32_t queryCount;
+            uint32_t queryBase;
             uint64_t bufferOffset;
+            uint64_t cpuReferenceNs;
+            uint32_t calibrationQueryIndex;
         };
 
         static auto create(core::ref<Device> pDevice) -> core::ref<GpuProfiler>;
@@ -44,23 +49,38 @@ namespace april::graphics
         virtual ~GpuProfiler();
 
         /**
+         * Begins frame calibration. Records a GPU timestamp.
+         */
+        auto beginFrameCalibration(CommandContext* p_context) -> void;
+
+        /**
+         * Ends frame calibration. Captures CPU reference time.
+         */
+        auto endFrameCalibration() -> void;
+
+        /**
          * Begins a GPU profiling zone.
-         * @param pContext Command context to record timestamps in.
+         * @param p_context Command context to record timestamps in.
          * @param name Name of the zone.
          */
-        auto beginZone(CommandContext* pContext, const char* name) -> void;
+        auto beginZone(CommandContext* p_context, char const* name) -> void;
 
         /**
          * Ends a GPU profiling zone.
-         * @param pContext Command context to record timestamps in.
+         * @param p_context Command context to record timestamps in.
          * @param name Name of the zone.
          */
-        auto endZone(CommandContext* pContext, const char* name) -> void;
+        auto endZone(CommandContext* p_context, char const* name) -> void;
 
         /**
          * Called at the end of each frame to resolve queries and prepare for readback.
          */
-        auto endFrame(CommandContext* pContext) -> void;
+        auto endFrame(CommandContext* p_context) -> void;
+
+        /**
+         * Called after the submit to update the frame data.
+         */
+        auto postSubmit(CommandContext* p_context, uint64_t cpuReferenceNs, uint64_t fenceValue) -> void;
 
         /**
          * Implementation of IGpuProfiler::collectEvents.
@@ -73,16 +93,23 @@ namespace april::graphics
 
         core::BreakableReference<Device> mp_device;
         core::ref<Buffer> mp_readbackBuffer;
-        
+        uint64_t* mp_mappedReadback = nullptr;
+
         std::vector<FrameData> m_frameData;
         uint32_t m_currentFrameIndex = 0;
         uint32_t m_activeFrameCount = 0;
-        
+
         std::vector<GpuEvent> m_currentFrameEvents;
         uint32_t m_queriesUsedInFrame = 0;
+        uint32_t m_calibrationQueryIndex = 0xFFFFFFFF;
 
         std::mutex m_eventMutex;
         std::vector<core::ProfileEvent> m_readyEvents;
+
+        // Synchronization state
+        double m_timeOffsetNs = 0.0;
+        std::vector<double> m_offsetHistory;
+        static constexpr size_t kMaxOffsetHistory = 32;
 
         static constexpr uint32_t kMaxFramesInFlight = 3;
         static constexpr uint32_t kMaxQueriesPerFrame = 1024;

@@ -32,11 +32,17 @@ namespace april::core
         event.threadId = static_cast<uint32_t>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
         event.type = type;
 
+        m_commitIndex.store(index + 1, std::memory_order_release);
+
         return &event;
     }
 
     // TLS Instance
-    static thread_local ProfileBuffer s_threadBuffer;
+    static auto getThreadBuffer() -> ProfileBuffer&
+    {
+        static thread_local ProfileBuffer s_threadBuffer;
+        return s_threadBuffer;
+    }
 
     // Profiler Implementation
 
@@ -48,11 +54,11 @@ namespace april::core
 
     auto Profiler::startEvent(const char* name) -> void
     {
-        s_threadBuffer.record(name, ProfileEventType::Begin);
+        getThreadBuffer().record(name, ProfileEventType::Begin);
     }
 
     auto Profiler::endEvent(const char* name) -> void
     {
-        s_threadBuffer.record(name, ProfileEventType::End);
+        getThreadBuffer().record(name, ProfileEventType::End);
     }
 }

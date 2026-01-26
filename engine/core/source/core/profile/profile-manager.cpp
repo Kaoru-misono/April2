@@ -29,13 +29,13 @@ namespace april::core
     auto ProfileManager::flush() -> std::vector<ProfileEvent>
     {
         std::vector<ProfileEvent> allEvents;
-        
+
         std::lock_guard<std::mutex> lock(m_mutex);
         for (auto* pBuffer : m_buffers)
         {
             const auto* events = pBuffer->getEvents();
             size_t count = pBuffer->getCount();
-            
+
             if (count > 0)
             {
                 allEvents.insert(allEvents.end(), events, events + count);

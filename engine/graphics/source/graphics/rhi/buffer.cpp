@@ -155,6 +155,7 @@ namespace april::graphics
 
     Buffer::~Buffer()
     {
+        unmap();
         mp_device->releaseResource(m_gfxBuffer);
     }
 

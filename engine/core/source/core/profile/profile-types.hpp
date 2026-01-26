@@ -57,13 +57,18 @@ namespace april::core
         /**
          * Resets the buffer for the next frame.
          */
-        auto reset() -> void { m_writeIndex.store(0, std::memory_order_relaxed); }
+        auto reset() -> void
+        {
+            m_writeIndex.store(0, std::memory_order_relaxed);
+            m_commitIndex.store(0, std::memory_order_relaxed);
+        }
 
         auto getEvents() const -> const ProfileEvent* { return m_events.data(); }
-        auto getCount() const -> size_t { return m_writeIndex.load(std::memory_order_relaxed); }
+        auto getCount() const -> size_t { return m_commitIndex.load(std::memory_order_acquire); }
 
     private:
         std::vector<ProfileEvent> m_events;
         std::atomic<size_t> m_writeIndex{0};
+        std::atomic<size_t> m_commitIndex{0};
     };
 }

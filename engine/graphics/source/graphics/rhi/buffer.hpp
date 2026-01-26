@@ -234,6 +234,12 @@ namespace april::graphics
          */
         auto map(rhi::CpuAccessMode mode = rhi::CpuAccessMode::Write) const -> void*;
 
+        template <typename T> requires (!std::is_pointer_v<T>)
+        auto mapAs(rhi::CpuAccessMode mode = rhi::CpuAccessMode::Write) const -> T*
+        {
+            return static_cast<T*>(map(mode));
+        }
+
         /**
          * Unmap the buffer
          */

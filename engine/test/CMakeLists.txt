@@ -43,6 +43,17 @@ target_compile_features(test-implot PRIVATE cxx_std_23)
 target_compile_definitions(test-implot PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
 
 
+# Profiler Test Unit
+add_executable(test-profiler-full
+    test-main.cpp
+    test-profiler.cpp
+    test-gpu-profiler.cpp
+)
+target_include_directories(test-profiler-full PRIVATE external/doctest)
+target_link_libraries(test-profiler-full PRIVATE April_graphics)
+target_compile_features(test-profiler-full PRIVATE cxx_std_23)
+target_compile_definitions(test-profiler-full PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
+
 # Unified Test Suite
 add_executable(test-suite
     test-main.cpp
@@ -57,8 +68,6 @@ add_executable(test-suite
     source/test-log-foundation.cpp
     source/test-logger-refactor.cpp
     source/test-log-enhancement.cpp
-    test-profiler.cpp
-    test-gpu-profiler.cpp
 )
 target_include_directories(test-suite PRIVATE external/doctest)
 target_link_libraries(test-suite PRIVATE April_graphics)

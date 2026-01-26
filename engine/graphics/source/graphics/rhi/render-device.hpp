@@ -486,6 +486,8 @@ namespace april::graphics
         */
         auto flushRaytracingValidation() -> void;
 
+        auto getGlobalFence() const -> core::ref<Fence> const& { return mp_frameFence; }
+
     private:
         struct ResourceRelease
         {

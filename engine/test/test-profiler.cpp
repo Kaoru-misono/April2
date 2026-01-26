@@ -33,8 +33,8 @@ TEST_SUITE("ProfilerCollection")
 
         start = true;
         
-        // Wait a bit for threads to record
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // Wait a bit for threads to record and definitely commit
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
         auto events = ProfileManager::get().flush();
         
