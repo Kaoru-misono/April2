@@ -4,7 +4,6 @@
 
 #include "command-context.hpp"
 #include "render-device.hpp"
-#include "low-level-context-data.hpp"
 #include "graphics-pipeline.hpp"
 
 #include "compute-pipeline.hpp"
@@ -48,7 +47,7 @@ namespace april::graphics
         pThis->m_buffer = pCtx->getDevice()->createBuffer(size, BufferUsage::None, MemoryType::ReadBack, nullptr);
 
         pCtx->resourceBarrier(pTexture, Resource::State::CopySource);
-        auto resourceEncoder = pCtx->getLowLevelData()->getGfxCommandEncoder();
+        auto resourceEncoder = pCtx->getGfxCommandEncoder();
 
         resourceEncoder->copyTextureToBuffer(
             pThis->m_buffer->getGfxBufferResource(),
@@ -104,12 +103,53 @@ namespace april::graphics
     }
 
     CommandContext::CommandContext(Device* device, rhi::ICommandQueue* queue)
-        : mp_device(device)
+        : mp_device(device), mp_gfxCommandQueue(queue)
     {
-        mp_lowLevelData = std::make_unique<LowLevelContextData>(device, queue);
+        mp_fence = mp_device->createFence();
+        mp_fence->breakStrongReferenceToDevice();
+
+        m_gfxEncoder = mp_gfxCommandQueue->createCommandEncoder();
     }
 
     CommandContext::~CommandContext() = default;
+
+    auto CommandContext::getCommandQueueNativeHandle() const -> rhi::NativeHandle
+    {
+        rhi::NativeHandle gfxNativeHandle = {};
+        checkResult(mp_gfxCommandQueue->getNativeHandle(&gfxNativeHandle), "Failed to get command queue native handle");
+
+        return gfxNativeHandle;
+    }
+
+    auto CommandContext::getCommandBufferNativeHandle() const -> rhi::NativeHandle
+    {
+        rhi::NativeHandle gfxNativeHandle = {};
+        checkResult(mp_commandBuffer->getNativeHandle(&gfxNativeHandle), "Failed to get command buffer native handle");
+
+        return gfxNativeHandle;
+    }
+
+    auto CommandContext::submitCommandBuffer() -> void
+    {
+        checkResult(m_gfxEncoder->finish(mp_commandBuffer.writeRef()), "Failed to close command buffer");
+
+        rhi::ICommandBuffer* commandBuffer = mp_commandBuffer;
+
+        rhi::IFence* signalFence = mp_fence->getGfxFence();
+        uint64_t signalValue = mp_fence->updateSignaledValue(mp_fence->getSignaledValue() + 1);
+
+        rhi::SubmitDesc submitDesc = {};
+        submitDesc.commandBuffers = &commandBuffer;
+        submitDesc.commandBufferCount = 1;
+        submitDesc.signalFences = &signalFence;
+        submitDesc.signalFenceValues = &signalValue;
+        submitDesc.signalFenceCount = 1;
+
+        checkResult(mp_gfxCommandQueue->submit(submitDesc), "Failed to submit command buffer");
+
+        mp_commandBuffer = {};
+        m_gfxEncoder = mp_gfxCommandQueue->createCommandEncoder();
+    }
 
     auto CommandContext::getDevice() const -> core::ref<Device>
     {
@@ -130,19 +170,19 @@ namespace april::graphics
     {
         if (m_commandsPending)
         {
-            mp_lowLevelData->submitCommandBuffer();
+            submitCommandBuffer();
             m_commandsPending = false;
         }
         else
         {
-            signal(mp_lowLevelData->getFence().get());
+            signal(mp_fence.get());
         }
 
         bindDescriptorHeaps();
 
         if (wait)
         {
-            mp_lowLevelData->getFence()->wait();
+            mp_fence->wait();
         }
     }
 
@@ -151,7 +191,7 @@ namespace april::graphics
         AP_ASSERT(fence, "'fence' must not be null");
         uint64_t signalValue = fence->updateSignaledValue(value);
         auto gfxFence = fence->getGfxFence();
-        mp_lowLevelData->getGfxCommandQueue()->submit(rhi::SubmitDesc{
+        mp_gfxCommandQueue->submit(rhi::SubmitDesc{
             .signalFences = &gfxFence,
             .signalFenceValues = &signalValue,
             .signalFenceCount = 1,
@@ -501,7 +541,7 @@ namespace april::graphics
         DepthStencilTarget const& pDepthStencilTarget
     ) -> core::ref<RenderPassEncoder>
     {
-        auto queueType = mp_lowLevelData->getGfxCommandQueue()->getType();
+        auto queueType = mp_gfxCommandQueue->getType();
         AP_ASSERT(queueType == rhi::QueueType::Graphics, "Render passes can only be executed on a Graphics queue");
 
         auto pRenderPassEncoder = core::make_ref<RenderPassEncoder>(this, pColorTargets, pDepthStencilTarget);
@@ -514,7 +554,7 @@ namespace april::graphics
             passDesc.depthStencilAttachment = &pRenderPassEncoder->m_gfxDepthStencilAttachment;
         }
 
-        auto encoder = mp_lowLevelData->getGfxCommandEncoder()->beginRenderPass(passDesc);
+        auto encoder = m_gfxEncoder->beginRenderPass(passDesc);
 
         if (!encoder) return nullptr;
 
@@ -528,7 +568,7 @@ namespace april::graphics
     // CommandContext Pass Methods
     auto CommandContext::beginComputePass() -> core::ref<ComputePassEncoder>
     {
-        auto queueType = mp_lowLevelData->getGfxCommandQueue()->getType();
+        auto queueType = mp_gfxCommandQueue->getType();
 
         AP_ASSERT(queueType == rhi::QueueType::Graphics,
 
@@ -536,7 +576,7 @@ namespace april::graphics
 
 
 
-        auto encoder = mp_lowLevelData->getGfxCommandEncoder()->beginComputePass();
+        auto encoder = m_gfxEncoder->beginComputePass();
 
         if (!encoder) return nullptr;
 
@@ -548,12 +588,12 @@ namespace april::graphics
     auto CommandContext::beginRayTracingPass() -> core::ref<RayTracingPassEncoder>
     {
 
-        auto queueType = mp_lowLevelData->getGfxCommandQueue()->getType();
+        auto queueType = mp_gfxCommandQueue->getType();
 
         AP_ASSERT(queueType == rhi::QueueType::Graphics,
             "Ray tracing passes can only be executed on a Graphics queue (Compute queue not supported in RHI yet)");
 
-        auto encoder = mp_lowLevelData->getGfxCommandEncoder()->beginRayTracingPass();
+        auto encoder = m_gfxEncoder->beginRayTracingPass();
 
         if (!encoder) return nullptr;
 
@@ -565,7 +605,7 @@ namespace april::graphics
     auto CommandContext::clearRtv(RenderTargetView const* rtv, float4 const& color) -> void
     {
         float clearValue[4] = {color.x, color.y, color.z, color.w};
-        auto encoder = getLowLevelData()->getGfxCommandEncoder();
+        auto encoder = m_gfxEncoder.get();
         // FIXME: make subresource range.
         encoder->clearTextureFloat(rtv->getGfxTexture(), rhi::kEntireTexture, clearValue);
         m_commandsPending = true;
@@ -573,7 +613,7 @@ namespace april::graphics
 
     auto CommandContext::clearDsv(DepthStencilView const* dsv, float depth, uint8_t stencil, bool clearDepth, bool clearStencil) -> void
     {
-        getLowLevelData()->getGfxCommandEncoder()->clearTextureDepthStencil(dsv->getGfxTexture(), rhi::kEntireTexture, clearDepth, depth, clearStencil, stencil);
+        m_gfxEncoder->clearTextureDepthStencil(dsv->getGfxTexture(), rhi::kEntireTexture, clearDepth, depth, clearStencil, stencil);
         m_commandsPending = true;
     }
 
@@ -617,7 +657,7 @@ namespace april::graphics
 
     auto CommandContext::uavBarrier(Resource const* resource) -> void
     {
-        auto resourceEncoder = getLowLevelData()->getGfxCommandEncoder();
+        auto resourceEncoder = m_gfxEncoder.get();
 
         if (resource->getType() == Resource::Type::Buffer)
         {
@@ -637,7 +677,7 @@ namespace april::graphics
         resourceBarrier(dst, Resource::State::CopyDest);
         resourceBarrier(src, Resource::State::CopySource);
 
-        auto resourceEncoder = getLowLevelData()->getGfxCommandEncoder();
+        auto resourceEncoder = m_gfxEncoder.get();
         AP_ASSERT(src->getSize() <= dst->getSize());
         resourceEncoder->copyBuffer(dst->getGfxBufferResource(), 0, src->getGfxBufferResource(), 0, src->getSize());
         m_commandsPending = true;
@@ -648,7 +688,7 @@ namespace april::graphics
         resourceBarrier(dst, Resource::State::CopyDest);
         resourceBarrier(src, Resource::State::CopySource);
 
-        auto resourceEncoder = getLowLevelData()->getGfxCommandEncoder();
+        auto resourceEncoder = m_gfxEncoder.get();
         resourceEncoder->copyTexture(
             dst->getGfxTextureResource(), {},
             rhi::Offset3D{},
@@ -670,7 +710,7 @@ namespace april::graphics
         resourceBarrier(dst, Resource::State::CopyDest);
         resourceBarrier(src, Resource::State::CopySource);
 
-        auto resourceEncoder = getLowLevelData()->getGfxCommandEncoder();
+        auto resourceEncoder = m_gfxEncoder.get();
         resourceEncoder->copyBuffer(dst->getGfxBufferResource(), dstOffset, src->getGfxBufferResource(), srcOffset, numBytes);
         m_commandsPending = true;
     }
@@ -709,7 +749,7 @@ namespace april::graphics
             copySize.depth = (src->getDepth(srcSubresource.mip) - srcOffset.z);
         }
 
-        auto resourceEncoder = getLowLevelData()->getGfxCommandEncoder();
+        auto resourceEncoder = m_gfxEncoder.get();
         resourceEncoder->copyTexture(
             dst->getGfxTextureResource(),
             dstSubresource,
@@ -761,7 +801,7 @@ namespace april::graphics
         }
 
         bufferBarrier(buffer, Resource::State::CopyDest);
-        auto resourceEncoder = getLowLevelData()->getGfxCommandEncoder();
+        auto resourceEncoder = m_gfxEncoder.get();
         resourceEncoder->uploadBufferData(buffer->getGfxBufferResource(), adjustedOffset, adjustedNumBytes, (void*)data);
 
         m_commandsPending = true;
@@ -787,7 +827,7 @@ namespace april::graphics
 
         bufferBarrier(buffer, Resource::State::CopySource);
 
-        auto resourceEncoder = getLowLevelData()->getGfxCommandEncoder();
+        auto resourceEncoder = m_gfxEncoder.get();
         resourceEncoder->copyBuffer(allocation.gfxBuffer, allocation.offset, buffer->getGfxBufferResource(), adjustedOffset, adjustedNumBytes);
         m_commandsPending = true;
         submit(true);
@@ -809,32 +849,32 @@ namespace april::graphics
 
     auto CommandContext::pushDebugGroup(std::string_view name, float4 color) -> void
     {
-        mp_lowLevelData->getGfxCommandEncoder()->pushDebugGroup(name.data(), rhi::MarkerColor{color.r, color.g, color.b});
+        m_gfxEncoder->pushDebugGroup(name.data(), rhi::MarkerColor{color.r, color.g, color.b});
     }
 
     auto CommandContext::popDebugGroup() -> void
     {
-        mp_lowLevelData->getGfxCommandEncoder()->popDebugGroup();
+        m_gfxEncoder->popDebugGroup();
     }
 
     auto CommandContext::insertDebugMarker(std::string_view name, float4 color) -> void
     {
-        mp_lowLevelData->getGfxCommandEncoder()->insertDebugMarker(name.data(), rhi::MarkerColor{color.r, color.g, color.b});
+        m_gfxEncoder->insertDebugMarker(name.data(), rhi::MarkerColor{color.r, color.g, color.b});
     }
 
     auto CommandContext::writeTimestamp(QueryHeap* pHeap, uint32_t index) -> void
     {
-        mp_lowLevelData->getGfxCommandEncoder()->writeTimestamp(pHeap->getGfxQueryPool(), index);
+        m_gfxEncoder->writeTimestamp(pHeap->getGfxQueryPool(), index);
     }
 
     auto CommandContext::resolveQuery(QueryHeap* pHeap, uint32_t index, uint32_t count, Buffer const* buffer, uint64_t offset) -> void
     {
-        mp_lowLevelData->getGfxCommandEncoder()->resolveQuery(pHeap->getGfxQueryPool(), index, count, buffer->getGfxBufferResource(), offset);
+        m_gfxEncoder->resolveQuery(pHeap->getGfxQueryPool(), index, count, buffer->getGfxBufferResource(), offset);
     }
 
     auto CommandContext::textureBarrier(Texture const* texture, Resource::State newState) -> bool
     {
-        auto resourceEncoder = getLowLevelData()->getGfxCommandEncoder();
+        auto resourceEncoder = m_gfxEncoder.get();
         bool recorded = false;
         if (texture->getGlobalState() != newState)
         {
@@ -857,7 +897,7 @@ namespace april::graphics
         bool recorded = false;
         if (buffer->getGlobalState() != newState)
         {
-            auto resourceEncoder = getLowLevelData()->getGfxCommandEncoder();
+            auto resourceEncoder = m_gfxEncoder.get();
             rhi::IBuffer* gfxBuffer = buffer->getGfxBufferResource();
             resourceEncoder->setBufferState(gfxBuffer, getGFXResourceState(newState));
             buffer->setGlobalState(newState);
@@ -915,7 +955,7 @@ namespace april::graphics
         uint32_t mipLevel
     ) -> void
     {
-        auto resourceEncoder = getLowLevelData()->getGfxCommandEncoder();
+        auto resourceEncoder = m_gfxEncoder.get();
         rhi::ITexture* gfxTexture = texture->getGfxTextureResource();
         rhi::SubresourceRange subresourceRange = {};
         subresourceRange.layer = arraySlice;
@@ -940,7 +980,7 @@ namespace april::graphics
         bool copyRegion = glm::any(glm::notEqual(offset, uint3(0))) || glm::any(glm::notEqual(size, uint3(0xFFFFFFFF)));
         AP_ASSERT(subresourceCount == 1 || !copyRegion);
         uint8_t* dataPtr = (uint8_t*)pData;
-        auto resourceEncoder = getLowLevelData()->getGfxCommandEncoder();
+        auto resourceEncoder = m_gfxEncoder.get();
         rhi::Offset3D gfxOffset = {offset.x, offset.y, offset.z};
         rhi::Extent3D gfxSize = {size.x, size.y, size.z};
         rhi::FormatInfo formatInfo = rhi::getFormatInfo(getGFXFormat(texture->getFormat()));

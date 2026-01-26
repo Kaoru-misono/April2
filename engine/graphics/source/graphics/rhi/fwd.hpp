@@ -23,7 +23,6 @@ namespace april::graphics
 
     class QueryHeap;
 
-    class LowLevelContextData;
     class GpuTimer;
     class GpuMemoryHeap;
 

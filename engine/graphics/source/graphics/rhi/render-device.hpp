@@ -10,7 +10,6 @@
 #include "native-handle.hpp"
 #include "format.hpp"
 #include "query-heap.hpp"
-#include "low-level-context-data.hpp"
 #include "gpu-memory-heap.hpp"
 #include "resource.hpp"
 #include "buffer.hpp"

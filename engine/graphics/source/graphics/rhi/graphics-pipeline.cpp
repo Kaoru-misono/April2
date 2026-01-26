@@ -4,7 +4,6 @@
 
 #include "graphics-pipeline.hpp"
 #include "render-device.hpp"
-#include "low-level-context-data.hpp"
 #include "rhi-tools.hpp"
 #include "graphics/program/program-version.hpp"
 

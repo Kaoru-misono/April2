@@ -11,9 +11,11 @@
 #include "ray-tracing-acceleration-structure.hpp"
 #include "render-target.hpp"
 #include "program/program-variables.hpp"
+#include "fence.hpp"
 
 #include <core/math/type.hpp>
 #include <slang-rhi.h>
+#include <slang-com-ptr.h>
 #include <string_view>
 
 namespace april::core { class Profiler; }
@@ -285,7 +287,7 @@ namespace april::graphics
         auto setPendingCommands(bool commandsPending) -> void { m_commandsPending = commandsPending; }
 
         /**
-        * Signal a fence.
+        * Signal a fence immediately.
         * @param pFence The fence to signal.
         * @param value The value to signal. If Fence::kAuto, the signaled value will be auto-incremented.
         * @return Returns the signaled value.
@@ -366,7 +368,13 @@ namespace april::graphics
         auto writeTimestamp(QueryHeap* pHeap, uint32_t index) -> void;
         auto resolveQuery(QueryHeap* pHeap, uint32_t index, uint32_t count, Buffer const* buffer, uint64_t offset) -> void;
 
-        auto getLowLevelData() const -> LowLevelContextData* { return mp_lowLevelData.get(); }
+        auto getGfxCommandQueue() const -> rhi::ICommandQueue* { return mp_gfxCommandQueue; }
+        auto getGfxCommandEncoder() const -> rhi::ICommandEncoder* { return m_gfxEncoder; }
+
+        auto getCommandQueueNativeHandle() const -> rhi::NativeHandle;
+        auto getCommandBufferNativeHandle() const -> rhi::NativeHandle;
+
+        auto getFence() const -> core::ref<Fence> const& { return mp_fence; }
 
         auto bindDescriptorHeaps() -> void;
         auto bindCustomGPUDescriptorPool() -> void;
@@ -393,8 +401,13 @@ namespace april::graphics
             uint3 const& size = uint3(kUintMax)
         ) -> void;
 
+        auto submitCommandBuffer() -> void;
+
         Device* mp_device{nullptr};
-        std::unique_ptr<LowLevelContextData> mp_lowLevelData;
+        rhi::ICommandQueue* mp_gfxCommandQueue{};
+        rhi::ComPtr<rhi::ICommandEncoder> m_gfxEncoder{};
+        rhi::ComPtr<rhi::ICommandBuffer> mp_commandBuffer{};
+        core::ref<Fence> mp_fence{};
         bool m_commandsPending{false};
     };
 }
