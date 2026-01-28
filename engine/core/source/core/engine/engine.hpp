@@ -13,12 +13,12 @@ namespace april
     {
         APRIL_OBJECT(Engine)
     public:
-        Engine(const EngineConfig& config = {});
+        Engine(EngineConfig const& config = {});
         ~Engine() override;
 
         static auto get() -> Engine&;
 
-        auto getConfig() const -> const EngineConfig& { return m_config; }
+        auto getConfig() const -> EngineConfig const& { return m_config; }
 
     private:
         EngineConfig m_config;

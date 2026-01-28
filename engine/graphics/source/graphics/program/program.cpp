@@ -69,9 +69,9 @@ namespace april::graphics
     {
         using NameTypePair = std::pair<std::string, ShaderType>;
         std::set<NameTypePair> entryPointNamesAndTypes;
-        for (const auto& group : m_description.entryPointGroups)
+        for (auto const& group : m_description.entryPointGroups)
         {
-            for (const auto& e : group.entryPoints)
+            for (auto const& e : group.entryPoints)
             {
                 if (!entryPointNamesAndTypes.insert(NameTypePair(e.exportName, e.type)).second)
                 {
@@ -86,9 +86,9 @@ namespace april::graphics
     {
         std::string desc;
 
-        for (const auto& shaderModule : m_description.shaderModules)
+        for (auto const& shaderModule : m_description.shaderModules)
         {
-            for (const auto& source : shaderModule.sources)
+            for (auto const& source : shaderModule.sources)
             {
                 switch (source.type)
                 {
@@ -107,9 +107,9 @@ namespace april::graphics
 
         desc += "(";
         size_t entryPointIndex = 0;
-        for (const auto& entryPointGroup : m_description.entryPointGroups)
+        for (auto const& entryPointGroup : m_description.entryPointGroups)
         {
-            for (const auto& entryPoint : entryPointGroup.entryPoints)
+            for (auto const& entryPoint : entryPointGroup.entryPoints)
             {
                 if (entryPointIndex++ > 0)
                     desc += ", ";
@@ -138,7 +138,7 @@ namespace april::graphics
     auto Program::addDefines(DefineList const& dl) -> bool
     {
         bool dirty = false;
-        for (const auto& it : dl)
+        for (auto const& it : dl)
         {
             if (addDefine(it.first, it.second))
             {
@@ -162,7 +162,7 @@ namespace april::graphics
     auto Program::removeDefines(DefineList const& dl) -> bool
     {
         bool dirty = false;
-        for (const auto& it : dl)
+        for (auto const& it : dl)
         {
             if (removeDefine(it.first))
             {
@@ -266,7 +266,7 @@ namespace april::graphics
         if (m_linkRequired)
         {
             ProgramVersionKey key{m_defineList, m_typeConformanceList};
-            const auto& it = m_programVersions.find(key);
+            auto const& it = m_programVersions.find(key);
             if (it == m_programVersions.end())
             {
                 if (link() == false)

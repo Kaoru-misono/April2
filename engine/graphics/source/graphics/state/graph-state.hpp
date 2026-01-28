@@ -16,7 +16,7 @@ namespace april::graphics
      *
      * Used primarily for deduping pipeline states or program versions.
      */
-    template<typename NodeType, typename EdgeType, typename EdgeHashType = std::hash<EdgeType>>
+    template <typename NodeType, typename EdgeType, typename EdgeHashType = std::hash<EdgeType>>
     class StateGraph
     {
     public:

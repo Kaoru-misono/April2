@@ -16,7 +16,7 @@ TEST_SUITE("Compilation")
         REQUIRE(device);
 
         // Simple Shader
-        const char* shaderSource = R"(
+        char const* shaderSource = R"(
             struct VSOut {
                 float4 pos : SV_Position;
             };
@@ -53,7 +53,7 @@ TEST_SUITE("Compilation")
         REQUIRE(device);
 
         // Invalid Shader
-        const char* shaderSource = "invalid shader code";
+        char const* shaderSource = "invalid shader code";
 
         // Create Program
         ProgramDesc progDesc;
@@ -88,7 +88,7 @@ TEST_SUITE("Compilation")
         REQUIRE(device);
 
         // Shader with Define
-        const char* shaderSource = R"(
+        char const* shaderSource = R"(
             struct VSOut {
                 float4 pos : SV_Position;
             };

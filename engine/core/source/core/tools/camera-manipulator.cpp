@@ -68,7 +68,7 @@ namespace april::core
     // Creates a viewing matrix derived from an eye point, a reference point indicating the center of
     // the scene, and an up vector
     //
-    auto CameraManipulator::setLookat(const glm::vec3& eye, const glm::vec3& center, const glm::vec3& up, bool instantSet) -> void
+    auto CameraManipulator::setLookat(glm::vec3 const& eye, glm::vec3 const& center, glm::vec3 const& up, bool instantSet) -> void
     {
         setCamera({eye, center, up, m_current.fov, m_current.clip}, instantSet);
     }
@@ -235,7 +235,7 @@ namespace april::core
 
     //--------------------------------------------------------------------------------------------------
     //
-    auto CameraManipulator::setMatrix(const glm::mat4& matrix, bool instantSet, float centerDistance) -> void
+    auto CameraManipulator::setMatrix(glm::mat4 const& matrix, bool instantSet, float centerDistance) -> void
     {
         Camera camera;
         camera.eye = matrix[3];
@@ -263,8 +263,8 @@ namespace april::core
     }
 
     //--------------------------------------------------------------------------------------------------
-    // Low level function for when the camera move. 
-    auto CameraManipulator::motion(const glm::vec2& screenDisplacement, Actions action /*= 0*/) -> void
+    // Low level function for when the camera move.
+    auto CameraManipulator::motion(glm::vec2 const& screenDisplacement, Actions action /*= 0*/) -> void
     {
         glm::vec2 displacement = {
             float(screenDisplacement.x - m_mouse[0]) / float(m_windowSize.x),
@@ -295,7 +295,7 @@ namespace april::core
     }
 
     //--------------------------------------------------------------------------------------------------
-    // Function for when the camera move with keys (ex. WASD). 
+    // Function for when the camera move with keys (ex. WASD).
     // Note: dx and dy are the speed of the camera movement.
     auto CameraManipulator::keyMotion(glm::vec2 delta, Actions action) -> void
     {
@@ -337,7 +337,7 @@ namespace april::core
     //
     // Returns the action that was activated
     //
-    auto CameraManipulator::mouseMove(glm::vec2 screenDisplacement, const Inputs& inputs) -> Actions
+    auto CameraManipulator::mouseMove(glm::vec2 screenDisplacement, Inputs const& inputs) -> Actions
     {
         if (!inputs.lmb && !inputs.rmb && !inputs.mmb)
         {
@@ -371,7 +371,7 @@ namespace april::core
     //--------------------------------------------------------------------------------------------------
     // Trigger a dolly when the wheel change, or change the FOV if the shift key was pressed
     //
-    auto CameraManipulator::wheel(float value, const Inputs& inputs) -> void
+    auto CameraManipulator::wheel(float value, Inputs const& inputs) -> void
     {
         float deltaX = (value * fabsf(value)) / static_cast<float>(m_windowSize.x);
 
@@ -442,7 +442,7 @@ namespace april::core
     //--------------------------------------------------------------------------------------------------
     // Return a string which can be included in help dialogs
     //
-    auto CameraManipulator::getHelp() -> const std::string& 
+    auto CameraManipulator::getHelp() -> std::string const&
     {
         static std::string helpText =
             "LMB: rotate around the target\n"
@@ -465,7 +465,7 @@ namespace april::core
     // tight - true: fit exactly the corner, false: fit to radius (larger view, will not get closer or further away)
     // aspect - aspect ratio of the window.
     //
-    auto CameraManipulator::fit(const glm::vec3& boxMin, const glm::vec3& boxMax, bool instantFit /*= true*/, bool tightFit /*=false*/, float aspect /*=1.0f*/) -> void
+    auto CameraManipulator::fit(glm::vec3 const& boxMin, glm::vec3 const& boxMax, bool instantFit /*= true*/, bool tightFit /*=false*/, float aspect /*=1.0f*/) -> void
     {
         // Calculate the half extents of the bounding box
         const glm::vec3 boxHalfSize = 0.5f * (boxMax - boxMin);
@@ -523,7 +523,7 @@ namespace april::core
                            fov, clip.x, clip.y);
     }
 
-    auto CameraManipulator::Camera::setFromString(const std::string& text) -> bool
+    auto CameraManipulator::Camera::setFromString(std::string const& text) -> bool
     {
         if (text.empty())
             return false;

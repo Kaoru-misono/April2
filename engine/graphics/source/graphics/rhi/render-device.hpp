@@ -188,7 +188,7 @@ namespace april::graphics
         /**
          * Create a new typed buffer. The format is deduced from the template parameter.
          */
-        template<typename T>
+        template <typename T>
         auto createTypedBuffer(
             uint32_t elementCount,
             BufferUsage usage = BufferUsage::ShaderResource | BufferUsage::UnorderedAccess,

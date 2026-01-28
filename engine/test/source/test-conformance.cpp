@@ -18,7 +18,7 @@ TEST_SUITE("Conformance")
         // To really test conformance, we should use a global interface variable or specialized entry point.
         // But Slang's dynamic dispatch often requires conformances to be registered.
 
-        const char* shaderSourceWithInterface = R"(
+        char const* shaderSourceWithInterface = R"(
             interface IBar {
                 float getVal();
             };

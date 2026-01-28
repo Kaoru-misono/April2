@@ -25,12 +25,12 @@ namespace april::graphics
          * See list of supported formats for typed UAV loads:
          * https://docs.microsoft.com/en-us/windows/win32/direct3d12/typed-unordered-access-view-loads
          */
-        template<typename T>
+        template <typename T>
         struct FormatForElementType
         {};
 
         #define CASE(TYPE, FORMAT)                                \
-            template<>                                            \
+            template <>                                            \
             struct FormatForElementType<TYPE>                     \
             {                                                     \
                 static constexpr ResourceFormat kFormat = FORMAT; \
@@ -270,13 +270,13 @@ namespace april::graphics
          */
         auto isStructured() const -> bool { return m_structSize != 0; }
 
-        template<typename T>
+        template <typename T>
         auto setElement(uint32_t index, T const& value) -> void
         {
             setBlob(&value, sizeof(T) * index, sizeof(T));
         }
 
-        template<typename T>
+        template <typename T>
         auto getElements(uint32_t firstElement = 0, uint32_t elementCount = 0) const -> std::vector<T>
         {
             if (elementCount == 0) elementCount = (m_size / sizeof(T)) - firstElement;
@@ -287,7 +287,7 @@ namespace april::graphics
             return data;
         }
 
-        template<typename T>
+        template <typename T>
         auto getElement(uint32_t index) const -> T
         {
             T data;

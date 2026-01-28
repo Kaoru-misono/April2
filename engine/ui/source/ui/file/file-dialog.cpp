@@ -23,7 +23,7 @@ namespace april::ui
                               std::wstring title,
                               std::wstring exts,
                               DialogMode mode,
-                              const std::filesystem::path& initialDir = {}) -> std::filesystem::path
+                              std::filesystem::path const& initialDir = {}) -> std::filesystem::path
     {
         if (!window)
         {
@@ -124,19 +124,19 @@ namespace april::ui
         return result;
     }
 
-    static auto to_wstring(const char* utf8) -> std::wstring
+    static auto to_wstring(char const* utf8) -> std::wstring
     {
         if (!utf8)
             return L"";
         return std::filesystem::path(utf8).wstring();
     }
 
-    auto windowOpenFileDialog(april::Window* window, const char* title, const char* exts) -> std::filesystem::path
+    auto windowOpenFileDialog(april::Window* window, char const* title, char const* exts) -> std::filesystem::path
     {
         return unifiedDialog(window, to_wstring(title), to_wstring(exts), DialogMode::OpenFile);
     }
 
-    auto windowOpenFileDialog(april::Window* window, const char* title, const char* exts, std::filesystem::path& initialDir) -> std::filesystem::path
+    auto windowOpenFileDialog(april::Window* window, char const* title, char const* exts, std::filesystem::path& initialDir) -> std::filesystem::path
     {
         std::filesystem::path result = unifiedDialog(window, to_wstring(title),
                                                      to_wstring(exts), DialogMode::OpenFile, initialDir);
@@ -148,12 +148,12 @@ namespace april::ui
         return result;
     }
 
-    auto windowSaveFileDialog(april::Window* window, const char* title, const char* exts) -> std::filesystem::path
+    auto windowSaveFileDialog(april::Window* window, char const* title, char const* exts) -> std::filesystem::path
     {
         return unifiedDialog(window, to_wstring(title), to_wstring(exts), DialogMode::SaveFile);
     }
 
-    auto windowOpenFolderDialog(april::Window* window, const char* title) -> std::filesystem::path
+    auto windowOpenFolderDialog(april::Window* window, char const* title) -> std::filesystem::path
     {
         return unifiedDialog(window, to_wstring(title), {}, DialogMode::OpenFolder);
     }
@@ -164,10 +164,10 @@ namespace april::ui
 
 namespace april::ui
 {
-    auto windowOpenFileDialog(april::Window* window, const char* title, const char* exts) -> std::filesystem::path { return {}; }
-    auto windowOpenFileDialog(april::Window* window, const char* title, const char* exts, std::filesystem::path& initialDir) -> std::filesystem::path { return {}; }
-    auto windowSaveFileDialog(april::Window* window, const char* title, const char* exts) -> std::filesystem::path { return {}; }
-    auto windowOpenFolderDialog(april::Window* window, const char* title) -> std::filesystem::path { return {}; }
+    auto windowOpenFileDialog(april::Window* window, char const* title, char const* exts) -> std::filesystem::path { return {}; }
+    auto windowOpenFileDialog(april::Window* window, char const* title, char const* exts, std::filesystem::path& initialDir) -> std::filesystem::path { return {}; }
+    auto windowSaveFileDialog(april::Window* window, char const* title, char const* exts) -> std::filesystem::path { return {}; }
+    auto windowOpenFolderDialog(april::Window* window, char const* title) -> std::filesystem::path { return {}; }
 }
 
 #endif

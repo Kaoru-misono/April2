@@ -73,6 +73,13 @@ auto func(
 }
 ```
 
+#### Lambda
+C++
+auto lambda = []() -> void {
+    ...
+};
+```
+
 ### 2.3 Files
 #### Filenames: kebab-case (lowercase with hyphens).
 

@@ -55,7 +55,7 @@ namespace april::ui
             red.emplace_back(0, 0, 0);
 
             // Other arrows are permutations of the Red arrow
-            for (const auto& v : red)
+            for (auto const& v : red)
             {
                 green.emplace_back(v.z, v.x, v.y);
                 blue.emplace_back(v.y, v.z, v.x);
@@ -68,7 +68,7 @@ namespace april::ui
         std::vector<int>       indices;
 
         // Return the transformed arrow
-        auto transform(const std::vector<glm::vec3>& in_vec, const ImVec2& pos, const glm::mat4& modelView, float size) -> std::vector<glm::vec3>
+        auto transform(std::vector<glm::vec3> const& in_vec, ImVec2 const& pos, glm::mat4 const& modelView, float size) -> std::vector<glm::vec3>
         {
             std::vector<glm::vec3> temp(in_vec.size());
 
@@ -84,7 +84,7 @@ namespace april::ui
             return temp;
         }
 
-        auto drawTriangle(ImVec2 v0, ImVec2 v1, ImVec2 v2, const ImVec2& uv, ImU32 col) -> void
+        auto drawTriangle(ImVec2 v0, ImVec2 v1, ImVec2 v2, ImVec2 const& uv, ImU32 col) -> void
         {
             auto draw_list = ImGui::GetWindowDrawList();
 
@@ -104,7 +104,7 @@ namespace april::ui
         }
 
         // Draw the arrow
-        auto draw(const std::vector<glm::vec3>& vertex, ImU32 col) -> void
+        auto draw(std::vector<glm::vec3> const& vertex, ImU32 col) -> void
         {
             auto draw_list = ImGui::GetWindowDrawList();
             auto const uv  = ImGui::GetFontTexUvWhitePixel();
@@ -134,7 +134,7 @@ namespace april::ui
         }
     };
 
-    auto Axis::render(ImVec2 pos, const glm::mat4& modelView, float size) -> void
+    auto Axis::render(ImVec2 pos, glm::mat4 const& modelView, float size) -> void
     {
         static AxisGeom a;
 

@@ -9,7 +9,7 @@
 #include <cstring>
 #include <print>
 
-const char* kSlangCode = R"(
+char const* kSlangCode = R"(
 struct VSOut {
     float4 pos : SV_Position;
     float4 color : COLOR;
@@ -141,7 +141,7 @@ int main() {
     Slang::ComPtr<rhi::IShaderProgram> shaderProgram;
     Slang::ComPtr<ISlangBlob> diagnostics;
     if (SLANG_FAILED(device->createShaderProgram(programDesc, shaderProgram.writeRef(), diagnostics.writeRef()))) {
-        if(diagnostics) std::cerr << (const char*)diagnostics->getBufferPointer() << std::endl;
+        if(diagnostics) std::cerr << (char const*)diagnostics->getBufferPointer() << std::endl;
         return 1;
     }
 

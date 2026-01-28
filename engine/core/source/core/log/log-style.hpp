@@ -12,7 +12,7 @@ namespace april
     /**
      * @brief A wrapper for a value with associated log styling.
      */
-    template<typename T>
+    template <typename T>
     struct StyledValue
     {
         T           value;
@@ -34,8 +34,8 @@ namespace april
     /**
      * @brief Helper to create a styled value.
      */
-     // std::decay_t<T> will convert char[N] to const char*
-    template<typename T>
+     // std::decay_t<T> will convert char[N] to char const*
+    template <typename T>
     auto Styled(T&& value) -> StyledValue<std::decay_t<T>>
     {
         return {std::forward<T>(value)};
@@ -46,7 +46,7 @@ namespace april
 /**
  * @brief Formatter for StyledValue.
  */
-template<typename T>
+template <typename T>
 struct std::formatter<april::StyledValue<T>> : std::formatter<T>
 {
     april::ELogColor overrideColor{april::ELogColor::Default};

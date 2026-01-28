@@ -10,7 +10,7 @@ namespace april::core
         return std::filesystem::path(path);
     }
 
-    auto utf8FromPath(const std::filesystem::path& path) -> std::string
+    auto utf8FromPath(std::filesystem::path const& path) -> std::string
     {
         return path.string();
     }

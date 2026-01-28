@@ -17,7 +17,7 @@ TEST_SUITE("ResourceBinding")
         auto device = april::core::make_ref<Device>(deviceDesc);
         REQUIRE(device);
 
-        const char* shaderSource = R"(
+        char const* shaderSource = R"(
             struct MyStruct {
                 float a;
                 int b;

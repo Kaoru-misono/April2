@@ -67,7 +67,7 @@ namespace april::graphics
                 rhi::ComPtr<ISlangBlob> pDiagnostics;
                 if (SLANG_FAILED(mp_linkedSlangEntryPoint->getEntryPointCode(0, 0, mp_blob.writeRef(), pDiagnostics.writeRef())))
                 {
-                    AP_CRITICAL("Shader compilation failed. \n {}", (const char*)pDiagnostics->getBufferPointer());
+                    AP_CRITICAL("Shader compilation failed. \n {}", (char const*)pDiagnostics->getBufferPointer());
                 }
             }
 
@@ -116,8 +116,8 @@ namespace april::graphics
     protected:
         EntryPointGroupKernels(Type type, std::vector<core::ref<EntryPointKernel>> const& kernels, std::string const& exportName);
         EntryPointGroupKernels() = default;
-        EntryPointGroupKernels(const EntryPointGroupKernels&) = delete;
-        EntryPointGroupKernels& operator=(const EntryPointGroupKernels&) = delete;
+        EntryPointGroupKernels(EntryPointGroupKernels const&) = delete;
+        EntryPointGroupKernels& operator=(EntryPointGroupKernels const&) = delete;
 
         Type m_type{};
         std::vector<core::ref<EntryPointKernel>> m_kernels{};

@@ -777,8 +777,8 @@ namespace april::graphics
         auto getByteOffset() const -> size_t { return m_bindLocation.getByteOffset(); }
         auto getOffset() const -> size_t { return m_bindLocation.getByteOffset(); }
 
-        bool operator==(const ReflectionVariable& other) const;
-        bool operator!=(const ReflectionVariable& other) const { return !(*this == other); }
+        bool operator==(ReflectionVariable const& other) const;
+        bool operator!=(ReflectionVariable const& other) const { return !(*this == other); }
 
     private:
         ReflectionVariable(std::string const& name, core::ref<const ReflectionType> const& p_type, ShaderVariableOffset const& bindLocation);

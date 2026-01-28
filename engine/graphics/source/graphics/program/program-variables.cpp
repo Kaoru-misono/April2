@@ -130,7 +130,7 @@ namespace april::graphics
 
         if (needShaderTableUpdate)
         {
-            auto getShaderNames = [&](VarsVector& varsVec, std::vector<const char*>& shaderNames)
+            auto getShaderNames = [&](VarsVector& varsVec, std::vector<char const*>& shaderNames)
             {
                 for (uint32_t i = 0; i < (uint32_t)varsVec.size(); i++)
                 {
@@ -145,17 +145,17 @@ namespace april::graphics
                         continue;
                     }
 
-                    shaderNames.push_back(static_cast<const char*>(pRtso->getShaderIdentifier(uniqueGroupIndex)));
+                    shaderNames.push_back(static_cast<char const*>(pRtso->getShaderIdentifier(uniqueGroupIndex)));
                 }
             };
 
-            std::vector<const char*> rayGenShaders;
+            std::vector<char const*> rayGenShaders;
             getShaderNames(m_rayGenVars, rayGenShaders);
 
-            std::vector<const char*> missShaders;
+            std::vector<char const*> missShaders;
             getShaderNames(m_missVars, missShaders);
 
-            std::vector<const char*> hitgroupShaders;
+            std::vector<char const*> hitgroupShaders;
             getShaderNames(m_hitVars, hitgroupShaders);
 
             rhi::ShaderTableDesc desc = {};

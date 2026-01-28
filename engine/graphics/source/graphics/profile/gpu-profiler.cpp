@@ -153,7 +153,7 @@ namespace april::graphics
                         else m_timeOffsetNs = m_timeOffsetNs * 0.9 + offset * 0.1;
                     }
 
-                    for (const auto& e : f.events)
+                    for (auto const& e : f.events)
                     {
                         if (e.endQueryIndex == 0) continue;
 
@@ -247,7 +247,7 @@ namespace april::graphics
 }
 
 // Scoped RAII helper implementation - defined in global scope as it is declared outside namespace in header
-ScopedGpuProfileZone::ScopedGpuProfileZone(april::graphics::CommandContext* pCtx, const char* name)
+ScopedGpuProfileZone::ScopedGpuProfileZone(april::graphics::CommandContext* pCtx, char const* name)
     : pContext(pCtx), m_name(name)
 {
     if (auto* pGpuProfiler = pCtx->getDevice()->getGpuProfiler())

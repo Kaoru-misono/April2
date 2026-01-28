@@ -37,7 +37,7 @@
 //
 //     auto ElementProfiler::addSettingsHandler() -> void
 //     {
-//         auto readOpen = [](ImGuiContext*, ImGuiSettingsHandler* handler, const char* name) -> void* {
+//         auto readOpen = [](ImGuiContext*, ImGuiSettingsHandler* handler, char const* name) -> void* {
 //             auto* self = static_cast<ElementProfiler*>(handler->UserData);
 //             for(size_t i = 0; i < self->m_views.size(); ++i) {
 //                 if(self->m_views[i].state->name == name) return (void*)(uintptr_t)(i + 1);
@@ -47,14 +47,14 @@
 //
 //         auto saveAllToIni = [](ImGuiContext*, ImGuiSettingsHandler* handler, ImGuiTextBuffer* buf) {
 //             auto* self = static_cast<ElementProfiler*>(handler->UserData);
-//             for(const auto& view : self->m_views) {
+//             for(auto const& view : self->m_views) {
 //                 buf->appendf("[%s][%s]\n", handler->TypeName, view.state->name.c_str());
 //                 buf->appendf("ShowWindow=%d\n", view.state->show ? 1 : 0);
 //             }
 //             buf->append("\n");
 //         };
 //
-//         auto loadLineFromIni = [](ImGuiContext*, ImGuiSettingsHandler* handler, void* entry, const char* line) {
+//         auto loadLineFromIni = [](ImGuiContext*, ImGuiSettingsHandler* handler, void* entry, char const* line) {
 //             auto* self = static_cast<ElementProfiler*>(handler->UserData);
 //             intptr_t viewId = (intptr_t)entry - 1;
 //             int value;
@@ -94,7 +94,7 @@
 //         s_timeElapsed += ImGui::GetIO().DeltaTime;
 //
 //         bool showWindow = false;
-//         for(const auto& view : m_views) showWindow |= view.state->show;
+//         for(auto const& view : m_views) showWindow |= view.state->show;
 //
 //         if (showWindow && s_timeElapsed >= deltaTime)
 //         {
@@ -267,7 +267,7 @@
 //
 //         if((open) && isFolder)
 //         {
-//             for(const auto& child : node.child)
+//             for(auto const& child : node.child)
 //             {
 //                 displayTableNode(child, detailed, useAverage, showApi, defaultOpenLevels, depth + 1);
 //             }
@@ -367,12 +367,12 @@
 //                     }
 //                     ImGui::TableHeadersRow();
 //
-//                     for(const auto& child : m_frameNodes[i].child)
+//                     for(auto const& child : m_frameNodes[i].child)
 //                         displayTableNode(child, view.state->table.detailed, view.state->useAverage, showApi, view.state->table.levels, 0);
 //
 //                     if (i < m_singleNodes.size())
 //                     {
-//                         for(const auto& child : m_singleNodes[i].child)
+//                         for(auto const& child : m_singleNodes[i].child)
 //                             displayTableNode(child, view.state->table.detailed, view.state->useAverage, showApi, view.state->table.levels, 0);
 //                     }
 //
@@ -435,7 +435,7 @@
 //
 //     auto ElementProfiler::renderPieChartNode(EntryNode const& node, int level, int numLevels, double plotRadius, double angle0, double totalTime) -> void
 //     {
-//         std::vector<const char*> labels(node.child.size());
+//         std::vector<char const*> labels(node.child.size());
 //         std::vector<float> data(node.child.size());
 //         for(size_t i = 0; i < node.child.size(); i++) {
 //             labels[i] = node.child[i].name.c_str();
@@ -472,7 +472,7 @@
 //                 auto const& node = rootNode.child[0];
 //                 int items = 0;
 //
-//                 std::vector<const char*> labels(node.child.size());
+//                 std::vector<char const*> labels(node.child.size());
 //                 std::vector<float> data(node.child.size());
 //                 for(size_t k = 0; k < node.child.size(); k++) {
 //                     items++;
@@ -521,7 +521,7 @@
 //                 auto const& node = rootNode.child[0];
 //
 //                 // Data Gathering & Stacking Logic
-//                 std::vector<const char*> gpuTimesLabels(node.child.size());
+//                 std::vector<char const*> gpuTimesLabels(node.child.size());
 //                 std::vector<std::vector<float>> gpuTimes(node.child.size());
 //                 std::vector<std::vector<float>> cpuChildTimes(node.child.size());
 //                 std::vector<float> cpuTimes(node.timerInfo.numAveraged);
@@ -531,7 +531,7 @@
 //                 // Fill GPU times
 //                 for(size_t k = 0; k < node.child.size(); k++)
 //                 {
-//                     const auto& child = node.child[k];
+//                     auto const& child = node.child[k];
 //                     float gpuTimeSum = 0.f;
 //                     gpuTimesLabels[k] = child.name.c_str();
 //

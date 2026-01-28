@@ -22,7 +22,7 @@ TEST_SUITE("Reloading")
         REQUIRE(progManager);
 
         // Simple Shader
-        const char* shaderSource = R"(
+        char const* shaderSource = R"(
             struct VSOut {
                 float4 pos : SV_Position;
             };
@@ -125,4 +125,3 @@ TEST_SUITE("Reloading")
         std::filesystem::remove(shaderPath);
     }
 }
-

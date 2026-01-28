@@ -113,7 +113,7 @@ namespace april::graphics
         }
         if (diagnostics)
         {
-            log = (const char*)diagnostics->getBufferPointer();
+            log = (char const*)diagnostics->getBufferPointer();
         }
 
         return pProgram;

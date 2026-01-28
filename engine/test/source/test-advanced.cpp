@@ -16,7 +16,7 @@ TEST_SUITE("Advanced")
         REQUIRE(device);
 
         // Ray Tracing Shaders
-        const char* shaderSource = R"(
+        char const* shaderSource = R"(
             struct RayPayload { float4 color; };
             struct BuiltInTriangleIntersectionAttributes { float2 hitCoords; };
 
@@ -80,7 +80,7 @@ TEST_SUITE("Advanced")
 
         auto progManager = device->getProgramManager();
 
-        const char* shaderSource = R"(
+        char const* shaderSource = R"(
             struct VSOut { float4 pos : SV_Position; };
             VSOut main() {
                 VSOut output;
@@ -124,7 +124,7 @@ TEST_SUITE("Advanced")
         auto device = april::core::make_ref<Device>(deviceDesc);
         REQUIRE(device);
 
-        const char* shaderSource = R"(
+        char const* shaderSource = R"(
             struct Inner {
                 Texture2D tex;
                 float4 color;
@@ -180,7 +180,7 @@ TEST_SUITE("Advanced")
         auto device = april::core::make_ref<Device>(deviceDesc);
         REQUIRE(device);
 
-        const char* shaderSource = R"(
+        char const* shaderSource = R"(
             interface ILight { float3 getIntensity(); };
 
             struct PointLight : ILight { float3 getIntensity() { return float3(1,0,0); } };

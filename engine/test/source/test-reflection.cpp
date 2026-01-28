@@ -14,7 +14,7 @@ TEST_SUITE("Reflection")
         auto device = april::core::make_ref<Device>(deviceDesc);
         REQUIRE(device);
 
-        const char* shaderSource = R"(
+        char const* shaderSource = R"(
             struct MyStruct {
                 float a;
                 int b;
@@ -76,7 +76,7 @@ TEST_SUITE("Reflection")
         auto device = april::core::make_ref<Device>(deviceDesc);
         REQUIRE(device);
 
-        const char* shaderSource = R"(
+        char const* shaderSource = R"(
             [numthreads(16, 8, 1)]
             void main(uint3 threadId : SV_DispatchThreadID) {
             }

@@ -27,7 +27,7 @@ namespace april::graphics
 {
     class CommandContext; // Forward declaration
 
-    template<class TEncoder>
+    template <class TEncoder>
     class PassEncoderBase {
     public:
         PassEncoderBase() = default;
@@ -397,7 +397,7 @@ namespace april::graphics
         auto updateBuffer(Buffer const* buffer, void const* data, size_t offset = 0, size_t numBytes = 0) -> void;
         auto readBuffer(Buffer const* buffer, void* data, size_t offset = 0, size_t numBytes = 0) -> void;
 
-        template<typename T>
+        template <typename T>
         auto readBuffer(Buffer const* buffer, size_t firstElement = 0, size_t elementCount = 0) -> std::vector<T>
         {
             if (elementCount == 0)
@@ -491,7 +491,7 @@ namespace april::graphics
         auto updateBuffer(core::ref<Buffer> const& buffer, void const* data, size_t offset = 0, size_t numBytes = 0) -> void { updateBuffer(buffer.get(), data, offset, numBytes); }
         auto readBuffer(core::ref<Buffer> const& buffer, void* data, size_t offset = 0, size_t numBytes = 0) -> void { readBuffer(buffer.get(), data, offset, numBytes); }
 
-        template<typename T>
+        template <typename T>
         auto readBuffer(core::ref<Buffer> const& buffer, size_t firstElement = 0, size_t elementCount = 0) -> std::vector<T>
         {
             return readBuffer<T>(buffer.get(), firstElement, elementCount);

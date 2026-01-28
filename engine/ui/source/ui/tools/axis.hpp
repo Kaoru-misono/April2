@@ -9,10 +9,10 @@ namespace april::ui
     {
     public:
         // This utility is adding the 3D axis at `pos`, using the matrix `modelView`
-        static auto render(ImVec2 pos, const glm::mat4& modelView, float size = 20.f) -> void;
+        static auto render(ImVec2 pos, glm::mat4 const& modelView, float size = 20.f) -> void;
 
         // Place the axis at the bottom left corner of the window
-        static auto render(const glm::mat4& modelView, float size = 20.f) -> void
+        static auto render(glm::mat4 const& modelView, float size = 20.f) -> void
         {
             ImVec2 windowPos  = ImGui::GetWindowPos();
             ImVec2 windowSize = ImGui::GetWindowSize();

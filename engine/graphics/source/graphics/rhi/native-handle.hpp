@@ -36,12 +36,12 @@ namespace april::graphics
         VkSampler,
     };
 
-    template<typename T>
+    template <typename T>
 struct NativeHandleTrait
 {};
 
 #define APRIL_NATIVE_HANDLE(T, TYPE)                \
-    template<>                                       \
+    template <>                                       \
     struct NativeHandleTrait<T>                      \
     {                                                \
         static const NativeHandleType type = TYPE;   \
@@ -89,7 +89,7 @@ struct NativeHandleTrait
     public:
         NativeHandle() = default;
 
-        template<typename T>
+        template <typename T>
         explicit NativeHandle(T native)
         {
             // TODO:
@@ -101,7 +101,7 @@ struct NativeHandleTrait
 
         auto isValid() const -> bool { return m_type != NativeHandleType::Unknown; }
 
-        template<typename T>
+        template <typename T>
         auto as() const -> T
         {
             if (m_type != NativeHandleTrait<T>::type)

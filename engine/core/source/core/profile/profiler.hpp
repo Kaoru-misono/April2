@@ -3,6 +3,7 @@
 #include "profile-types.hpp"
 #include "timer.hpp"
 #include <chrono>
+#include <source_location>
 
 namespace april::core
 {
@@ -39,7 +40,7 @@ namespace april::core
         /**
          * Records a complete event with explicit timing.
          */
-        auto recordEvent(const char* name, double startUs, double durationUs, ProfileEventType type = ProfileEventType::Complete) -> void;
+        auto recordEvent(char const* name, double startUs, double durationUs, ProfileEventType type = ProfileEventType::Complete) -> void;
 
         /**
          * Returns the registered GPU profiler.
@@ -49,8 +50,8 @@ namespace april::core
     private:
         Profiler() = default;
         ~Profiler() = default;
-        Profiler(const Profiler&) = delete;
-        Profiler& operator=(const Profiler&) = delete;
+        Profiler(Profiler const&) = delete;
+        Profiler& operator=(Profiler const&) = delete;
 
         IGpuProfiler* m_gpuProfiler{nullptr};
     };
@@ -61,7 +62,7 @@ namespace april::core
     class ScopedProfileZone
     {
     public:
-        ScopedProfileZone(const char* name) : m_name(name), m_start(Timer::now()) {}
+        ScopedProfileZone(char const* name) : m_name(name), m_start(Timer::now()) {}
 
         ~ScopedProfileZone()
         {
@@ -76,7 +77,7 @@ namespace april::core
         }
 
     private:
-        const char* m_name;
+        char const* m_name;
         Timer::TimePoint m_start;
     };
 }

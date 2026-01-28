@@ -31,7 +31,7 @@ namespace april::graphics
         //     setHitGroup(rayType, geometryID.get(), std::move(shaderID));
         // }
         auto setHitGroup(uint32_t rayType, std::vector<uint32_t> const& geometryIDs, ShaderID shaderID) -> void;
-        // auto setHitGroup(uint32_t rayType, const std::vector<GlobalGeometryID>& geometryIDs, ShaderID shaderID) -> void;
+        // auto setHitGroup(uint32_t rayType, std::vector<GlobalGeometryID> const& geometryIDs, ShaderID shaderID) -> void;
 
         auto getRayGeneration() const -> ShaderID { return m_shaderTable[0]; }
         auto getMiss(uint32_t missIndex) const -> ShaderID;

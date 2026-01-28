@@ -255,7 +255,7 @@ namespace april::ui
 
             for (int n = 0; n < pDrawData->CmdListsCount; n++)
             {
-                const ImDrawList* cmdList = pDrawData->CmdLists[n];
+                ImDrawList const* cmdList = pDrawData->CmdLists[n];
                 memcpy(vtxDst, cmdList->VtxBuffer.Data, cmdList->VtxBuffer.Size * sizeof(ImDrawVert));
                 memcpy(idxDst, cmdList->IdxBuffer.Data, cmdList->IdxBuffer.Size * sizeof(ImDrawIdx));
                 vtxDst += cmdList->VtxBuffer.Size;
@@ -300,10 +300,10 @@ namespace april::ui
 
         for (int n = 0; n < pDrawData->CmdListsCount; n++)
         {
-            const ImDrawList* cmdList = pDrawData->CmdLists[n];
+            ImDrawList const* cmdList = pDrawData->CmdLists[n];
             for (int cmd_i = 0; cmd_i < cmdList->CmdBuffer.Size; cmd_i++)
             {
-                const ImDrawCmd* pcmd = &cmdList->CmdBuffer[cmd_i];
+                ImDrawCmd const* pcmd = &cmdList->CmdBuffer[cmd_i];
                 if (pcmd->UserCallback != nullptr)
                 {
                     pcmd->UserCallback(cmdList, pcmd);
@@ -365,7 +365,7 @@ namespace april::ui
         }
 
         auto viewportSize = float2{};
-        const ImGuiWindow* viewport = ImGui::FindWindowByName("Viewport");
+        ImGuiWindow const* viewport = ImGui::FindWindowByName("Viewport");
         if(viewport)
         {
             viewportSize = {uint32_t(viewport->Size.x), uint32_t(viewport->Size.y)};

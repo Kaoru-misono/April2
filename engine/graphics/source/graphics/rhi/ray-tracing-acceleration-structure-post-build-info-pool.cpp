@@ -11,7 +11,7 @@
 namespace april::graphics
 {
     // ...
-    
+
     auto RtAccelerationStructurePostBuildInfoPool::getElement(CommandContext* context, uint32_t index) -> uint64_t
     {
         return 0;

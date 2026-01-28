@@ -74,7 +74,7 @@ namespace april
         // Internal Logic
         // ------------------------------------------------------------------------
 
-        explicit SimpleBlob(const void* data, size_t size)
+        explicit SimpleBlob(void const* data, size_t size)
         {
             m_data.resize(size);
 

@@ -11,10 +11,10 @@ TEST_CASE("ProfileManager Thread Registry")
     uint32_t tid = 12345;
     manager.registerThreadName(tid, "WorkerThread");
 
-    // We need a way to verify this. 
+    // We need a way to verify this.
     // Assuming a getThreadName method or getThreadNames
     auto const& names = manager.getThreadNames();
-    
+
     CHECK(names.count(tid) == 1);
     CHECK(names.at(tid) == "WorkerThread");
 

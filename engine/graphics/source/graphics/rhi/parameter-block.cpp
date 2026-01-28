@@ -339,16 +339,16 @@ namespace april::graphics
         checkResult(m_shaderObject->setData(gfxOffset, pSrc, size), "Failed to set data to shader object");
     }
 
-    template<typename T>
+    template <typename T>
     void setVariableInternal(
         ParameterBlock* pBlock,
-        const ParameterBlock::BindLocation& bindLocation,
-        const T& value,
+        ParameterBlock::BindLocation const& bindLocation,
+        T const& value,
         ReflectionBasicType::Type type,
         ReflectionBasicType::Type implicitType = ReflectionBasicType::Type::Unknown
     )
     {
-        const ReflectionBasicType* basicType = bindLocation.getType()->unwrapArray()->asBasicType();
+        ReflectionBasicType const* basicType = bindLocation.getType()->unwrapArray()->asBasicType();
         if (!basicType)
             AP_CRITICAL("Error trying to set a variable that is not a basic type.");
         ReflectionBasicType::Type expectedType = basicType->getType();
@@ -371,8 +371,8 @@ namespace april::graphics
         checkResult(pBlock->getShaderObject()->setData(gfxOffset, &value, size), "Parameter block set data failed");
     }
 
-    template<typename T>
-    auto ParameterBlock::setVariable(const BindLocation& bindLocation, const T& value) -> void
+    template <typename T>
+    auto ParameterBlock::setVariable(BindLocation const& bindLocation, T const& value) -> void
     {
         (void) bindLocation;
         (void) value;
@@ -380,8 +380,8 @@ namespace april::graphics
     }
 
     #define DEFINE_SET_VARIABLE(ctype, basicType, implicitType)                                           \
-        template<>                                                                                        \
-        auto ParameterBlock::setVariable(const BindLocation& bindLocation, const ctype& value) -> void    \
+        template <>                                                                                        \
+        auto ParameterBlock::setVariable(BindLocation const& bindLocation, ctype const& value) -> void    \
         {                                                                                                 \
             setVariableInternal<ctype>(this, bindLocation, value, basicType, implicitType);               \
         }
@@ -414,29 +414,29 @@ namespace april::graphics
     // On the host side a bool is 1B and the device 4B. We cast bools to 32-bit integers here.
     // Note that this applies to our boolN vectors as well, which are currently 1B per element.
 
-    template<>
-    auto ParameterBlock::setVariable(const BindLocation& bindLocation, const bool& value) -> void
+    template <>
+    auto ParameterBlock::setVariable(BindLocation const& bindLocation, bool const& value) -> void
     {
         uint v = value ? 1 : 0;
         setVariableInternal(this, bindLocation, v, ReflectionBasicType::Type::Bool);
     }
 
-    template<>
-    auto ParameterBlock::setVariable(const BindLocation& bindLocation, const bool2& value) -> void
+    template <>
+    auto ParameterBlock::setVariable(BindLocation const& bindLocation, bool2 const& value) -> void
     {
         uint2 v = {value.x ? 1 : 0, value.y ? 1 : 0};
         setVariableInternal(this, bindLocation, v, ReflectionBasicType::Type::Bool2);
     }
 
-    template<>
-    auto ParameterBlock::setVariable(const BindLocation& bindLocation, const bool3& value) -> void
+    template <>
+    auto ParameterBlock::setVariable(BindLocation const& bindLocation, bool3 const& value) -> void
     {
         uint3 v = {value.x ? 1 : 0, value.y ? 1 : 0, value.z ? 1 : 0};
         setVariableInternal(this, bindLocation, v, ReflectionBasicType::Type::Bool3);
     }
 
-    template<>
-    auto ParameterBlock::setVariable(const BindLocation& bindLocation, const bool4& value) -> void
+    template <>
+    auto ParameterBlock::setVariable(BindLocation const& bindLocation, bool4 const& value) -> void
     {
         uint4 v = {value.x ? 1 : 0, value.y ? 1 : 0, value.z ? 1 : 0, value.w ? 1 : 0};
         setVariableInternal(this, bindLocation, v, ReflectionBasicType::Type::Bool4);

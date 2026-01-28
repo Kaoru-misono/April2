@@ -51,7 +51,7 @@ namespace april::core
         // clang-format off
         enum Modes { Examine, Fly, Walk};
         enum Actions { NoAction, Orbit, Dolly, Pan, LookAround };
-        struct Inputs {bool lmb=false; bool mmb=false; bool rmb=false; 
+        struct Inputs {bool lmb=false; bool mmb=false; bool rmb=false;
                        bool shift=false; bool ctrl=false; bool alt=false;};
         // clang-format on
 
@@ -63,18 +63,18 @@ namespace april::core
             float     fov  = 60.0f;
             glm::vec2 clip = {0.001f, 100000.0f};
 
-            bool operator!=(const Camera& rhr) const
+            bool operator!=(Camera const& rhr) const
             {
                 return (eye != rhr.eye) || (ctr != rhr.ctr) || (up != rhr.up) || (fov != rhr.fov) || (clip != rhr.clip);
             }
-            bool operator==(const Camera& rhr) const
+            bool operator==(Camera const& rhr) const
             {
                 return (eye == rhr.eye) && (ctr == rhr.ctr) && (up == rhr.up) && (fov == rhr.fov) && (clip == rhr.clip);
             }
 
             // basic serialization, mostly for copy/paste
             auto getString() const -> std::string;
-            auto setFromString(const std::string& text) -> bool;
+            auto setFromString(std::string const& text) -> bool;
         };
 
     public:
@@ -82,11 +82,11 @@ namespace april::core
         // On application mouse move, call this function with the current mouse position, mouse
         // button presses and keyboard modifier. The camera matrix will be updated and
         // can be retrieved calling getMatrix
-        auto mouseMove(glm::vec2 screenDisplacement, const Inputs& inputs) -> Actions;
+        auto mouseMove(glm::vec2 screenDisplacement, Inputs const& inputs) -> Actions;
 
         // Set the camera to look at the interest point
         // instantSet = true will not interpolate to the new position
-        auto setLookat(const glm::vec3& eye, const glm::vec3& center, const glm::vec3& up, bool instantSet = true) -> void;
+        auto setLookat(glm::vec3 const& eye, glm::vec3 const& center, glm::vec3 const& up, bool instantSet = true) -> void;
 
         // This should be called in an application loop to update the camera matrix if this one is animated: new position, key movement
         auto updateAnim() -> void;
@@ -110,7 +110,7 @@ namespace april::core
         auto getMode() const -> Modes { return m_mode; }
 
         // Retrieving the transformation matrix of the camera
-        auto getViewMatrix() const -> const glm::mat4& { return m_matrix; }
+        auto getViewMatrix() const -> glm::mat4 const& { return m_matrix; }
 
         auto getPerspectiveMatrix() const -> const glm::mat4
         {
@@ -122,7 +122,7 @@ namespace april::core
         // Set the position, interest from the matrix.
         // instantSet = true will not interpolate to the new position
         // centerDistance is the distance of the center from the eye
-        auto setMatrix(const glm::mat4& mat_, bool instantSet = true, float centerDistance = 1.f) -> void;
+        auto setMatrix(glm::mat4 const& mat_, bool instantSet = true, float centerDistance = 1.f) -> void;
 
         // Changing the default speed movement
         auto setSpeed(float speed) -> void { m_speed = speed; }
@@ -131,18 +131,18 @@ namespace april::core
         auto getSpeed() const -> float { return m_speed; }
 
         // Mouse position
-        auto      setMousePosition(const glm::vec2& pos) -> void { m_mouse = pos; }
+        auto      setMousePosition(glm::vec2 const& pos) -> void { m_mouse = pos; }
         auto      getMousePosition() const -> glm::vec2 { return m_mouse; }
 
         // Main function which is called to apply a camera motion.
         // It is preferable to
-        auto motion(const glm::vec2& screenDisplacement, Actions action = NoAction) -> void;
+        auto motion(glm::vec2 const& screenDisplacement, Actions action = NoAction) -> void;
 
         // This is called when moving with keys (ex. WASD)
         auto keyMotion(glm::vec2 delta, Actions action) -> void;
 
         // To call when the mouse wheel change
-        auto wheel(float value, const Inputs& inputs) -> void;
+        auto wheel(float value, Inputs const& inputs) -> void;
 
         // Retrieve the screen dimension
         auto getWindowSize() const -> glm::uvec2 { return m_windowSize; }
@@ -155,7 +155,7 @@ namespace april::core
 
         // Clip planes
         auto             setClipPlanes(glm::vec2 clip) -> void { m_current.clip = clip; }
-        auto             getClipPlanes() const -> const glm::vec2& { return m_current.clip; }
+        auto             getClipPlanes() const -> glm::vec2 const& { return m_current.clip; }
 
         // Animation duration
         auto   getAnimationDuration() const -> double { return m_duration; }
@@ -163,10 +163,10 @@ namespace april::core
         auto   isAnimated() const -> bool { return m_animDone == false; }
 
         // Returning a default help string
-        auto getHelp() -> const std::string&;
+        auto getHelp() -> std::string const&;
 
         // Fitting the camera position and interest to see the bounding box
-        auto fit(const glm::vec3& boxMin, const glm::vec3& boxMax, bool instantFit = true, bool tight = false, float aspect = 1.0f) -> void;
+        auto fit(glm::vec3 const& boxMin, glm::vec3 const& boxMax, bool instantFit = true, bool tight = false, float aspect = 1.0f) -> void;
 
     private:
         // Update the internal matrix.

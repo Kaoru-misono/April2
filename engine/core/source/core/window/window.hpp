@@ -48,7 +48,7 @@ namespace april
         virtual auto getBackendWindow() const -> void* = 0;
         virtual auto getNativeWindowHandle() const -> void* = 0;
 
-        static auto create(const WindowDesc& desc = WindowDesc{}) -> std::unique_ptr<Window>;
+        static auto create(WindowDesc const& desc = WindowDesc{}) -> std::unique_ptr<Window>;
 
         template <typename T, typename CallbackFn>
         auto subscribe(CallbackFn&& callback) -> void

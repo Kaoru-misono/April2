@@ -226,7 +226,7 @@ namespace april::graphics
         if (m_memoryType == MemoryType::ReadBack)
         {
             bool wasMapped = m_mappedPtr != nullptr;
-            const uint8_t* pSrc = (const uint8_t*)map(rhi::CpuAccessMode::Read) + offset;
+            uint8_t const* pSrc = (uint8_t const*)map(rhi::CpuAccessMode::Read) + offset;
             std::memcpy(pData, pSrc, size);
             if (!wasMapped)
                 unmap();
@@ -281,4 +281,3 @@ namespace april::graphics
         return m_gfxBuffer->getDeviceAddress();
     }
 } // namespace april::graphics
-

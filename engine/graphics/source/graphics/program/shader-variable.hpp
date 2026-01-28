@@ -44,15 +44,15 @@ namespace april::graphics
         auto findMember(uint32_t index) const -> ShaderVariable;
         auto hasMember(uint32_t index) const -> bool { return findMember(index).isValid(); }
 
-        template<typename T>
+        template <typename T>
         auto set(T const& val) const -> void { setImpl<T>(val); }
 
-        template<typename T>
+        template <typename T>
         auto operator=(T const& val) const -> void { setImpl(val); }
 
         auto setBlob(void const* data, size_t size) const -> void;
 
-        template<typename T>
+        template <typename T>
         auto setBlob(T const& val) const -> void { setBlob(&val, sizeof(val)); }
 
         // Resource binding
@@ -93,7 +93,7 @@ namespace april::graphics
         TypedShaderVariableOffset m_offset{};
 
         // Implementation helpers...
-        template<typename T>
+        template <typename T>
         auto setImpl(T const& val) const -> void;
         auto setImpl(core::ref<Texture> const& pTexture) const -> void;
         auto setImpl(core::ref<Sampler> const& pSampler) const -> void;

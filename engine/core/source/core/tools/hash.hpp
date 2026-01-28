@@ -10,7 +10,7 @@ namespace april::core
     template <typename T>
     inline constexpr bool is_hashable_v = hashable_type<T>;
 
-    template<hashable_type T>
+    template <hashable_type T>
     auto hash(T const& value) -> size_t
     {
         // If We defined a hash function, use it.

@@ -5,7 +5,7 @@ namespace april
 {
     Engine* Engine::s_instance = nullptr;
 
-    Engine::Engine(const EngineConfig& config)
+    Engine::Engine(EngineConfig const& config)
         : m_config(config)
     {
         AP_ASSERT(s_instance == nullptr, "Only one Engine instance allowed.");

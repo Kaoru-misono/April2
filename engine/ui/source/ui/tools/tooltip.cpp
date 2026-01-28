@@ -6,7 +6,7 @@
 namespace april::ui
 {
 
-    auto Tooltip::hover(const char* description, bool questionMark, float timerThreshold) -> void
+    auto Tooltip::hover(char const* description, bool questionMark, float timerThreshold) -> void
     {
         ImGuiContext* ctx = ImGui::GetCurrentContext();
         if (!ctx)
@@ -30,7 +30,7 @@ namespace april::ui
         }
     }
 
-    auto Tooltip::property(const char* propertyName, const char* description) -> void
+    auto Tooltip::property(char const* propertyName, char const* description) -> void
     {
         ImGui::Text("%s", propertyName);
         hover(description, true);

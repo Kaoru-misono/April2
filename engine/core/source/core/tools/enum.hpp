@@ -18,11 +18,11 @@ namespace april
     // --------------------------------------------------------------------------
     // We use Argument Dependent Lookup (ADL) to find the info struct declared
     // by the macros without polluting the global namespace.
-    template<typename T>
+    template <typename T>
     using EnumInfo = decltype(aprilFindEnumInfoADL(std::declval<T>()));
 
     // Concept to check if an enum has registered info
-    template<typename T>
+    template <typename T>
     concept EnumReflectable = requires {
         { EnumInfo<T>::items() } -> std::convertible_to<std::span<const std::pair<T, std::string_view>>>;
     };
@@ -35,7 +35,7 @@ namespace april
      * Convert an enum value to its string representation.
      * Aborts/Critical logs if the value is not registered.
      */
-    template<EnumReflectable T>
+    template <EnumReflectable T>
     [[nodiscard]] constexpr auto enumToString(T value) -> std::string_view
     {
         auto const items = EnumInfo<T>::items();
@@ -59,7 +59,7 @@ namespace april
      * Convert a string to an enum value.
      * Aborts/Critical logs if the name is not found.
      */
-    template<EnumReflectable T>
+    template <EnumReflectable T>
     [[nodiscard]] constexpr auto stringToEnum(std::string_view name) -> T
     {
         auto const items = EnumInfo<T>::items();
@@ -78,7 +78,7 @@ namespace april
     /**
      * Check if a string corresponds to a valid enum value.
      */
-    template<EnumReflectable T>
+    template <EnumReflectable T>
     [[nodiscard]] constexpr auto enumHasValue(std::string_view name) -> bool
     {
         auto const items = EnumInfo<T>::items();
@@ -95,7 +95,7 @@ namespace april
      * Convert a flag enum value (bitmask) to a list of strings.
      * Checks bits against registered enum values.
      */
-    template<EnumReflectable T>
+    template <EnumReflectable T>
     [[nodiscard]] auto flagsToStringList(T flags) -> std::vector<std::string>
     {
         std::vector<std::string> list;
@@ -133,7 +133,7 @@ namespace april
     /**
      * Convert a list of strings to a flag enum value.
      */
-    template<EnumReflectable T>
+    template <EnumReflectable T>
     [[nodiscard]] auto stringListToFlags(std::vector<std::string> const& list) -> T
     {
         T flags = static_cast<T>(0);
@@ -182,7 +182,7 @@ namespace april
  * Enables automatic formatting of registered enums in std::format / std::print.
  * Example: std::print("Value is: {}", MyEnum::A); -> "Value is: A"
  */
-template<typename T>
+template <typename T>
 requires april::EnumReflectable<T>
 struct std::formatter<T> : std::formatter<std::string_view>
 {

@@ -26,14 +26,14 @@ namespace april::graphics
             return {};
         }
 
-        auto findFileInShaderDirectories(const std::filesystem::path& path, std::filesystem::path& fullPath)
+        auto findFileInShaderDirectories(std::filesystem::path const& path, std::filesystem::path& fullPath)
         {
             if (path.is_absolute() && std::filesystem::exists(path))
             {
                 fullPath = path;
                 return true;
             }
-            for (const auto& dir : getShaderDirectoriesList())
+            for (auto const& dir : getShaderDirectoriesList())
             {
                 fullPath = dir / path;
                 if (std::filesystem::exists(fullPath))
@@ -120,9 +120,9 @@ namespace april::graphics
         Slang::ComPtr<slang::ISession> pSlangSession(pSlangGlobalScope->getSession());
 
         std::vector<Slang::ComPtr<slang::IComponentType>> pSlangEntryPoints;
-        for (const auto& entryPointGroup : program.getDescription().entryPointGroups)
+        for (auto const& entryPointGroup : program.getDescription().entryPointGroups)
         {
-            for (const auto& entryPoint : entryPointGroup.entryPoints)
+            for (auto const& entryPoint : entryPointGroup.entryPoints)
             {
                 Slang::ComPtr<slang::IComponentType> pSlangEntryPoint;
                 spCompileRequest_getEntryPoint(pSlangRequest, entryPoint.globalIndex, pSlangEntryPoint.writeRef());
@@ -214,7 +214,7 @@ namespace april::graphics
 
         // Create a composite component type that represents all type conformances
         // linked into the `ProgramVersion`.
-        auto createTypeConformanceComponentList = [&](const TypeConformanceList& typeConformances
+        auto createTypeConformanceComponentList = [&](TypeConformanceList const& typeConformances
                                                 ) -> std::optional<Slang::ComPtr<slang::IComponentType>>
         {
             Slang::ComPtr<slang::IComponentType> pTypeConformancesCompositeComponent;
@@ -285,7 +285,7 @@ namespace april::graphics
         // The type conformances for each group is the combination of the global and group type conformances.
         std::vector<Slang::ComPtr<slang::IComponentType>> typeConformancesCompositeComponents;
         typeConformancesCompositeComponents.reserve(program.m_description.entryPointGroups.size());
-        for (const auto& group : program.m_description.entryPointGroups)
+        for (auto const& group : program.m_description.entryPointGroups)
         {
             TypeConformanceList typeConformances = program.m_typeConformanceList;
             typeConformances.add(group.typeConformances);
@@ -302,9 +302,9 @@ namespace april::graphics
          // Create a `IComponentType` for each entry point.
         for (size_t groupIndex = 0; groupIndex < program.m_description.entryPointGroups.size(); ++groupIndex)
         {
-            const auto& entryPointGroup = program.m_description.entryPointGroups[groupIndex];
+            auto const& entryPointGroup = program.m_description.entryPointGroups[groupIndex];
 
-            for (const auto& entryPoint : entryPointGroup.entryPoints)
+            for (auto const& entryPoint : entryPointGroup.entryPoints)
             {
                 auto pSlangEntryPoint = programVersion.getSlangEntryPoint(entryPoint.globalIndex);
 
@@ -425,9 +425,9 @@ namespace april::graphics
 
         // Create kernel objects for each entry point and cache them here.
         std::vector<core::ref<EntryPointKernel>> allKernels;
-        for (const auto& entryPointGroup : program.m_description.entryPointGroups)
+        for (auto const& entryPointGroup : program.m_description.entryPointGroups)
         {
-            for (const auto& entryPoint : entryPointGroup.entryPoints)
+            for (auto const& entryPoint : entryPointGroup.entryPoints)
             {
                 auto pLinkedEntryPoint = pLinkedEntryPoints[entryPoint.globalIndex];
                 core::ref<EntryPointKernel> kernel = EntryPointKernel::create(pLinkedEntryPoint, entryPoint.type, entryPoint.exportName);
@@ -450,14 +450,14 @@ namespace april::graphics
         //
         for (size_t groupIndex = 0; groupIndex < program.m_description.entryPointGroups.size(); ++groupIndex)
         {
-            const auto& entryPointGroup = program.m_description.entryPointGroups[groupIndex];
+            auto const& entryPointGroup = program.m_description.entryPointGroups[groupIndex];
 
             // For each entry-point group we will collect the compiled kernel
             // code for its constituent entry points, using the "linked"
             // version of the entry-point group.
             //
             std::vector<core::ref<EntryPointKernel>> kernels;
-            for (const auto& entryPoint : entryPointGroup.entryPoints)
+            for (auto const& entryPoint : entryPointGroup.entryPoints)
             {
                 kernels.push_back(allKernels[entryPoint.globalIndex]);
             }
@@ -589,15 +589,15 @@ namespace april::graphics
         mp_device->getSlangGlobalSession()->getLanguagePrelude(SLANG_SOURCE_LANGUAGE_HLSL, prelude.writeRef());
         AP_ASSERT(prelude, "Failed to get Slang language prelude");
 
-        return std::string(reinterpret_cast<const char*>(prelude->getBufferPointer()), prelude->getBufferSize());
+        return std::string(reinterpret_cast<char const*>(prelude->getBufferPointer()), prelude->getBufferSize());
     }
 
-    auto ProgramManager::setHlslLanguagePrelude(const std::string& prelude) -> void
+    auto ProgramManager::setHlslLanguagePrelude(std::string const& prelude) -> void
     {
         mp_device->getSlangGlobalSession()->setLanguagePrelude(SLANG_SOURCE_LANGUAGE_HLSL, prelude.c_str());
     }
 
-    auto ProgramManager::createSlangCompileRequest(const Program& program) const -> SlangCompileRequest*
+    auto ProgramManager::createSlangCompileRequest(Program const& program) const -> SlangCompileRequest*
     {
         slang::IGlobalSession* pSlangGlobalSession = mp_device->getSlangGlobalSession();
         AP_ASSERT(pSlangGlobalSession, "Failed to get Slang global session");
@@ -611,7 +611,7 @@ namespace april::graphics
         // the data directories to Slang.
         //
         std::vector<std::string> searchPaths;
-        std::vector<const char*> slangSearchPaths;
+        std::vector<char const*> slangSearchPaths;
         for (auto& path : getShaderDirectoriesList())
         {
             searchPaths.push_back(path.string());
@@ -669,7 +669,7 @@ namespace april::graphics
             targetDesc.flags &= ~SLANG_TARGET_FLAG_GENERATE_SPIRV_DIRECTLY;
         }
 
-        const char* targetMacroName;
+        char const* targetMacroName;
 
         // Pick the right target based on the current graphics API
         switch (mp_device->getType())
@@ -690,14 +690,14 @@ namespace april::graphics
         // own preprocessing any more.
         //
         std::vector<slang::PreprocessorMacroDesc> slangDefines;
-        const auto addSlangDefine = [&slangDefines](const char* name, const char* value) { slangDefines.push_back({name, value}); };
+        const auto addSlangDefine = [&slangDefines](char const* name, char const* value) { slangDefines.push_back({name, value}); };
 
         // Add global followed by program specific defines.
-        for (const auto& shaderDefine : m_globalDefineList)
+        for (auto const& shaderDefine : m_globalDefineList)
         {
             addSlangDefine(shaderDefine.first.c_str(), shaderDefine.second.c_str());
         }
-        for (const auto& shaderDefine : program.getDefineList())
+        for (auto const& shaderDefine : program.getDefineList())
         {
             addSlangDefine(shaderDefine.first.c_str(), shaderDefine.second.c_str());
         }
@@ -724,7 +724,7 @@ namespace april::graphics
         auto addIntOption = [&compilerOptionEntries](slang::CompilerOptionName name, int value) {
             compilerOptionEntries.push_back({name, {slang::CompilerOptionValueKind::Int, 1, value, nullptr, nullptr}});
         };
-        auto addStringOption = [&compilerOptionEntries](slang::CompilerOptionName name, const char* value) {
+        auto addStringOption = [&compilerOptionEntries](slang::CompilerOptionName name, char const* value) {
             compilerOptionEntries.push_back({name, {slang::CompilerOptionValueKind::String, 0, 0, value, nullptr}});
         };
 
@@ -783,12 +783,12 @@ namespace april::graphics
 
         // Set additional command line arguments.
         {
-            std::vector<const char*> args;
-            for (const auto& arg : m_globalCompilerArguments)
+            std::vector<char const*> args;
+            for (auto const& arg : m_globalCompilerArguments)
             {
                 args.push_back(arg.c_str());
             }
-            for (const auto& arg : program.m_description.compilerArguments)
+            for (auto const& arg : program.m_description.compilerArguments)
             {
                 args.push_back(arg.c_str());
             }
@@ -806,19 +806,19 @@ namespace april::graphics
 
         for (size_t moduleIndex = 0; moduleIndex < program.m_description.shaderModules.size(); ++moduleIndex)
         {
-            const auto& module = program.m_description.shaderModules[moduleIndex];
+            auto const& module = program.m_description.shaderModules[moduleIndex];
             // If module name is empty, pass in nullptr to let Slang generate a name internally.
-            const char* name = !module.name.empty() ? module.name.c_str() : nullptr;
+            char const* name = !module.name.empty() ? module.name.c_str() : nullptr;
             int translationUnitIndex = spAddTranslationUnit(pSlangRequest, SLANG_SOURCE_LANGUAGE_SLANG, name);
             AP_ASSERT(translationUnitIndex == (int)moduleIndex, "Translation unit index does not match module index");
 
-            for (const auto& source : module.sources)
+            for (auto const& source : module.sources)
             {
                 // Add source code to the translation unit
                 if (source.type == ProgramDesc::ShaderSource::Type::File)
                 {
                     // If this is not an HLSL or a SLANG file, display a warning
-                    const auto& path = source.path;
+                    auto const& path = source.path;
 
                     if (!(path.extension() == ".hlsl" || path.extension() == ".slang"))
                     {
@@ -849,9 +849,9 @@ namespace april::graphics
         // Each entry point references the index of the source
         // it uses, and luckily, the Slang API can use these
         // indices directly.
-        for (const auto& entryPointGroup : program.m_description.entryPointGroups)
+        for (auto const& entryPointGroup : program.m_description.entryPointGroups)
         {
-            for (const auto& entryPoint : entryPointGroup.entryPoints)
+            for (auto const& entryPoint : entryPointGroup.entryPoints)
             {
                 spAddEntryPoint(pSlangRequest, entryPointGroup.shaderModuleIndex, entryPoint.name.c_str(), getSlangStage(entryPoint.type));
             }

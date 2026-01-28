@@ -166,7 +166,7 @@ namespace april::graphics
 
         {
             std::lock_guard<std::mutex> lock(mp_device->getGlobalGfxMutex());
-            
+
             rhi::SubresourceData initData = {};
             rhi::SubresourceData* pDataPtr = nullptr;
             if (pInitData)
@@ -430,4 +430,3 @@ namespace april::graphics
     }
 
 } // namespace april::graphics
-

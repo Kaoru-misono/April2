@@ -116,7 +116,7 @@ int main()
         testBreakableReference();
 
         AP_INFO("All tests passed!");
-    } catch (const std::exception& e) {
+    } catch (std::exception const& e) {
         AP_ERROR("Test failed with exception: {}", e.what());
         return 1;
     }

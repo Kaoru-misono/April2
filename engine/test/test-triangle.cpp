@@ -14,7 +14,7 @@
 using namespace april;
 using namespace april::graphics;
 
-const char* vs_code = R"(
+char const* vs_code = R"(
 struct VSOut {
     float4 pos : SV_Position;
     float4 color : COLOR;
@@ -31,7 +31,7 @@ VSOut main(uint vertexId : SV_VertexID) {
 }
 )";
 
-const char* ps_code = R"(
+char const* ps_code = R"(
 float4 main(float4 pos : SV_Position, float4 color : COLOR) : SV_Target {
     return color;
 }
@@ -97,7 +97,7 @@ int main()
         });
 
         bool swapchainDirty = false;
-        window->subscribe<FrameBufferResizeEvent>([&](const FrameBufferResizeEvent& e) {
+        window->subscribe<FrameBufferResizeEvent>([&](FrameBufferResizeEvent const& e) {
             if (e.width > 0 && e.height > 0)
             {
                 swapchainDirty = true;
@@ -159,7 +159,7 @@ int main()
 
         std::cout << "Test Triangle completed successfully" << std::endl;
         return 0;
-    } catch (const std::exception& e) {
+    } catch (std::exception const& e) {
         std::cerr << "Exception: " << e.what() << std::endl;
         return 1;
     } catch (...) {

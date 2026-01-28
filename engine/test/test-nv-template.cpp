@@ -35,7 +35,7 @@ using namespace april::graphics;
 using namespace april::ui;
 
 // --- Shaders for Load Simulation ---
-const char* vs_code = R"(
+char const* vs_code = R"(
 struct VSOut { float4 pos : SV_Position; float4 color : COLOR; };
 VSOut main(uint vertexId : SV_VertexID) {
     VSOut output;
@@ -47,14 +47,14 @@ VSOut main(uint vertexId : SV_VertexID) {
 }
 )";
 
-const char* ps_code = R"(
+char const* ps_code = R"(
 float4 main(float4 pos : SV_Position, float4 color : COLOR) : SV_Target {
     return color;
 }
 )";
 
 // --- CPU Load Simulator ---
-void SimulateCpuWork(const char* name, int millis)
+void SimulateCpuWork(char const* name, int millis)
 {
     APRIL_PROFILE_ZONE(name);
     std::this_thread::sleep_for(std::chrono::milliseconds(millis));
@@ -341,7 +341,7 @@ int main()
 
         imguiLayer->terminate();
     }
-    catch (const std::exception& e)
+    catch (std::exception const& e)
     {
         std::cerr << "Exception: " << e.what() << std::endl;
         return 1;

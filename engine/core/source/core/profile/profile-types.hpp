@@ -21,7 +21,7 @@ namespace april::core
      * Members:
      * - double timestamp (8 bytes)
      * - double duration (8 bytes)
-     * - const char* name (8 bytes)
+     * - char const* name (8 bytes)
      * - uint32_t threadId (4 bytes)
      * - ProfileEventType type (1 byte)
      * - padding (3 bytes)
@@ -31,7 +31,7 @@ namespace april::core
     {
         double timestamp;
         double duration;
-        const char* name;
+        char const* name;
         uint32_t threadId;
         ProfileEventType type;
         uint8_t padding[3];
@@ -53,7 +53,7 @@ namespace april::core
         /**
          * Records a new event in the buffer.
          */
-        auto record(const char* name, double startUs, double durationUs, ProfileEventType type = ProfileEventType::Complete) -> void;
+        auto record(char const* name, double startUs, double durationUs, ProfileEventType type = ProfileEventType::Complete) -> void;
 
         /**
          * Resets the buffer for the next frame.
@@ -64,7 +64,7 @@ namespace april::core
             m_commitIndex.store(0, std::memory_order_relaxed);
         }
 
-        auto getEvents() const -> const ProfileEvent* { return m_events.data(); }
+        auto getEvents() const -> ProfileEvent const* { return m_events.data(); }
         auto getCount() const -> size_t { return m_commitIndex.load(std::memory_order_acquire); }
 
     private:

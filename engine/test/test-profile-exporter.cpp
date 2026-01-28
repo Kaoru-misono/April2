@@ -13,7 +13,7 @@ TEST_CASE("ProfileExporter Integration")
 {
     // Ensure clean state
     ProfileManager::get().flush();
-    
+
     // Register current thread
     uint32_t tid = static_cast<uint32_t>(std::hash<std::thread::id>{}(std::this_thread::get_id()));
     ProfileManager::get().registerThreadName(tid, "Main");
@@ -41,7 +41,7 @@ TEST_CASE("ProfileExporter JSON Formatting")
 {
     // Setup test data
     std::vector<ProfileEvent> events;
-    
+
     // Test Complete event: 1000 us start, 500 us duration
     events.push_back({
         .timestamp = 1000.0,
@@ -50,7 +50,7 @@ TEST_CASE("ProfileExporter JSON Formatting")
         .threadId = 1,
         .type = ProfileEventType::Complete
     });
-    
+
     events.push_back({
         .timestamp = 2000.0,
         .duration = 250.0,
@@ -80,18 +80,18 @@ TEST_CASE("ProfileExporter JSON Formatting")
         // Check for process_name
         CHECK(content.find("\"name\": \"process_name\"") != std::string::npos);
         CHECK(content.find("\"ph\": \"M\"") != std::string::npos);
-        
+
         // Check for thread_name metadata for thread 1 (if registered)
         ProfileManager::get().registerThreadName(1, "MainThread");
         ProfileExporter::exportToFile(filename, events);
-        
+
         std::ifstream ifs2(filename);
         std::string content2((std::istreambuf_iterator<char>(ifs2)), (std::istreambuf_iterator<char>()));
-        
+
         CHECK(content2.find("\"name\": \"thread_name\"") != std::string::npos);
         CHECK(content2.find("\"tid\": 1") != std::string::npos);
         CHECK(content2.find("\"name\": \"MainThread\"") != std::string::npos);
-        
+
         // Check for GPU Queue metadata
         CHECK(content2.find("\"tid\": 4294967295") != std::string::npos); // 0xFFFFFFFF
         CHECK(content2.find("\"name\": \"GPU Queue\"") != std::string::npos);

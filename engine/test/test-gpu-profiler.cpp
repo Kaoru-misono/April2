@@ -34,10 +34,10 @@ TEST_SUITE("GpuProfiler")
 
         // 4. Flush and Verify
         auto events = ProfileManager::get().flush();
-        
+
         bool foundGpuComplete = false;
 
-        for (const auto& e : events)
+        for (auto const& e : events)
         {
             if (e.name && std::string(e.name) == "TestGpuPass")
             {
@@ -74,9 +74,9 @@ TEST_SUITE("GpuProfiler")
 
         // 5. Flush and Verify
         auto events = ProfileManager::get().flush();
-        
+
         bool found = false;
-        for (const auto& e : events)
+        for (auto const& e : events)
         {
             if (e.name && std::string(e.name) == "AlignedZone")
             {

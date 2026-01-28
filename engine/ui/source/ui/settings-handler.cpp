@@ -7,7 +7,7 @@
 
 namespace april::ui
 {
-    SettingsHandler::SettingsHandler(const std::string& name)
+    SettingsHandler::SettingsHandler(std::string const& name)
     {
         setHandlerName(name);
     }
@@ -26,9 +26,9 @@ namespace april::ui
         ImGuiSettingsHandler ini_handler{};
         ini_handler.TypeName   = handlerName.c_str();
         ini_handler.TypeHash   = ImHashStr(handlerName.c_str());
-        ini_handler.ReadOpenFn = [](ImGuiContext*, ImGuiSettingsHandler*, const char*) -> void* { return (void*)1; };
+        ini_handler.ReadOpenFn = [](ImGuiContext*, ImGuiSettingsHandler*, char const*) -> void* { return (void*)1; };
         // Read line by line and send the string after the `=` as value
-        ini_handler.ReadLineFn = [](ImGuiContext*, ImGuiSettingsHandler* handler, void*, const char* line) {
+        ini_handler.ReadLineFn = [](ImGuiContext*, ImGuiSettingsHandler* handler, void*, char const* line) {
             SettingsHandler* s = static_cast<SettingsHandler*>(handler->UserData);
             char             key[64], value[256];
             key[63]    = 0;  // zero terminate, protection
@@ -50,7 +50,7 @@ namespace april::ui
         ini_handler.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* buf) {
             SettingsHandler* s = static_cast<SettingsHandler*>(handler->UserData);
             buf->appendf("[%s][State]\n", handler->TypeName);
-            for(const auto& [key, entry] : s->settings)
+            for(auto const& [key, entry] : s->settings)
             {
                 buf->appendf("%s=%s\n", key.c_str(), entry.toString().c_str());
             }

@@ -24,7 +24,7 @@ namespace april::graphics
         struct GpuEvent
         {
             // NOTE: name must have static or long-lived storage; do not pass temporary/dynamic strings.
-            const char* name;
+            char const* name;
             uint32_t startQueryIndex;
             uint32_t endQueryIndex;
             uint32_t frameId;
@@ -126,10 +126,10 @@ namespace april::graphics
 
 struct ScopedGpuProfileZone
 {
-    ScopedGpuProfileZone(april::graphics::CommandContext* pCtx, const char* name);
+    ScopedGpuProfileZone(april::graphics::CommandContext* pCtx, char const* name);
     ~ScopedGpuProfileZone();
     april::graphics::CommandContext* pContext;
-    const char* m_name;
+    char const* m_name;
 };
 
 #define APRIL_GPU_ZONE(pContext, name) \

@@ -37,13 +37,13 @@ namespace april::graphics
 
         auto getShaderObject() const -> rhi::IShaderObject* { return m_shaderObject; }
 
-        template<typename T>
+        template <typename T>
         void setVariable(std::string_view name, T const& value)
         {
             getRootVariable()[name].set(value);
         }
 
-        template<typename T>
+        template <typename T>
         void setVariable(BindLocation const& bindLocation, T const& value);
 
         void setBlob(void const* pSrc, BindLocation const& bindLocation, size_t size);
@@ -129,8 +129,8 @@ namespace april::graphics
         std::map<rhi::ShaderOffset, core::ref<RtAccelerationStructure>> m_accelerationStructures{};
     };
 
-    template<typename T>
-    auto ShaderVariable::setImpl(const T& val) const -> void
+    template <typename T>
+    auto ShaderVariable::setImpl(T const& val) const -> void
     {
         m_parameterBlock->setVariable(m_offset, val);
     }

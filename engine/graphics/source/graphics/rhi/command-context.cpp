@@ -86,15 +86,15 @@ namespace april::graphics
         m_fence->wait();
 
         uint8_t* pDst = reinterpret_cast<uint8_t*>(pData);
-        const uint8_t* pSrc = reinterpret_cast<const uint8_t*>(m_buffer->map());
+        uint8_t const* pSrc = reinterpret_cast<uint8_t const*>(m_buffer->map());
 
         for (uint32_t z = 0; z < m_depth; z++)
         {
-            const uint8_t* pSrcZ = pSrc + z * (size_t)m_rowSize * m_rowCount;
+            uint8_t const* pSrcZ = pSrc + z * (size_t)m_rowSize * m_rowCount;
             uint8_t* pDstZ = pDst + z * (size_t)m_actualRowSize * m_rowCount;
             for (uint32_t y = 0; y < m_rowCount; y++)
             {
-                const uint8_t* pSrcY = pSrcZ + y * (size_t)m_rowSize;
+                uint8_t const* pSrcY = pSrcZ + y * (size_t)m_rowSize;
                 uint8_t* pDstY = pDstZ + y * (size_t)m_actualRowSize;
                 std::memcpy(pDstY, pSrcY, m_actualRowSize);
             }

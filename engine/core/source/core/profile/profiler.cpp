@@ -31,7 +31,7 @@ namespace april::core
         ProfileManager::get().unregisterBuffer(this);
     }
 
-    auto ProfileBuffer::record(const char* name, double startUs, double durationUs, ProfileEventType type) -> void
+    auto ProfileBuffer::record(char const* name, double startUs, double durationUs, ProfileEventType type) -> void
     {
         size_t index = m_writeIndex.fetch_add(1, std::memory_order_relaxed);
         if (index >= kMaxEvents)
@@ -64,7 +64,7 @@ namespace april::core
         return instance;
     }
 
-    auto Profiler::recordEvent(const char* name, double startUs, double durationUs, ProfileEventType type) -> void
+    auto Profiler::recordEvent(char const* name, double startUs, double durationUs, ProfileEventType type) -> void
     {
         getThreadBuffer().record(name, startUs, durationUs, type);
     }

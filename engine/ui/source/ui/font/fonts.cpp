@@ -29,7 +29,7 @@ namespace april::ui
 
     // Helper function to append a font with embedded Material Symbols icons
     // Icon fonts: https://fonts.google.com/icons?icon.set=Material+Symbols
-    static auto appendFontWithMaterialSymbols(const void* fontData, int fontDataSize, float fontSize) -> ImFont*
+    static auto appendFontWithMaterialSymbols(void const* fontData, int fontDataSize, float fontSize) -> ImFont*
     {
         // Configure Material Symbols icon font for merging
         ImFontConfig iconConfig = getDefaultConfig();

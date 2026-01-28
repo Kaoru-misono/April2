@@ -93,7 +93,7 @@ TEST_SUITE("RHI Validation")
             ctx->submit(true);
 
             REQUIRE(readbackBytes.size() == width * height * 4);
-            const uint32_t* readbackData = reinterpret_cast<const uint32_t*>(readbackBytes.data());
+            uint32_t const* readbackData = reinterpret_cast<uint32_t const*>(readbackBytes.data());
             for (size_t i = 0; i < width * height; ++i)
             {
                 CHECK(readbackData[i] == initData[i]);
@@ -141,7 +141,7 @@ TEST_SUITE("RHI Validation")
             auto outputBuffer = device->createBuffer(sizeof(april::float4), BufferUsage::UnorderedAccess);
             REQUIRE(outputBuffer);
 
-            const char* shaderSource = R"(
+            char const* shaderSource = R"(
                 Texture2D gTex;
                 SamplerState gSampler;
                 RWStructuredBuffer<float4> gOutput;
@@ -202,7 +202,7 @@ TEST_SUITE("RHI Validation")
             auto buffer = device->createBuffer(elementCount * sizeof(uint32_t), BufferUsage::UnorderedAccess);
             REQUIRE(buffer);
 
-            const char* shaderSource = R"(
+            char const* shaderSource = R"(
                 RWStructuredBuffer<uint> gOutput;
                 [shader("compute")]
                 [numthreads(64, 1, 1)]
@@ -259,7 +259,7 @@ TEST_SUITE("RHI Validation")
             auto renderTarget = device->createTexture2D(width, height, ResourceFormat::RGBA8Unorm, 1, 1, nullptr, TextureUsage::RenderTarget | TextureUsage::ShaderResource);
             REQUIRE(renderTarget);
 
-            const char* shaderSource = R"(
+            char const* shaderSource = R"(
                 struct VSOut {
                     float4 pos : SV_Position;
                     float4 color : COLOR;
@@ -317,7 +317,7 @@ TEST_SUITE("RHI Validation")
             ctx->submit(true);
 
             REQUIRE(readbackBytes.size() >= 4);
-            const uint32_t* readbackData = reinterpret_cast<const uint32_t*>(readbackBytes.data());
+            uint32_t const* readbackData = reinterpret_cast<uint32_t const*>(readbackBytes.data());
             CHECK(readbackData[0] == 0xFF0000FF);
         }
     }
@@ -473,7 +473,7 @@ TEST_SUITE("RHI Validation")
             REQUIRE(buffer);
 
             // Shader that writes to two separate regions
-            const char* shaderSource = R"(
+            char const* shaderSource = R"(
                 RWStructuredBuffer<uint> gOut1;
                 RWStructuredBuffer<uint> gOut2;
                 [shader("compute")]
@@ -570,7 +570,7 @@ TEST_SUITE("RHI Validation")
             auto device = april::core::make_ref<Device>(deviceDesc);
             if (!device) continue;
 
-            const char* shaderSource = R"(
+            char const* shaderSource = R"(
                 [shader("compute")]
                 [numthreads(1, 1, 1)]
                 void main() {}

@@ -171,7 +171,7 @@ namespace april::graphics
 
         auto createFromFile(
             core::ref<Device> pDevice,
-            const std::filesystem::path& path,
+            std::filesystem::path const& path,
             bool generateMipLevels,
             bool loadAsSrgb,
             TextureUsage usage = TextureUsage::ShaderResource,
@@ -242,7 +242,7 @@ namespace april::graphics
         auto captureToFile(
             uint32_t mipLevel,
             uint32_t arraySlice,
-            const std::filesystem::path& path,
+            std::filesystem::path const& path,
             Bitmap::FileFormat format = Bitmap::FileFormat::PngFile,
             Bitmap::ExportFlags exportFlags = Bitmap::ExportFlags::None,
             bool async = true

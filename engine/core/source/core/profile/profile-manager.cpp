@@ -50,7 +50,7 @@ namespace april::core
         std::lock_guard<std::mutex> lock(m_mutex);
         for (auto* pBuffer : m_buffers)
         {
-            const auto* events = pBuffer->getEvents();
+            auto const* events = pBuffer->getEvents();
             size_t count = pBuffer->getCount();
 
             if (count > 0)
@@ -71,7 +71,7 @@ namespace april::core
         }
 
         // Sort events by timestamp to ensure correct temporal order across threads and GPU
-        std::sort(allEvents.begin(), allEvents.end(), [](const ProfileEvent& a, const ProfileEvent& b) {
+        std::sort(allEvents.begin(), allEvents.end(), [](ProfileEvent const& a, ProfileEvent const& b) {
             if (a.timestamp != b.timestamp) return a.timestamp < b.timestamp;
             return a.type < b.type; // Consistent ordering for simultaneous events
         });

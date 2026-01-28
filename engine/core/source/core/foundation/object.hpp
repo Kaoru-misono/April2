@@ -101,7 +101,7 @@ public:                                       \
         return #class_;                       \
     }
 
-    template<typename T>
+    template <typename T>
     class ref
     {
     public:
@@ -109,7 +109,7 @@ public:                                       \
 
         ref(std::nullptr_t) {}
 
-        template<typename T2 = T>
+        template <typename T2 = T>
         explicit ref(T2* ptr) : m_ptr(ptr)
         {
             static_assert(std::is_base_of_v<Object, T2>, "Cannot create reference to object not inheriting from Object class.");
@@ -124,7 +124,7 @@ public:                                       \
                 incRef((Object const*)(m_ptr));
         }
 
-        template<typename T2 = T>
+        template <typename T2 = T>
         ref(ref<T2> const& r) : m_ptr(r.m_ptr)
         {
             static_assert(std::is_base_of_v<Object, T>, "Cannot create reference to object not inheriting from Object class.");
@@ -145,7 +145,7 @@ public:                                       \
 #endif
         }
 
-        template<typename T2>
+        template <typename T2>
         ref(ref<T2>&& r) noexcept
             : m_ptr(r.m_ptr)
 #if APRIL_ENABLE_REF_TRACKING
@@ -180,7 +180,7 @@ public:                                       \
             return *this;
         }
 
-        template<typename T2>
+        template <typename T2>
         auto operator=(ref<T2> const& r) noexcept -> ref&
         {
             static_assert(std::is_convertible_v<T2*, T*>, "Cannot assign reference to object from unconvertible reference.");
@@ -212,7 +212,7 @@ public:                                       \
             return *this;
         }
 
-        template<typename T2>
+        template <typename T2>
         auto operator=(ref<T2>&& r) noexcept -> ref&
         {
             static_assert(std::is_convertible_v<T2*, T*>, "Cannot move reference to object from unconvertible reference.");
@@ -230,7 +230,7 @@ public:                                       \
             return *this;
         }
 
-        template<typename T2 = T>
+        template <typename T2 = T>
         auto reset(T2* ptr = nullptr) noexcept -> void
         {
             static_assert(std::is_convertible_v<T2*, T*>, "Cannot assign reference to object from unconvertible pointer.");
@@ -245,7 +245,7 @@ public:                                       \
             }
         }
 
-        template<typename T2 = T>
+        template <typename T2 = T>
         auto operator==(ref<T2> const& r) const -> bool
         {
             static_assert(
@@ -254,7 +254,7 @@ public:                                       \
             return m_ptr == r.m_ptr;
         }
 
-        template<typename T2 = T>
+        template <typename T2 = T>
         auto operator!=(ref<T2> const& r) const -> bool
         {
             static_assert(
@@ -263,7 +263,7 @@ public:                                       \
             return m_ptr != r.m_ptr;
         }
 
-        template<typename T2 = T>
+        template <typename T2 = T>
         auto operator<(ref<T2> const& r) const -> bool
         {
             static_assert(
@@ -272,14 +272,14 @@ public:                                       \
             return m_ptr < r.m_ptr;
         }
 
-        template<typename T2 = T>
+        template <typename T2 = T>
         auto operator==(T2 const* ptr) const -> bool
         {
             static_assert(std::is_convertible_v<T2*, T*>, "Cannot compare reference to pointer of non-convertible types.");
             return m_ptr == ptr;
         }
 
-        template<typename T2 = T>
+        template <typename T2 = T>
         auto operator!=(T2 const* ptr) const -> bool
         {
             static_assert(std::is_convertible_v<T2*, T*>, "Cannot compare reference to pointer of non-convertible types.");
@@ -329,30 +329,30 @@ public:                                       \
 #endif
 
     private:
-        template<typename T2>
+        template <typename T2>
         friend class ref;
     };
 
-    template<class T, class... Args>
+    template <class T, class... Args>
     auto make_ref(Args&&... args) -> ref<T>
     {
         return ref<T>(new T(std::forward<Args>(args)...));
     }
 
-    template<class T, class U>
+    template <class T, class U>
     auto static_ref_cast(ref<U> const& r) noexcept -> ref<T>
     {
         return ref<T>(static_cast<T*>(r.get()));
     }
 
-    template<class T, class U>
+    template <class T, class U>
     auto dynamic_ref_cast(ref<U> const& r) noexcept -> ref<T>
     {
         return ref<T>(dynamic_cast<T*>(r.get()));
     }
 
     // Breakable reference counting helper.
-    template<typename T>
+    template <typename T>
     class BreakableReference
     {
     public:
@@ -381,7 +381,7 @@ public:                                       \
 
 
 
-template<typename T>
+template <typename T>
 struct std::formatter<april::core::BreakableReference<T>> : std::formatter<void const*>
 {
     auto format(april::core::BreakableReference<T> const& ref, std::format_context& ctx) const
@@ -392,13 +392,13 @@ struct std::formatter<april::core::BreakableReference<T>> : std::formatter<void 
 
 namespace std
 {
-    template<typename T>
+    template <typename T>
     auto swap(april::core::ref<T>& x, april::core::ref<T>& y) noexcept -> void
     {
         return x.swap(y);
     }
 
-    template<typename T>
+    template <typename T>
     struct hash<april::core::ref<T>>
     {
         constexpr auto operator()(april::core::ref<T> const& r) const -> size_t { return std::hash<T*>()(r.get()); }

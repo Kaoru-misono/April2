@@ -18,7 +18,7 @@ TEST_SUITE("ProfilerCollection")
 
         std::atomic<bool> start{false};
         std::atomic<bool> finish{false};
-        auto threadFunc = [&](const char* name) {
+        auto threadFunc = [&](char const* name) {
             while (!start) std::this_thread::yield();
             {
                 APRIL_PROFILE_ZONE(name);
@@ -32,12 +32,12 @@ TEST_SUITE("ProfilerCollection")
         std::thread t2(threadFunc, "Thread2");
 
         start = true;
-        
+
         // Wait a bit for threads to record and definitely commit
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
         auto events = ProfileManager::get().flush();
-        
+
         finish = true;
         t1.join();
         t2.join();
@@ -48,7 +48,7 @@ TEST_SUITE("ProfilerCollection")
         bool foundT1 = false;
         bool foundT2 = false;
 
-        for (const auto& e : events)
+        for (auto const& e : events)
         {
             if (e.name && std::string(e.name) == "Thread1")
             {
@@ -76,7 +76,7 @@ TEST_SUITE("ProfilerCollection")
     TEST_CASE("Performance Benchmark")
     {
         const int kIterations = 100000;
-        
+
         auto start = Timer::now();
         for (int i = 0; i < kIterations; ++i)
         {
@@ -88,7 +88,7 @@ TEST_SUITE("ProfilerCollection")
         double avgNs = (totalMs * 1000000.0) / kIterations; // 1 event per iteration
 
         MESSAGE("Average overhead per event: ", avgNs, " ns");
-        
+
         // Overhead should be very low (typically < 100ns on modern hardware)
         CHECK(avgNs < 500.0); // Loose check for CI/environment variability
 

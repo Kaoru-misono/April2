@@ -6,5 +6,5 @@
 namespace april::core
 {
     auto getExecutablePath() -> std::filesystem::path;
-    auto utf8FromPath(const std::filesystem::path& path) -> std::string;
+    auto utf8FromPath(std::filesystem::path const& path) -> std::string;
 } // namespace april::core

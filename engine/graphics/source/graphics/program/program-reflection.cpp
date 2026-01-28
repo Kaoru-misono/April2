@@ -681,7 +681,7 @@ namespace april::graphics
 
         case ReflectionResourceType::Type::StructuredBuffer:
         {
-            const auto& pElementLayout = pSlangType->getElementTypeLayout();
+            auto const& pElementLayout = pSlangType->getElementTypeLayout();
             auto pBufferType = reflectType(pElementLayout, pBlock, pPath, pProgramVersion);
             pType->setStructType(pBufferType);
         }
@@ -690,7 +690,7 @@ namespace april::graphics
         case ReflectionResourceType::Type::ConstantBuffer:
         {
             auto pSubBlock = ParameterBlockReflection::createEmpty(pProgramVersion);
-            const auto& pElementLayout = pSlangType->getElementTypeLayout();
+            auto const& pElementLayout = pSlangType->getElementTypeLayout();
             auto pElementType = reflectType(pElementLayout, pSubBlock.get(), pPath, pProgramVersion);
             pSubBlock->setElementType(pElementType);
 
@@ -932,7 +932,7 @@ namespace april::graphics
         auto pVar = path.pPrimary->pVar;
 
         ProgramReflection::ShaderVariable var;
-        const auto& pTypeLayout = pVar->getTypeLayout();
+        auto const& pTypeLayout = pVar->getTypeLayout();
         var.type = getVariableType(pTypeLayout->getScalarType(), pTypeLayout->getRowCount(), pTypeLayout->getColumnCount());
 
         uint32_t baseIndex = (uint32_t)getRegisterIndexFromPath(path.pPrimary, category);
@@ -1105,7 +1105,7 @@ namespace april::graphics
         for (uint32_t i = 0; i < hashedStringCount; ++i)
         {
             size_t stringSize;
-            const char* stringData = pSlangReflector->getHashedString(i, &stringSize);
+            char const* stringData = pSlangReflector->getHashedString(i, &stringSize);
             // Assuming we have string hash utility or just storing raw hash from somewhere if needed.
             // For strict port, Falcor uses spComputeStringHash. If April has equivalent, use it.
             // If not, using 0 or simple hash as placeholder if necessary, but preserving logic structure.
@@ -1372,7 +1372,7 @@ namespace april::graphics
         auto rangeCount = pElementType->getResourceRangeCount();
         for (uint32_t rangeIndex = 0; rangeIndex < rangeCount; ++rangeIndex)
         {
-            // const auto& rangeInfo = pElementType->getResourceRange(rangeIndex);
+            // auto const& rangeInfo = pElementType->getResourceRange(rangeIndex);
 
             ResourceRangeBindingInfo bindingInfo;
 
@@ -1567,7 +1567,7 @@ namespace april::graphics
 
     auto ReflectionType::unwrapArray() const -> ReflectionType const*
     {
-        const ReflectionType* pType = this;
+        ReflectionType const* pType = this;
         while (auto pArrayType = pType->asArrayType())
         {
             pType = pArrayType->getElementType().get();
@@ -1579,7 +1579,7 @@ namespace april::graphics
     {
         uint32_t result = 1;
 
-        const ReflectionType* pType = this;
+        ReflectionType const* pType = this;
         while (auto pArrayType = pType->asArrayType())
         {
             result *= pArrayType->getElementCount();
@@ -1797,7 +1797,7 @@ namespace april::graphics
     {
         (void) funcName;
 
-        const auto& it = varMap.find(std::string(name));
+        auto const& it = varMap.find(std::string(name));
         return (it == varMap.end()) ? nullptr : &(it->second);
     }
 

@@ -222,18 +222,18 @@ namespace april::graphics
                     auto it = std::min_element(
                         entries.begin(),
                         entries.end(),
-                        [](const auto& a, const auto& b) { return a.second.ticket < b.second.ticket; }
+                        [](auto const& a, auto const& b) { return a.second.ticket < b.second.ticket; }
                     );
                     entries.erase(it);
                 }
 
                 Key key(
-                    static_cast<const uint8_t*>(key_->getBufferPointer()),
-                    static_cast<const uint8_t*>(key_->getBufferPointer()) + key_->getBufferSize()
+                    static_cast<uint8_t const*>(key_->getBufferPointer()),
+                    static_cast<uint8_t const*>(key_->getBufferPointer()) + key_->getBufferSize()
                 );
                 Data data(
-                    static_cast<const uint8_t*>(data_->getBufferPointer()),
-                    static_cast<const uint8_t*>(data_->getBufferPointer()) + data_->getBufferSize()
+                    static_cast<uint8_t const*>(data_->getBufferPointer()),
+                    static_cast<uint8_t const*>(data_->getBufferPointer()) + data_->getBufferSize()
                 );
                 entries[key] = {ticketCounter++, data};
                 stats.entryCount = (uint32_t) entries.size();
@@ -243,8 +243,8 @@ namespace april::graphics
             SLANG_NO_THROW rhi::Result SLANG_MCALL queryCache(ISlangBlob* key_, ISlangBlob** outData) override
             {
                 Key key(
-                    static_cast<const uint8_t*>(key_->getBufferPointer()),
-                    static_cast<const uint8_t*>(key_->getBufferPointer()) + key_->getBufferSize()
+                    static_cast<uint8_t const*>(key_->getBufferPointer()),
+                    static_cast<uint8_t const*>(key_->getBufferPointer()) + key_->getBufferSize()
                 );
                 auto it = entries.find(key);
                 if (it == entries.end())
@@ -258,7 +258,7 @@ namespace april::graphics
                 return SLANG_OK;
             }
 
-            virtual SLANG_NO_THROW rhi::Result SLANG_MCALL queryInterface(const SlangUUID& uuid, void** outObject) override
+            virtual SLANG_NO_THROW rhi::Result SLANG_MCALL queryInterface(SlangUUID const& uuid, void** outObject) override
             {
                 if (uuid == IPersistentCache::getTypeGuid())
                 {
