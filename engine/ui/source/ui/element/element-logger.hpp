@@ -48,5 +48,6 @@ namespace april::ui
         bool            m_autoScroll = true;
         bool            m_showLog = false;
         std::shared_ptr<ElementSink> m_sink{};
+        bool m_registered = false;
     };
 }

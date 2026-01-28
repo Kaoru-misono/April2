@@ -23,6 +23,7 @@
 #include "ui/imgui-layer.hpp"
 #include "ui/element.hpp"
 #include "ui/element/element-logger.hpp"
+#include "ui/element/element-profiler.hpp"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -243,6 +244,7 @@ int main()
         auto sampleElement = core::make_ref<SampleElement>();
         imguiLayer->addElement(sampleElement);
         imguiLayer->addElement(core::make_ref<ElementLogger>(true));
+        imguiLayer->addElement(core::make_ref<ElementProfiler>(true));
 
         auto ctx = device->getCommandContext();
         bool closeWindow = false;

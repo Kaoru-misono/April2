@@ -8,34 +8,33 @@ namespace april::ui
         : m_showLog(show)
     {
         m_sink = std::make_shared<ElementSink>();
-        april::Log::getLogger()->addSink(m_sink);
     }
 
     ElementLogger::~ElementLogger()
     {
-        // Detach sink if not already done?
-        // Ideally should be done in onDetach or user code.
-        // We can access global logger here?
-        april::Log::getLogger()->removeSink(m_sink); // Safe shared_ptr from this? No.
-        // We cannot remove ourselves safely if we are not managing the shared_ptr.
-        // onAttach registers us, onDetach should unregister.
+        if (m_registered && m_sink)
+        {
+            april::Log::getLogger()->removeSink(m_sink);
+            m_registered = false;
+        }
     }
 
     auto ElementLogger::onAttach(ImGuiLayer* pLayer) -> void
     {
-        // Register as sink
-        // We need to pass shared_ptr to addSink.
-        // If ElementLogger is created as unique_ptr or shared_ptr, we need to handle this.
-        // Usually Elements are managed by shared_ptr in the system.
-        // Assuming 'this' is managed by shared_ptr elsewhere, we can use shared_from_this() if we inherit enable_shared_from_this.
-        // IElement inherits Object which inherits enable_shared_from_this?
-        // Let's check Object.
+        if (!m_registered && m_sink)
+        {
+            april::Log::getLogger()->addSink(m_sink);
+            m_registered = true;
+        }
     }
 
     auto ElementLogger::onDetach() -> void
     {
-        // Unregister sink
-        // april::Log::getLogger()->removeSink(shared_from_this());
+        if (m_registered && m_sink)
+        {
+            april::Log::getLogger()->removeSink(m_sink);
+            m_registered = false;
+        }
     }
 
     auto ElementLogger::onResize(graphics::CommandContext* pContext, float2 const& size) -> void {}
@@ -78,10 +77,15 @@ namespace april::ui
 
     auto ElementLogger::clear() -> void
     {
-        // m_buf.clear();
-        // m_lineOffsets.clear();
-        // m_lineLevels.clear();
-        // m_lineOffsets.push_back(0);
+        if (!m_sink)
+        {
+            return;
+        }
+        auto lock = std::lock_guard<std::mutex>{m_sink->m_mutex};
+        m_sink->m_buf.clear();
+        m_sink->m_lineOffsets.clear();
+        m_sink->m_lineLevels.clear();
+        m_sink->m_lineOffsets.push_back(0);
     }
 
     auto ElementLogger::draw(char const* title, bool* p_open) -> void
@@ -121,6 +125,14 @@ namespace april::ui
             clear();
 
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+        if (!m_sink)
+        {
+            ImGui::EndChild();
+            ImGui::End();
+            return;
+        }
+
+        auto lock = std::lock_guard<std::mutex>{m_sink->m_mutex};
         auto& buffer = m_sink->m_buf;
         auto* buf = buffer.begin();
         auto* buf_end = buffer.end();
