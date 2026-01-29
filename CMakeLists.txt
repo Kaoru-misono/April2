@@ -38,4 +38,4 @@ include(cmake/april-build.cmake)
 april_scan_and_load_modules("${CMAKE_SOURCE_DIR}/engine")
 
 add_subdirectory(engine/test)
-add_subdirectory(apps)
+add_subdirectory(entry)

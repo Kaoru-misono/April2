@@ -22,8 +22,8 @@
 
 #include "ui/imgui-layer.hpp"
 #include "ui/element.hpp"
-#include "ui/element/element-logger.hpp"
-#include "ui/element/element-profiler.hpp"
+#include "editor/element/element-logger.hpp"
+#include "editor/element/element-profiler.hpp"
 
 #include <imgui.h>
 #include <imgui_internal.h>
