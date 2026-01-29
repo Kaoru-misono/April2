@@ -205,6 +205,24 @@ namespace april::ui
             e->onUIRender();
         }
 
+        {
+            auto viewportSize = float2{};
+            if (auto const viewport = ImGui::FindWindowByName("Viewport"); viewport)
+            {
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+                ImGui::Begin("Viewport");
+                auto avail = ImGui::GetContentRegionAvail();
+                viewportSize = {uint32_t(avail.x), uint32_t(avail.y)};
+                ImGui::End();
+                ImGui::PopStyleVar();
+            }
+
+            if (m_viewportSize.x != viewportSize.x || m_viewportSize.y != viewportSize.y)
+            {
+                onViewportSizeChange(viewportSize);
+            }
+        }
+
         ImGui::Render();
 
         for (auto& e: m_elements)
@@ -364,21 +382,7 @@ namespace april::ui
             ImGui::EndMainMenuBar();
         }
 
-        auto viewportSize = float2{};
-        ImGuiWindow const* viewport = ImGui::FindWindowByName("Viewport");
-        if(viewport)
-        {
-            viewportSize = {uint32_t(viewport->Size.x), uint32_t(viewport->Size.y)};
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-            ImGui::Begin("Viewport");
-            ImGui::End();
-            ImGui::PopStyleVar();
-        }
-
-        if(m_viewportSize.x != viewportSize.x || m_viewportSize.y != viewportSize.y)
-        {
-            onViewportSizeChange(viewportSize);
-        }
+        // Viewport size is updated after UI is built in renderFrame().
     }
 
     auto ImGuiLayer::endFrame(graphics::CommandContext* pCtx, core::ref<graphics::RenderTargetView> const& pTargetView) -> void
