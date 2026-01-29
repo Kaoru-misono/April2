@@ -3,6 +3,10 @@
 include(cmake/tools.cmake)
 
 function(april_define_module MODULE_ROOT_DIR DIR_NAME)
+    if(DIR_NAME STREQUAL "editor" AND NOT APRIL_BUILD_EDITOR)
+        return()
+    endif()
+
     set(MODULE_PATH "${MODULE_ROOT_DIR}/${DIR_NAME}")
     set(MANIFEST_FILE "${MODULE_PATH}/manifest.txt")
 

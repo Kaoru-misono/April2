@@ -6,6 +6,8 @@ project(April
     LANGUAGES CXX C
 )
 
+option(APRIL_BUILD_EDITOR "Build editor modules and editor executable" ON)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -36,3 +38,4 @@ include(cmake/april-build.cmake)
 april_scan_and_load_modules("${CMAKE_SOURCE_DIR}/engine")
 
 add_subdirectory(engine/test)
+add_subdirectory(apps)

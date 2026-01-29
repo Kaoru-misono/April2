@@ -3,6 +3,8 @@
 #include <graphics/rhi/command-context.hpp>
 #include <core/foundation/object.hpp>
 
+#include <filesystem>
+
 namespace april::ui
 {
     class ImGuiLayer;
