@@ -36,6 +36,10 @@ namespace april::ui
 
     auto ElementProfiler::onUIMenu() -> void
     {
+        if (!m_enableMenu)
+        {
+            return;
+        }
         if (ImGui::BeginMenu("View"))
         {
             ImGui::MenuItem("Profiler", nullptr, &m_show);

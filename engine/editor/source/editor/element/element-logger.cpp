@@ -44,6 +44,10 @@ namespace april::ui
 
     auto ElementLogger::onUIMenu() -> void
     {
+        if (!m_enableMenu)
+        {
+            return;
+        }
         if (ImGui::BeginMenu("View"))
         {
             ImGui::MenuItem("Log", nullptr, &m_showLog);

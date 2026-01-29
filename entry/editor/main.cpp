@@ -1,5 +1,5 @@
 #include <runtime/engine.hpp>
-#include <editor/editor-layer.hpp>
+#include <editor/editor-app.hpp>
 
 int main()
 {
@@ -11,11 +11,11 @@ int main()
 
     april::Engine engine(config);
 
-    auto layer = april::core::make_ref<april::editor::EditorLayer>();
-    layer->setOnExit([&engine]() {
+    april::editor::EditorApp editor{};
+    editor.setOnExit([&engine]() {
         engine.stop();
     });
-    engine.addElement(layer);
+    editor.install(engine);
 
     return engine.run();
 }

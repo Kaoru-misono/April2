@@ -25,6 +25,11 @@ namespace april::ui
         auto onRender(graphics::CommandContext* pContext) -> void override;
         auto onFileDrop(std::filesystem::path const& filename) -> void override;
 
+        auto setVisible(bool show) -> void { m_showLog = show; }
+        auto isVisible() const -> bool { return m_showLog; }
+        auto setMenuEnabled(bool enable) -> void { m_enableMenu = enable; }
+        auto isMenuEnabled() const -> bool { return m_enableMenu; }
+
         // ILogSink overrides
         class ElementSink final: public ILogSink
         {
@@ -47,6 +52,7 @@ namespace april::ui
         ImGuiTextFilter m_filter;
         bool            m_autoScroll = true;
         bool            m_showLog = false;
+        bool            m_enableMenu = true;
         std::shared_ptr<ElementSink> m_sink{};
         bool m_registered = false;
     };

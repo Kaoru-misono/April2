@@ -80,15 +80,42 @@ namespace april
                     m_context->clearRtv(backBuffer->getRTV().get(), m_config.clearColor);
                 }
 
+                bool uiBegan = false;
                 if (m_imguiLayer)
                 {
                     m_imguiLayer->beginFrame();
+                    uiBegan = true;
 
                     if (m_hooks.onUI)
                     {
                         m_hooks.onUI();
                     }
+                }
 
+                if (m_renderer)
+                {
+                    m_renderer->render(m_context, m_config.clearColor);
+                }
+
+                if (!uiBegan && m_renderer)
+                {
+                    auto sceneSrv = m_renderer->getSceneColorSrv();
+                    if (sceneSrv)
+                    {
+                        auto colorTarget = graphics::ColorTarget(
+                            backBuffer->getRTV(),
+                            graphics::LoadOp::Clear,
+                            graphics::StoreOp::Store,
+                            m_config.clearColor
+                        );
+                        auto encoder = m_context->beginRenderPass({colorTarget});
+                        encoder->blit(sceneSrv, backBuffer->getRTV());
+                        encoder->end();
+                    }
+                }
+
+                if (uiBegan)
+                {
                     m_imguiLayer->endFrame(m_context, backBuffer->getRTV());
                 }
 
@@ -129,6 +156,24 @@ namespace april
         m_pendingElements.push_back(element);
     }
 
+    auto Engine::getSceneColorSrv() const -> core::ref<graphics::ShaderResourceView>
+    {
+        if (!m_renderer)
+        {
+            return nullptr;
+        }
+        return m_renderer->getSceneColorSrv();
+    }
+
+    auto Engine::setSceneViewportSize(uint32_t width, uint32_t height) -> void
+    {
+        if (!m_renderer)
+        {
+            return;
+        }
+        m_renderer->setViewportSize(width, height);
+    }
+
     auto Engine::init() -> void
     {
         if (m_initialized)
@@ -161,7 +206,7 @@ namespace april
         swapchainDesc.format = graphics::ResourceFormat::RGBA8Unorm;
         swapchainDesc.width = m_window->getFramebufferWidth();
         swapchainDesc.height = m_window->getFramebufferHeight();
-        swapchainDesc.imageCount = 3;
+        swapchainDesc.imageCount = m_device->kInFlightFrameCount;
 
         m_swapchain = core::make_ref<graphics::Swapchain>(
             m_device,
@@ -170,6 +215,11 @@ namespace april
         );
 
         m_context = m_device->getCommandContext();
+        m_renderer = core::make_ref<graphics::SceneRenderer>(m_device);
+        m_renderer->setViewportSize(
+            m_window->getFramebufferWidth(),
+            m_window->getFramebufferHeight()
+        );
 
         if (m_config.enableUI)
         {

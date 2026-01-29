@@ -6,6 +6,7 @@
 #include <graphics/rhi/command-context.hpp>
 #include <graphics/rhi/render-device.hpp>
 #include <graphics/rhi/swapchain.hpp>
+#include <graphics/renderer/scene-renderer.hpp>
 #include <ui/imgui-layer.hpp>
 #include <ui/element.hpp>
 
@@ -52,6 +53,8 @@ namespace april
         auto getDevice() const -> core::ref<graphics::Device> { return m_device; }
         auto getSwapchain() const -> core::ref<graphics::Swapchain> { return m_swapchain; }
         auto getImGuiLayer() const -> ui::ImGuiLayer* { return m_imguiLayer.get(); }
+        auto getSceneColorSrv() const -> core::ref<graphics::ShaderResourceView>;
+        auto setSceneViewportSize(uint32_t width, uint32_t height) -> void;
         auto isRunning() const -> bool { return m_running; }
 
     private:
@@ -73,6 +76,7 @@ namespace april
         core::ref<graphics::Swapchain> m_swapchain{};
         graphics::CommandContext* m_context{};
         core::ref<ui::ImGuiLayer> m_imguiLayer{};
+        core::ref<graphics::SceneRenderer> m_renderer{};
 
         std::vector<core::ref<ui::IElement>> m_pendingElements{};
     };

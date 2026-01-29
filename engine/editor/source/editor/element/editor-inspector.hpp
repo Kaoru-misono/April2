@@ -1,21 +1,18 @@
 #pragma once
 
+#include "../editor-context.hpp"
 #include <ui/element.hpp>
-#include <graphics/rhi/command-context.hpp>
-#include <core/math/type.hpp>
-
-#include <functional>
 
 namespace april::editor
 {
-    class EditorLayer final : public ui::IElement
+    class EditorInspectorElement final : public ui::IElement
     {
-        APRIL_OBJECT(EditorLayer)
+        APRIL_OBJECT(EditorInspectorElement)
     public:
-        EditorLayer() = default;
-        ~EditorLayer() override = default;
-
-        auto setOnExit(std::function<void()> onExit) -> void { m_onExit = std::move(onExit); }
+        explicit EditorInspectorElement(EditorContext& context)
+            : m_context(context)
+        {
+        }
 
         auto onAttach(ui::ImGuiLayer* pLayer) -> void override;
         auto onDetach() -> void override;
@@ -27,7 +24,6 @@ namespace april::editor
         auto onFileDrop(std::filesystem::path const& filename) -> void override;
 
     private:
-        std::function<void()> m_onExit{};
-        float2 m_viewportSize{};
+        EditorContext& m_context;
     };
 }

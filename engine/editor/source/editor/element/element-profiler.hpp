@@ -26,6 +26,11 @@ namespace april::ui
         auto onRender(graphics::CommandContext* pContext) -> void override;
         auto onFileDrop(std::filesystem::path const& filename) -> void override;
 
+        auto setVisible(bool show) -> void { m_show = show; }
+        auto isVisible() const -> bool { return m_show; }
+        auto setMenuEnabled(bool enable) -> void { m_enableMenu = enable; }
+        auto isMenuEnabled() const -> bool { return m_enableMenu; }
+
     private:
         auto draw() -> void;
         auto drawThread(april::core::ProfileThreadFrame& frame) -> void;
@@ -39,6 +44,7 @@ namespace april::ui
         bool m_paused{false};
         bool m_showAvg{true};
         bool m_showMinMax{true};
+        bool m_enableMenu{true};
 
         april::core::ProfileAggregator m_aggregator{};
         std::vector<april::core::ProfileThreadFrame> m_frames{};
