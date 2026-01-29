@@ -70,7 +70,7 @@ namespace april::graphics
 
     auto Swapchain::resize(uint32_t width, uint32_t height) -> void
     {
-        if (!m_currentFrameBackBuffer || (width == m_desc.width && height == m_desc.height)) return;
+        if (width == m_desc.width && height == m_desc.height) return;
 
         AP_ASSERT(width > 0);
         AP_ASSERT(height > 0);
