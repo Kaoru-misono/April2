@@ -256,11 +256,12 @@ int main()
 
         while (!closeWindow)
         {
-            // Frame Start Profile
-            APRIL_PROFILE_ZONE("Frame Loop");
-
             {
-                APRIL_PROFILE_ZONE("Window Poll");
+                // Frame Update Profile
+                APRIL_PROFILE_ZONE("Frame Update");
+
+                {
+                    APRIL_PROFILE_ZONE("Window Poll");
                 window->onEvent();
             }
 
@@ -286,6 +287,7 @@ int main()
                         swapchain->resize(fw, fh);
                     }
                 }
+            }
             }
 
             auto fw = window->getFramebufferWidth();

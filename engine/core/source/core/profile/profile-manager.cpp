@@ -73,7 +73,9 @@ namespace april::core
         // Sort events by timestamp to ensure correct temporal order across threads and GPU
         std::sort(allEvents.begin(), allEvents.end(), [](ProfileEvent const& a, ProfileEvent const& b) {
             if (a.timestamp != b.timestamp) return a.timestamp < b.timestamp;
-            return a.type < b.type; // Consistent ordering for simultaneous events
+            // If timestamps are equal, process longer duration events (parents) first
+            if (a.duration != b.duration) return a.duration > b.duration;
+            return a.type < b.type;
         });
 
         return allEvents;
