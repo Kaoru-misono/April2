@@ -2,7 +2,6 @@
 
 #include "foundation/object.hpp"
 #include "fwd.hpp"
-#include "blit-context.hpp"
 #include "graphics-pipeline.hpp"
 #include "compute-pipeline.hpp"
 #include "ray-tracing-pipeline.hpp"
@@ -147,10 +146,18 @@ namespace april::graphics
             uint64_t countBufferOffset
         ) -> void;
 
-        // Blit functions
+        /**
+        * Blits (low-level copy) an SRV into an RTV.
+        * The source and destination rectangles get clamped to the dimensions of the view.
+        * The upper range is non-inclusive. To blit from the top-left 16x16 texels, specify srcRect = uint4(0,0,16,16).
+        * @param[in] pSrc Source view to copy from.
+        * @param[in] pDst Target view to copy to.
+        * @param[in] srcRect Source rectangle to blit from, specified by [left, up, right, down].
+        * @param[in] dstRect Target rectangle to blit to, specified by [left, up, right, down].
+        */
         auto blit(
-            core::ref<ShaderResourceView> const& src,
-            core::ref<RenderTargetView> const& dst,
+            core::ref<ShaderResourceView> const& pSrc,
+            core::ref<RenderTargetView> const& pDst,
             uint4 srcRect = kMaxRect,
             uint4 dstRect = kMaxRect,
             TextureFilteringMode filter = TextureFilteringMode::Linear
@@ -200,7 +207,6 @@ namespace april::graphics
             core::ref<VertexArrayObject> const& vao = nullptr
         ) -> void;
         CommandContext* mp_context{nullptr};
-        std::unique_ptr<BlitContext> mp_blitContext;
 
         // StateBindFlags m_bindFlags{StateBindFlags::All};
         GraphicsPipeline* mp_lastBoundPipeline{nullptr};
@@ -234,22 +240,9 @@ namespace april::graphics
 
         auto dispatchIndirect(Buffer const* argBuffer, uint64_t argBufferOffset) -> void;
 
-        auto clearUAV(UnorderedAccessView const* uav, float4 const& value) -> void;
-        auto clearUAV(UnorderedAccessView const* uav, uint4 const& value) -> void;
-        /**
-        * Clear a structured buffer's UAV counter
-        * @param[in] pBuffer Structured Buffer containing UAV counter
-        * @param[in] value Value to clear counter to
-        */
-        auto clearUAVCounter(core::ref<Buffer> const& buffer, uint32_t value) -> void;
-
         // Helpers for use core::ref
         auto bindPipeline(core::ref<ComputePipeline> const& pipeline, core::ref<ProgramVariables> const& vars) -> void { bindPipeline(pipeline.get(), vars.get()); }
         auto dispatchIndirect(core::ref<Buffer> const& argBuffer, uint64_t argBufferOffset) -> void { dispatchIndirect(argBuffer.get(), argBufferOffset); }
-
-        auto clearUAV(core::ref<UnorderedAccessView> const& uav, float4 const& value) -> void { clearUAV(uav.get(), value); }
-        auto clearUAV(core::ref<UnorderedAccessView> const& uav, uint4 const& value) -> void { clearUAV(uav.get(), value); }
-
 
     private:
         CommandContext* mp_context{nullptr};

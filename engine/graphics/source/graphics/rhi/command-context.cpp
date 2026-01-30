@@ -463,7 +463,8 @@ namespace april::graphics
 
     auto RenderPassEncoder::blit(core::ref<ShaderResourceView> const& src, core::ref<RenderTargetView> const& dst, uint4 srcRect, uint4 dstRect, TextureFilteringMode filter) -> void
     {
-        // TODO
+        m_encoder->pushDebugGroup("Blit", rhi::MarkerColor{});
+        m_encoder->popDebugGroup();
     }
 
     auto RenderPassEncoder::resolveResource(core::ref<Texture> const& src, core::ref<Texture> const& dst) -> void
@@ -499,22 +500,6 @@ namespace april::graphics
     auto ComputePassEncoder::dispatchIndirect(Buffer const* argBuffer, uint64_t argBufferOffset) -> void
     {
         m_encoder->dispatchComputeIndirect(rhi::BufferOffsetPair{argBuffer->getGfxBufferResource(), argBufferOffset});
-    }
-
-    auto ComputePassEncoder::clearUAV(UnorderedAccessView const* uav, float4 const& value) -> void
-    {
-        // Typically done via resource commands, not inside compute pass in slang-rhi
-        // TODO: Implement via command context or another mechanism
-    }
-
-    auto ComputePassEncoder::clearUAV(UnorderedAccessView const* uav, uint4 const& value) -> void
-    {
-        // TODO: Implement
-    }
-
-    auto ComputePassEncoder::clearUAVCounter(core::ref<Buffer> const& buffer, uint32_t value) -> void
-    {
-        // TODO: Implement
     }
 
     // RayTracingPassEncoder
