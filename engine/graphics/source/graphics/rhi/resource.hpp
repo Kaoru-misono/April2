@@ -6,8 +6,6 @@
 
 #include "fwd.hpp"
 #include "handles.hpp"
-#include "native-handle.hpp"
-#include "format.hpp"
 #include "resource-views.hpp"
 
 #include <core/foundation/object.hpp>

@@ -23,6 +23,7 @@
 #include <slang-rhi.h>
 
 #include <array>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <queue>
@@ -34,6 +35,7 @@ namespace april::core { class Profiler; }
 namespace april::graphics
 {
     class ProgramManager;
+    class Program;
     class GpuProfiler;
     class AftermathContext;
     class ShaderVariable;
@@ -416,6 +418,16 @@ namespace april::graphics
          */
         auto getDefaultSampler() const -> core::ref<Sampler> const& { return mp_defaultSampler; }
 
+        /**
+         * Get the cached blit graphics pipeline for a given format/sample count.
+         */
+        auto getBlitPipeline(ResourceFormat format, uint32_t sampleCount = 1) -> core::ref<GraphicsPipeline>;
+
+        /**
+         * Get the cached sampler used for blit filtering.
+         */
+        auto getBlitSampler(TextureFilteringMode filter) -> core::ref<Sampler>;
+
         auto getBufferDataAlignment(BufferUsage usage) -> size_t;
 
         auto getUploadHeap() const -> core::ref<GpuMemoryHeap> const& { return mp_uploadHeap; }
@@ -512,6 +524,11 @@ namespace april::graphics
         uint32_t m_currentTransientResourceHeapIndex{0};
 
         core::ref<Sampler> mp_defaultSampler{};
+        core::ref<Program> mp_blitProgram{};
+        std::map<std::pair<ResourceFormat, uint32_t>, core::ref<GraphicsPipeline>> m_blitPipelines{};
+        core::ref<Sampler> mp_blitLinearSampler{};
+        core::ref<Sampler> mp_blitPointSampler{};
+        std::mutex m_blitMutex{};
         core::ref<GpuMemoryHeap> mp_uploadHeap{};
         core::ref<GpuMemoryHeap> mp_readBackHeap{};
         core::ref<QueryHeap> mp_timestampQueryHeap{};

@@ -13,6 +13,7 @@
 #include "command-context.hpp"
 #include "rhi-tools.hpp"
 #include "program/program-manager.hpp"
+#include "program/program.hpp"
 #include "program/shader-variable.hpp"
 #include "tools/blob.hpp"
 #include "graphics/profile/gpu-profiler.hpp"
@@ -31,7 +32,6 @@ namespace april::graphics
 {
     inline namespace
     {
-        constexpr uint32_t kTransientHeapConstantBufferSize = 16 * 1024 * 1024;
         constexpr size_t kConstantBufferDataPlacementAlignment = 256;
         constexpr size_t kIndexBufferDataPlacementAlignment = 4;
         constexpr ShaderModel kDefaultShaderModel = ShaderModel::SM6_6;
@@ -591,6 +591,71 @@ namespace april::graphics
     auto Device::createRayTracingPipeline(RayTracingPipelineDesc const& desc) -> core::ref<RayTracingPipeline>
     {
         return core::make_ref<RayTracingPipeline>(core::ref<Device>(this), desc);
+    }
+
+    auto Device::getBlitPipeline(ResourceFormat format, uint32_t sampleCount) -> core::ref<GraphicsPipeline>
+    {
+        std::scoped_lock lock(m_blitMutex);
+
+        auto key = std::make_pair(format, sampleCount);
+        auto it = m_blitPipelines.find(key);
+        if (it != m_blitPipelines.end())
+        {
+            return it->second;
+        }
+
+        if (!mp_blitProgram)
+        {
+            ProgramDesc progDesc;
+            progDesc.addShaderLibrary("blit.slang");
+            progDesc.vsEntryPoint("vertexMain");
+            progDesc.psEntryPoint("fragmentMain");
+            mp_blitProgram = Program::create(core::ref<Device>(this), progDesc);
+        }
+
+        GraphicsPipelineDesc pipelineDesc;
+        pipelineDesc.programKernels = mp_blitProgram->getActiveVersion()->getKernels(this, nullptr);
+        pipelineDesc.renderTargetCount = 1;
+        pipelineDesc.renderTargetFormats[0] = getGFXFormat(format);
+        pipelineDesc.sampleCount = sampleCount;
+        pipelineDesc.primitiveType = GraphicsPipelineDesc::PrimitiveType::TriangleList;
+
+        RasterizerState::Desc rsDesc;
+        rsDesc.setCullMode(RasterizerState::CullMode::None);
+        rsDesc.setScissorTest(true);
+        pipelineDesc.rasterizerState = RasterizerState::create(rsDesc);
+
+        DepthStencilState::Desc dsDesc;
+        dsDesc.setDepthEnabled(false);
+        dsDesc.setDepthWriteMask(false);
+        dsDesc.setStencilEnabled(false);
+        pipelineDesc.depthStencilState = DepthStencilState::create(dsDesc);
+
+        auto pipeline = createGraphicsPipeline(pipelineDesc);
+        m_blitPipelines.emplace(key, pipeline);
+        return pipeline;
+    }
+
+    auto Device::getBlitSampler(TextureFilteringMode filter) -> core::ref<Sampler>
+    {
+        std::scoped_lock lock(m_blitMutex);
+
+        auto ensureSampler = [this](TextureFilteringMode mode, core::ref<Sampler>& slot) {
+            if (slot) return;
+            Sampler::Desc desc;
+            desc.setFilterMode(mode, mode, mode);
+            desc.setAddressingMode(TextureAddressingMode::Clamp, TextureAddressingMode::Clamp, TextureAddressingMode::Clamp);
+            slot = createSampler(desc);
+        };
+
+        if (filter == TextureFilteringMode::Point)
+        {
+            ensureSampler(TextureFilteringMode::Point, mp_blitPointSampler);
+            return mp_blitPointSampler;
+        }
+
+        ensureSampler(TextureFilteringMode::Linear, mp_blitLinearSampler);
+        return mp_blitLinearSampler;
     }
 
     auto Device::getProgramManager() const -> ProgramManager*

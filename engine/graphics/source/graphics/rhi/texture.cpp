@@ -99,6 +99,7 @@ namespace april::graphics
         void const* pInitData
     )
         : Resource(p_device, type, 0)
+        , m_usage(usage)
         , m_format(format)
         , m_width(width)
         , m_height(height)
@@ -106,7 +107,6 @@ namespace april::graphics
         , m_mipLevels(mipLevels)
         , m_arraySize(arraySize)
         , m_sampleCount(sampleCount)
-        , m_usage(usage)
     {
         AP_ASSERT(m_type != Type::Buffer, "Texture type cannot be Buffer.");
         AP_ASSERT(m_format != ResourceFormat::Unknown, "Texture format cannot be Unknown.");
@@ -204,7 +204,7 @@ namespace april::graphics
         TextureUsage usage,
         Resource::State initState
     )
-        : Resource(pDevice, type, 0), m_width(width), m_height(height), m_depth(depth), m_mipLevels(mipLevels), m_sampleCount(sampleCount), m_arraySize(arraySize), m_format(format), m_usage(usage)
+        : Resource(pDevice, type, 0), m_usage(usage), m_format(format), m_width(width), m_height(height), m_depth(depth), m_mipLevels(mipLevels), m_arraySize(arraySize), m_sampleCount(sampleCount)
     {
         m_gfxTexture = pTexture;
         m_state.global = initState;

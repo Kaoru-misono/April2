@@ -1,6 +1,5 @@
 #include "settings-handler.hpp"
 #include <unordered_map>
-#include <sstream>
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -47,7 +46,7 @@ namespace april::ui
             }
         };
         // Write the ["name"][State], then one line for each setting
-        ini_handler.WriteAllFn = [](ImGuiContext* ctx, ImGuiSettingsHandler* handler, ImGuiTextBuffer* buf) {
+        ini_handler.WriteAllFn = [](ImGuiContext*, ImGuiSettingsHandler* handler, ImGuiTextBuffer* buf) {
             SettingsHandler* s = static_cast<SettingsHandler*>(handler->UserData);
             buf->appendf("[%s][State]\n", handler->TypeName);
             for(auto const& [key, entry] : s->settings)
