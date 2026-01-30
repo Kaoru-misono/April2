@@ -1,3 +1,7 @@
-VERSION: 0.1.0
+[module]
+name = graphics
+type = library
+version = 0.1.0
 
-core
+[dependencies]
+public = core

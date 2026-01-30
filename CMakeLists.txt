@@ -7,6 +7,7 @@ project(April
 )
 
 option(APRIL_BUILD_EDITOR "Build editor modules and editor executable" ON)
+option(APRIL_VERBOSE "Enable verbose module scanning logs" OFF)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -35,7 +36,12 @@ endif()
 
 include(cmake/april-build.cmake)
 
-april_scan_and_load_modules("${CMAKE_SOURCE_DIR}/engine")
+set(APRIL_MODULE_ROOTS
+    "${CMAKE_SOURCE_DIR}/engine"
+    CACHE STRING "Semicolon-separated list of module root directories"
+)
+
+april_scan_and_load_modules(${APRIL_MODULE_ROOTS})
 
 add_subdirectory(engine/test)
 add_subdirectory(entry)

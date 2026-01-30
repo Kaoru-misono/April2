@@ -3,10 +3,6 @@
 include(cmake/tools.cmake)
 
 function(april_define_module MODULE_ROOT_DIR DIR_NAME)
-    if(DIR_NAME STREQUAL "editor" AND NOT APRIL_BUILD_EDITOR)
-        return()
-    endif()
-
     set(MODULE_PATH "${MODULE_ROOT_DIR}/${DIR_NAME}")
     set(MANIFEST_FILE "${MODULE_PATH}/manifest.txt")
 
@@ -14,10 +10,28 @@ function(april_define_module MODULE_ROOT_DIR DIR_NAME)
         return()
     endif()
 
-    set(MODULE_NAME "April_${DIR_NAME}")
-    april_parse_manifest("${MANIFEST_FILE}" MODULE_VERSION MODULE_DEPS)
+    april_parse_manifest("${MANIFEST_FILE}" MANIFEST)
 
-    message(STATUS "[AutoLoader] Configuring: ${MODULE_NAME} (v${MODULE_VERSION})")
+    set(MODULE_SHORT_NAME "${MANIFEST_MODULE_NAME}")
+    if(MODULE_SHORT_NAME STREQUAL "")
+        set(MODULE_SHORT_NAME "${DIR_NAME}")
+    endif()
+
+    set(MODULE_NAME "April_${MODULE_SHORT_NAME}")
+    if(MODULE_SHORT_NAME STREQUAL "editor" AND NOT APRIL_BUILD_EDITOR)
+        message(STATUS "[AutoLoader] Skipping editor module '${MODULE_NAME}' (APRIL_BUILD_EDITOR=OFF)")
+        return()
+    endif()
+
+    set(MODULE_VERSION "${MANIFEST_VERSION}")
+    set(MODULE_DISPLAY_NAME "${MODULE_SHORT_NAME}")
+    if(MODULE_DISPLAY_NAME STREQUAL "")
+        set(MODULE_DISPLAY_NAME "${MODULE_NAME}")
+    endif()
+
+    april_manifest_normalize_module_type("${MANIFEST_MODULE_TYPE}" MODULE_KIND)
+
+    message(STATUS "[AutoLoader] Configuring: ${MODULE_DISPLAY_NAME} (v${MODULE_VERSION})")
 
     file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
         "${MODULE_PATH}/source/*.cpp"
@@ -36,20 +50,39 @@ function(april_define_module MODULE_ROOT_DIR DIR_NAME)
 
         list(APPEND SRC_FILES "${DUMMY_FILE}")
 
-        message(STATUS "  -> [Info] No source files found. Generated dummy file to allow STATIC library creation.")
+        message(STATUS "  -> [Info] No source files found. Generated dummy file to allow library creation.")
     endif()
 
-    add_library(${MODULE_NAME} STATIC ${SRC_FILES} ${HDR_FILES})
+    add_library(${MODULE_NAME} ${MODULE_KIND} ${SRC_FILES} ${HDR_FILES})
 
     set_target_properties(${MODULE_NAME} PROPERTIES
         VERSION ${MODULE_VERSION}
-        APRIL_DEPS_LIST "${MODULE_DEPS}"
+        APRIL_DEPS_PUBLIC "${MANIFEST_DEPS_PUBLIC}"
+        APRIL_DEPS_PRIVATE "${MANIFEST_DEPS_PRIVATE}"
+        APRIL_DEPS_PUBLIC_WINDOWS "${MANIFEST_DEPS_PUBLIC_WINDOWS}"
+        APRIL_DEPS_PRIVATE_WINDOWS "${MANIFEST_DEPS_PRIVATE_WINDOWS}"
+        APRIL_DEPS_PUBLIC_LINUX "${MANIFEST_DEPS_PUBLIC_LINUX}"
+        APRIL_DEPS_PRIVATE_LINUX "${MANIFEST_DEPS_PRIVATE_LINUX}"
+        APRIL_DEPS_PUBLIC_MACOS "${MANIFEST_DEPS_PUBLIC_MACOS}"
+        APRIL_DEPS_PRIVATE_MACOS "${MANIFEST_DEPS_PRIVATE_MACOS}"
     )
 
     string(TOUPPER ${MODULE_NAME} UPPER_NAME)
     target_compile_definitions(${MODULE_NAME} PRIVATE ${UPPER_NAME}_BUILD)
 
     target_compile_features(${MODULE_NAME} PUBLIC cxx_std_23)
+
+    april_apply_platform_definitions(
+        ${MODULE_NAME}
+        "${MANIFEST_DEFINES_PUBLIC}"
+        "${MANIFEST_DEFINES_PRIVATE}"
+        "${MANIFEST_DEFINES_PUBLIC_WINDOWS}"
+        "${MANIFEST_DEFINES_PRIVATE_WINDOWS}"
+        "${MANIFEST_DEFINES_PUBLIC_LINUX}"
+        "${MANIFEST_DEFINES_PRIVATE_LINUX}"
+        "${MANIFEST_DEFINES_PUBLIC_MACOS}"
+        "${MANIFEST_DEFINES_PRIVATE_MACOS}"
+    )
 
     target_include_directories(${MODULE_NAME}
         PUBLIC
@@ -60,8 +93,27 @@ function(april_define_module MODULE_ROOT_DIR DIR_NAME)
             ${MODULE_PATH}/source/${DIR_NAME}
     )
 
+    if(MANIFEST_BUILD_PCH)
+        set(PCH_HEADER "${MANIFEST_BUILD_PCH}")
+        if(NOT IS_ABSOLUTE "${PCH_HEADER}")
+            set(PCH_HEADER "${MODULE_PATH}/${PCH_HEADER}")
+        endif()
+
+        if(EXISTS "${PCH_HEADER}")
+            target_precompile_headers(${MODULE_NAME} PRIVATE "${PCH_HEADER}")
+        else()
+            message(WARNING "[${MODULE_NAME}] PCH header not found: ${PCH_HEADER}")
+        endif()
+    endif()
+
+    if(MANIFEST_BUILD_UNITY)
+        set_target_properties(${MODULE_NAME} PROPERTIES UNITY_BUILD ON)
+    endif()
+
     april_helper_handle_library(${MODULE_NAME} ${MODULE_PATH} ${DIR_NAME})
-    april_helper_sync_shader(${DIR_NAME} "${MODULE_PATH}")
+    april_helper_sync_shader(${MODULE_NAME} "${MODULE_PATH}" "${DIR_NAME}")
+    april_helper_add_codegen(${MODULE_NAME} "${MODULE_PATH}" "${MANIFEST_FILE}" "${MANIFEST_CODEGEN_CMD}" "${MANIFEST_CODEGEN_OUTPUT}")
+    april_helper_sync_resources(${MODULE_NAME} "${MODULE_PATH}" "${MANIFEST_RES_COPY_DIR}")
 
 endfunction()
 
@@ -72,33 +124,62 @@ function(april_link_module MODULE_ROOT_DIR DIR_NAME)
         return()
     endif()
 
-    get_target_property(MODULE_DEPS ${MODULE_NAME} APRIL_DEPS_LIST)
+    get_target_property(DEPS_PUBLIC ${MODULE_NAME} APRIL_DEPS_PUBLIC)
+    get_target_property(DEPS_PRIVATE ${MODULE_NAME} APRIL_DEPS_PRIVATE)
+    get_target_property(DEPS_PUBLIC_WINDOWS ${MODULE_NAME} APRIL_DEPS_PUBLIC_WINDOWS)
+    get_target_property(DEPS_PRIVATE_WINDOWS ${MODULE_NAME} APRIL_DEPS_PRIVATE_WINDOWS)
+    get_target_property(DEPS_PUBLIC_LINUX ${MODULE_NAME} APRIL_DEPS_PUBLIC_LINUX)
+    get_target_property(DEPS_PRIVATE_LINUX ${MODULE_NAME} APRIL_DEPS_PRIVATE_LINUX)
+    get_target_property(DEPS_PUBLIC_MACOS ${MODULE_NAME} APRIL_DEPS_PUBLIC_MACOS)
+    get_target_property(DEPS_PRIVATE_MACOS ${MODULE_NAME} APRIL_DEPS_PRIVATE_MACOS)
 
-    foreach(DEP ${MODULE_DEPS})
-        string(STRIP "${DEP}" DEP)
-        if(DEP)
-            message(STATUS "[Link Debug] Linking '${MODULE_NAME}' with '${DEP}'")
-            target_link_libraries(${MODULE_NAME} PUBLIC ${DEP})
-        endif()
-    endforeach()
+    april_link_platform_dependencies(
+        ${MODULE_NAME}
+        "${DEPS_PUBLIC}"
+        "${DEPS_PRIVATE}"
+        "${DEPS_PUBLIC_WINDOWS}"
+        "${DEPS_PRIVATE_WINDOWS}"
+        "${DEPS_PUBLIC_LINUX}"
+        "${DEPS_PRIVATE_LINUX}"
+        "${DEPS_PUBLIC_MACOS}"
+        "${DEPS_PRIVATE_MACOS}"
+    )
 
 endfunction()
 
 
-function(april_scan_and_load_modules ROOT_PATH)
-    file(GLOB CHILDREN RELATIVE "${ROOT_PATH}" "${ROOT_PATH}/*")
+function(april_scan_and_load_modules)
+    foreach(ROOT_PATH IN LISTS ARGN)
+        if(ROOT_PATH STREQUAL "")
+            continue()
+        endif()
 
-    # Pass 1: Define
-    foreach(CHILD ${CHILDREN})
-        if(IS_DIRECTORY "${ROOT_PATH}/${CHILD}")
+        if(NOT IS_DIRECTORY "${ROOT_PATH}")
+            message(WARNING "[AutoLoader] Module root not found: ${ROOT_PATH}")
+            continue()
+        endif()
+
+        file(GLOB CHILDREN RELATIVE "${ROOT_PATH}" "${ROOT_PATH}/*")
+
+        set(MODULE_DIRS "")
+        foreach(CHILD ${CHILDREN})
+            if(IS_DIRECTORY "${ROOT_PATH}/${CHILD}" AND EXISTS "${ROOT_PATH}/${CHILD}/manifest.txt")
+                list(APPEND MODULE_DIRS "${CHILD}")
+            elseif(IS_DIRECTORY "${ROOT_PATH}/${CHILD}")
+                if(APRIL_VERBOSE)
+                    message(STATUS "[AutoLoader] Skipping '${ROOT_PATH}/${CHILD}' (no manifest.txt)")
+                endif()
+            endif()
+        endforeach()
+
+        # Pass 1: Define
+        foreach(CHILD ${MODULE_DIRS})
             april_define_module("${ROOT_PATH}" "${CHILD}")
-        endif()
-    endforeach()
+        endforeach()
 
-    # Pass 2: Link
-    foreach(CHILD ${CHILDREN})
-        if(IS_DIRECTORY "${ROOT_PATH}/${CHILD}")
+        # Pass 2: Link
+        foreach(CHILD ${MODULE_DIRS})
             april_link_module("${ROOT_PATH}" "${CHILD}")
-        endif()
+        endforeach()
     endforeach()
 endfunction()

@@ -1,4 +1,8 @@
-VERSION: 0.1.0
+[module]
+name = ui
+type = library
+version = 0.1.0
 
-core
-graphics
+[dependencies]
+public = core
+public = graphics

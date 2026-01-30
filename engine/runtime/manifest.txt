@@ -1,5 +1,9 @@
-VERSION: 0.1.0
+[module]
+name = runtime
+type = library
+version = 0.1.0
 
-core
-graphics
-ui
+[dependencies]
+public = core
+public = graphics
+public = ui
