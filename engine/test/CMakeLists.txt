@@ -78,6 +78,16 @@ target_link_libraries(test-suite PRIVATE April_graphics)
 target_compile_features(test-suite PRIVATE cxx_std_23)
 target_compile_definitions(test-suite PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
 
+# Standalone RHI Validation Test
+add_executable(test-rhi-validation
+    test-main.cpp
+    source/test-rhi-validation.cpp
+)
+target_include_directories(test-rhi-validation PRIVATE external/doctest)
+target_link_libraries(test-rhi-validation PRIVATE April_graphics)
+target_compile_features(test-rhi-validation PRIVATE cxx_std_23)
+target_compile_definitions(test-rhi-validation PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
+
 # Standalone Blit Test
 add_executable(test-blit
     test-main.cpp

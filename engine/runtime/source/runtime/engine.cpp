@@ -50,15 +50,22 @@ namespace april
 
                 if (m_swapchainDirty)
                 {
-                    m_swapchain->resize(m_window->getFramebufferWidth(), m_window->getFramebufferHeight());
-                    ensureOffscreenTarget(m_window->getFramebufferWidth(), m_window->getFramebufferHeight());
+                    auto fbWidth = m_window->getFramebufferWidth();
+                    auto fbHeight = m_window->getFramebufferHeight();
+                    if (fbWidth == 0 || fbHeight == 0)
+                    {
+                        continue;
+                    }
+                    m_swapchain->resize(fbWidth, fbHeight);
+                    ensureOffscreenTarget(fbWidth, fbHeight);
                     m_swapchainDirty = false;
                 }
 
                 auto backBuffer = m_swapchain->acquireNextImage();
                 if (!backBuffer)
                 {
-                    break;
+                    m_swapchainDirty = true;
+                    continue;
                 }
 
                 auto now = Clock::now();

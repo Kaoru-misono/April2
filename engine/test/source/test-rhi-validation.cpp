@@ -561,6 +561,65 @@ TEST_SUITE("RHI Validation")
         glfwTerminate();
     }
 
+    TEST_CASE("Swapchain Resize Stress")
+    {
+        if (!glfwInit()) return;
+
+        for (auto deviceType : { Device::Type::D3D12, Device::Type::Vulkan })
+        {
+            Device::Desc deviceDesc;
+            deviceDesc.type = deviceType;
+            auto device = april::core::make_ref<Device>(deviceDesc);
+            if (!device) continue;
+
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+            GLFWwindow* window = glfwCreateWindow(640, 480, "ResizeStress", nullptr, nullptr);
+            if (!window) continue;
+
+#if defined(_WIN32)
+            HWND hwnd = glfwGetWin32Window(window);
+            WindowHandle winHandle = (WindowHandle)hwnd;
+#else
+            WindowHandle winHandle = nullptr;
+#endif
+
+            Swapchain::Desc swapDesc;
+            swapDesc.width = 640;
+            swapDesc.height = 480;
+            swapDesc.format = ResourceFormat::RGBA8Unorm;
+            swapDesc.imageCount = 3;
+
+            auto swapchain = april::core::make_ref<Swapchain>(device, swapDesc, winHandle);
+            REQUIRE(swapchain);
+
+            struct Size { uint32_t w; uint32_t h; };
+            const std::vector<Size> sizes = {
+                {320, 200},
+                {800, 600},
+                {1280, 720},
+                {1024, 768},
+                {640, 480},
+            };
+
+            for (int i = 0; i < 5; ++i)
+            {
+                for (auto const& s : sizes)
+                {
+                    swapchain->resize(s.w, s.h);
+                    auto backBuffer = swapchain->acquireNextImage();
+                    CHECK(backBuffer != nullptr);
+                    swapchain->present();
+                }
+            }
+
+            device->wait();
+            swapchain = nullptr;
+            glfwDestroyWindow(window);
+        }
+
+        glfwTerminate();
+    }
+
     TEST_CASE("PSO Caching")
     {
         for (auto deviceType : { Device::Type::D3D12, Device::Type::Vulkan })

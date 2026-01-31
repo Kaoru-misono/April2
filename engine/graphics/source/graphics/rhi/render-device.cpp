@@ -753,8 +753,14 @@ namespace april::graphics
 
     auto Device::wait() -> void
     {
-        mp_commandContext->submit(true);
-        // mp_commandContext->signal(mp_frameFence.get());
+        // Flush any pending work, then block until the queue is idle.
+        // CommandContext::submit(true) can early-out when no work is pending,
+        // so call waitOnHost() explicitly to ensure idle even in that case.
+        mp_commandContext->submit(false);
+        if (m_gfxCommandQueue)
+        {
+            m_gfxCommandQueue->waitOnHost();
+        }
         executeDeferredReleases();
     }
 

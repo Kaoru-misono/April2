@@ -47,7 +47,8 @@ namespace april::graphics
     {
         auto resource = rhi::ComPtr<rhi::ITexture>{};
         auto result = m_gfxSurface->acquireNextImage(resource.writeRef());
-        if (result != SLANG_OK) {
+        if (result != SLANG_OK)
+        {
             AP_ERROR("Swapchain::acquireNextImage failed to get resource from surface: {}", result);
             return nullptr;
         }
@@ -72,18 +73,20 @@ namespace april::graphics
     {
         if (width == m_desc.width && height == m_desc.height) return;
 
-        AP_ASSERT(width > 0);
-        AP_ASSERT(height > 0);
         m_desc.width  = width;
         m_desc.height = height;
         m_currentFrameBackBuffer = nullptr;
-        m_dirty = true;
 
         configure();
     }
 
-    auto Swapchain::configure() -> void
+    auto Swapchain::configure() -> bool
     {
+        if (m_desc.width == 0 || m_desc.height == 0)
+        {
+            return false;
+        }
+
         mp_device->wait();
 
         rhi::SurfaceConfig surfaceConfig = {};
@@ -93,6 +96,19 @@ namespace april::graphics
         surfaceConfig.desiredImageCount = m_desc.imageCount;
         surfaceConfig.vsync             = m_desc.enableVSync;
 
-        m_gfxSurface->configure(surfaceConfig);
+        auto result = m_gfxSurface->configure(surfaceConfig);
+        if (result != SLANG_OK)
+        {
+            AP_ERROR(
+                "Swapchain::configure failed: {} ({}x{}, images={}, format={})",
+                result,
+                m_desc.width,
+                m_desc.height,
+                m_desc.imageCount,
+                static_cast<int>(m_desc.format)
+            );
+            return false;
+        }
+        return true;
     }
 } // namespace april::graphics

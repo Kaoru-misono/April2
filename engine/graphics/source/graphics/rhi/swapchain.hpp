@@ -39,12 +39,11 @@ namespace april::graphics
         auto getGfxSurface() const -> rhi::ISurface* { return m_gfxSurface; }
 
     private:
-        auto configure() -> void;
+        auto configure() -> bool;
 
     private:
         core::ref<Device> mp_device{};
         Desc m_desc{};
-        bool m_dirty{};
         rhi::ComPtr<rhi::ISurface> m_gfxSurface{};
         core::ref<Texture> m_currentFrameBackBuffer{};
     };
