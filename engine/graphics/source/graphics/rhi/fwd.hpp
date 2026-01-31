@@ -42,8 +42,7 @@ namespace april::graphics
     class ShaderTablePtr;
 
     class ResourceView;
-    class ShaderResourceView;
-    class UnorderedAccessView;
-    class RenderTargetView;
-    class DepthStencilView;
+    class TextureView;
+    class BufferView;
+    struct ResourceViewInfo;
 } // namespace april::graphics

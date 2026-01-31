@@ -17,8 +17,7 @@ namespace april::graphics
     class Texture;
     class Buffer;
     class Sampler;
-    class ShaderResourceView;
-    class UnorderedAccessView;
+    class ResourceView;
     class RtAccelerationStructure;
 
     // Renamed from ShaderVar
@@ -64,11 +63,11 @@ namespace april::graphics
         auto getTexture() const -> core::ref<Texture>;
         operator core::ref<Texture>() const { return getTexture(); }
 
-        auto setSrv(core::ref<ShaderResourceView> pSrv) const -> void;
-        auto getSrv() const -> core::ref<ShaderResourceView>;
+        auto setSrv(core::ref<ResourceView> pSrv) const -> void;
+        auto getSrv() const -> core::ref<ResourceView>;
 
-        auto setUav(core::ref<UnorderedAccessView> pUav) const -> void;
-        auto getUav() const -> core::ref<UnorderedAccessView>;
+        auto setUav(core::ref<ResourceView> pUav) const -> void;
+        auto getUav() const -> core::ref<ResourceView>;
 
         auto setAccelerationStructure(core::ref<RtAccelerationStructure> pAccl) const -> void;
         auto getAccelerationStructure() const -> core::ref<RtAccelerationStructure>;

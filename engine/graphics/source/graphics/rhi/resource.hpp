@@ -30,19 +30,7 @@ namespace april::graphics
         /**
          * Resource types. Notice there are no array types. Array are controlled using the array size parameter on texture creation.
          */
-        enum class Type
-        {
-            Buffer,               ///< Buffer. Can be bound to all shader-stages
-            Texture1D,
-            Texture1DArray,
-            Texture2D,
-            Texture2DArray,
-            Texture2DMS,
-            Texture2DMSArray,
-            Texture3D,
-            TextureCube,
-            TextureCubeArray,
-        };
+        using Type = ResourceViewDimension;
 
         /**
          * Resource state. Keeps track of how the resource was last used
@@ -75,7 +63,7 @@ namespace april::graphics
         /**
          * Default value used in create*() methods
          */
-        static constexpr uint32_t kMaxPossible = RenderTargetView::kMaxPossible;
+        static constexpr uint32_t kMaxPossible = ResourceViewInfo::kMaxPossible;
 
         virtual ~Resource() = default;
 
@@ -138,7 +126,7 @@ namespace april::graphics
         /**
          * Invalidate and release all of the resource views
          */
-        auto invalidateViews() const -> void;
+        virtual auto invalidateViews() const -> void {}
 
         /**
          * Set the resource name
@@ -149,13 +137,6 @@ namespace april::graphics
          * Get the resource name
          */
         auto getName() const -> std::string const& { return m_name; }
-
-        /**
-         * Get a SRV/UAV for the entire resource.
-         * Buffer and Texture have overloads which allow you to create a view into part of the resource
-         */
-        virtual auto getSRV() -> core::ref<ShaderResourceView> = 0;
-        virtual auto getUAV() -> core::ref<UnorderedAccessView> = 0;
 
         /**
          * Conversions to derived classes
@@ -187,11 +168,6 @@ namespace april::graphics
         size_t m_size{0}; ///< Size of the resource in bytes.
         std::string m_name{};
         mutable SharedResourceApiHandle m_sharedApiHandle{0};
-
-        mutable std::unordered_map<ResourceViewInfo, core::ref<ShaderResourceView>, ViewInfoHashFunc> m_srvs;
-        mutable std::unordered_map<ResourceViewInfo, core::ref<RenderTargetView>, ViewInfoHashFunc> m_rtvs;
-        mutable std::unordered_map<ResourceViewInfo, core::ref<DepthStencilView>, ViewInfoHashFunc> m_dsvs;
-        mutable std::unordered_map<ResourceViewInfo, core::ref<UnorderedAccessView>, ViewInfoHashFunc> m_uavs;
     };
 
     auto to_string(Resource::Type type) -> std::string const;

@@ -5,7 +5,9 @@
 #include <core/window/window.hpp>
 #include <graphics/rhi/render-device.hpp>
 #include <graphics/rhi/command-context.hpp>
+#include <graphics/rhi/resource-views.hpp>
 #include <graphics/program/program-variables.hpp>
+#include <filesystem>
 
 #include <vector>
 #include <imgui.h>
@@ -40,7 +42,7 @@ namespace april::ui
         auto terminate() -> void;
 
         auto beginFrame() -> void;
-        auto endFrame(graphics::CommandContext* pContext, core::ref<graphics::RenderTargetView> const& pTarget) -> void;
+        auto endFrame(graphics::CommandContext* pContext, core::ref<graphics::TextureView> const& pTarget) -> void;
 
         auto addElement(core::ref<IElement> const& element) -> void;
 

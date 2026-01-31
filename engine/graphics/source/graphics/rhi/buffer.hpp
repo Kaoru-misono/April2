@@ -159,28 +159,33 @@ namespace april::graphics
         auto getGfxResource() const -> rhi::IResource* override;
 
         /**
+         * Invalidate and release all buffer views.
+         */
+        auto invalidateViews() const -> void override;
+
+        /**
+         * Get a shader-resource view for the entire resource.
+         */
+        auto getSRV() -> core::ref<BufferView> { return getSRV(0); }
+
+        /**
+         * Get an unordered access view for the entire resource.
+         */
+        auto getUAV() -> core::ref<BufferView> { return getUAV(0); }
+
+        /**
          * Get a shader-resource view.
          * @param[in] offset Offset in bytes.
          * @param[in] size Size in bytes.
          */
-        auto getSRV(uint64_t offset, uint64_t size = kEntireBuffer) -> core::ref<ShaderResourceView>;
+        auto getSRV(uint64_t offset, uint64_t size = kEntireBuffer) -> core::ref<BufferView>;
 
         /**
          * Get an unordered access view.
          * @param[in] offset Offset in bytes.
          * @param[in] size size in bytes.
          */
-        auto getUAV(uint64_t offset, uint64_t size = kEntireBuffer) -> core::ref<UnorderedAccessView>;
-
-        /**
-         * Get a shader-resource view for the entire resource
-         */
-        auto getSRV() -> core::ref<ShaderResourceView> override;
-
-        /**
-         * Get an unordered access view for the entire resource
-         */
-        auto getUAV() -> core::ref<UnorderedAccessView> override;
+        auto getUAV(uint64_t offset, uint64_t size = kEntireBuffer) -> core::ref<BufferView>;
 
         /**
          * Update the buffer's data
@@ -306,6 +311,10 @@ namespace april::graphics
         uint32_t m_structSize{0};
         core::ref<Buffer> m_uavCounter{}; // For structured-buffers
         mutable void* m_mappedPtr{nullptr};
+
+        // View caches
+        mutable std::unordered_map<ResourceViewInfo, core::ref<BufferView>, ViewInfoHashFunc> m_srvs;
+        mutable std::unordered_map<ResourceViewInfo, core::ref<BufferView>, ViewInfoHashFunc> m_uavs;
     };
 
     inline auto to_string(MemoryType type) -> std::string

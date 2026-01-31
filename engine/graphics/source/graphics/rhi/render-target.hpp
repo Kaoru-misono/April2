@@ -38,7 +38,7 @@ namespace april::graphics
     {
         ColorTarget() = default;
         ColorTarget(
-            core::ref<RenderTargetView> const& view,
+            core::ref<TextureView> const& view,
             LoadOp loadOp,
             StoreOp storeOp,
             float4 clearColor = float4{0.0f, 0.0f, 0.0f, 1.0f},
@@ -58,7 +58,7 @@ namespace april::graphics
         StoreOp storeOp{StoreOp::Store};
         float4 clearColor{0.0f, 0.0f, 0.0f, 1.0f};
         bool allowUav{false};
-        core::ref<RenderTargetView> m_colorTargetView{};
+        core::ref<TextureView> m_colorTargetView{};
     };
     using ColorTargets = std::vector<ColorTarget>;
 
@@ -66,7 +66,7 @@ namespace april::graphics
     {
         DepthStencilTarget() = default;
         DepthStencilTarget(
-            core::ref<DepthStencilView> depthStencilView,
+            core::ref<TextureView> depthStencilView,
             LoadOp depthLoadOp,
             StoreOp depthStoreOp,
             float clearDepth,
@@ -86,7 +86,7 @@ namespace april::graphics
         {}
 
         DepthStencilTarget(
-            core::ref<DepthStencilView> depthStencilView,
+            core::ref<TextureView> depthStencilView,
             LoadOp depthLoadOp,
             StoreOp depthStoreOp,
             float clearDepth = 1.0f,
@@ -105,6 +105,6 @@ namespace april::graphics
         StoreOp stencilStoreOp{StoreOp::DontCare};
         uint8_t clearStencil{0};
         bool allowUav{false};
-        core::ref<DepthStencilView> m_depthStencilView{};
+        core::ref<TextureView> m_depthStencilView{};
     };
 }

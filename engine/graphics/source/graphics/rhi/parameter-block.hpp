@@ -62,11 +62,11 @@ namespace april::graphics
         auto getTexture(BindLocation const& bindLocation) const -> core::ref<Texture>;
 
         // SRV/UAV
-        void setSrv(BindLocation const& bindLocation, core::ref<ShaderResourceView> pSrv);
-        auto getSrv(BindLocation const& bindLocation) const -> core::ref<ShaderResourceView>;
+        void setSrv(BindLocation const& bindLocation, core::ref<ResourceView> pSrv);
+        auto getSrv(BindLocation const& bindLocation) const -> core::ref<ResourceView>;
 
-        void setUav(BindLocation const& bindLocation, core::ref<UnorderedAccessView> pUav);
-        auto getUav(BindLocation const& bindLocation) const -> core::ref<UnorderedAccessView>;
+        void setUav(BindLocation const& bindLocation, core::ref<ResourceView> pUav);
+        auto getUav(BindLocation const& bindLocation) const -> core::ref<ResourceView>;
 
         // Acceleration Structure
         void setAccelerationStructure(BindLocation const& bindLocation, core::ref<RtAccelerationStructure> pAccl);
@@ -122,8 +122,8 @@ namespace april::graphics
         Slang::ComPtr<rhi::IShaderObject> m_shaderObject{};
 
         std::map<rhi::ShaderOffset, core::ref<ParameterBlock>> m_parameterBlocks{};
-        std::map<rhi::ShaderOffset, core::ref<ShaderResourceView>> m_srvs{};
-        std::map<rhi::ShaderOffset, core::ref<UnorderedAccessView>> m_uavs{};
+        std::map<rhi::ShaderOffset, core::ref<ResourceView>> m_srvs{};
+        std::map<rhi::ShaderOffset, core::ref<ResourceView>> m_uavs{};
         std::map<rhi::ShaderOffset, core::ref<Resource>> m_resources{};
         std::map<rhi::ShaderOffset, core::ref<Sampler>> m_samplers{};
         std::map<rhi::ShaderOffset, core::ref<RtAccelerationStructure>> m_accelerationStructures{};

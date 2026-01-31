@@ -572,7 +572,7 @@ namespace april::graphics
         }
     }
 
-    auto ParameterBlock::setSrv(BindLocation const& bindLocation, core::ref<ShaderResourceView> pSrv) -> void
+    auto ParameterBlock::setSrv(BindLocation const& bindLocation, core::ref<ResourceView> pSrv) -> void
     {
         if (isSrvType(bindLocation.getType()))
         {
@@ -587,7 +587,7 @@ namespace april::graphics
         }
     }
 
-    auto ParameterBlock::getSrv(BindLocation const& bindLocation) const -> core::ref<ShaderResourceView>
+    auto ParameterBlock::getSrv(BindLocation const& bindLocation) const -> core::ref<ResourceView>
     {
         if (isSrvType(bindLocation.getType()))
         {
@@ -603,7 +603,7 @@ namespace april::graphics
         }
     }
 
-    auto ParameterBlock::setUav(BindLocation const& bindLocation, core::ref<UnorderedAccessView> pUav) -> void
+    auto ParameterBlock::setUav(BindLocation const& bindLocation, core::ref<ResourceView> pUav) -> void
     {
         if (isUavType(bindLocation.getType()))
         {
@@ -618,7 +618,7 @@ namespace april::graphics
         }
     }
 
-    auto ParameterBlock::getUav(BindLocation const& bindLocation) const -> core::ref<UnorderedAccessView>
+    auto ParameterBlock::getUav(BindLocation const& bindLocation) const -> core::ref<ResourceView>
     {
         if (isUavType(bindLocation.getType()))
         {

@@ -23,15 +23,15 @@ namespace april::graphics
         auto render(CommandContext* pContext, float4 const& clearColor) -> void;
 
         auto getSceneColorTexture() const -> core::ref<Texture> { return m_sceneColor; }
-        auto getSceneColorSrv() const -> core::ref<ShaderResourceView> { return m_sceneColorSrv; }
+        auto getSceneColorSrv() const -> core::ref<TextureView> { return m_sceneColorSrv; }
 
     private:
         auto ensureTarget(uint32_t width, uint32_t height) -> void;
 
         core::ref<Device> m_device{};
         core::ref<Texture> m_sceneColor{};
-        core::ref<RenderTargetView> m_sceneColorRtv{};
-        core::ref<ShaderResourceView> m_sceneColorSrv{};
+        core::ref<TextureView> m_sceneColorRtv{};
+        core::ref<TextureView> m_sceneColorSrv{};
         core::ref<GraphicsPipeline> m_pipeline{};
         core::ref<ProgramVariables> m_vars{};
         uint32_t m_width{0};

@@ -463,7 +463,7 @@ namespace april::graphics
         );
     }
 
-    auto RenderPassEncoder::blit(core::ref<ShaderResourceView> const& src, core::ref<RenderTargetView> const& dst, uint4 srcRect, uint4 dstRect, TextureFilteringMode filter) -> void
+    auto RenderPassEncoder::blit(core::ref<TextureView> const& src, core::ref<TextureView> const& dst, uint4 srcRect, uint4 dstRect, TextureFilteringMode filter) -> void
     {
         m_encoder->pushDebugGroup("Blit", rhi::MarkerColor{});
 
@@ -728,7 +728,7 @@ namespace april::graphics
         return core::make_ref<RayTracingPassEncoder>(this, encoder);
     }
 
-    auto CommandContext::clearRtv(RenderTargetView const* rtv, float4 const& color) -> void
+    auto CommandContext::clearRtv(TextureView const* rtv, float4 const& color) -> void
     {
         float clearValue[4] = {color.x, color.y, color.z, color.w};
         auto encoder = m_gfxEncoder.get();
@@ -737,7 +737,7 @@ namespace april::graphics
         m_commandsPending = true;
     }
 
-    auto CommandContext::clearDsv(DepthStencilView const* dsv, float depth, uint8_t stencil, bool clearDepth, bool clearStencil) -> void
+    auto CommandContext::clearDsv(TextureView const* dsv, float depth, uint8_t stencil, bool clearDepth, bool clearStencil) -> void
     {
         m_gfxEncoder->clearTextureDepthStencil(dsv->getGfxTexture(), rhi::kEntireTexture, clearDepth, depth, clearStencil, stencil);
         m_commandsPending = true;

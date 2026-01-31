@@ -183,14 +183,19 @@ namespace april::graphics
         auto getGfxResource() const -> rhi::IResource* override;
 
         /**
-         * Get a shader-resource view for the entire resource
+         * Invalidate and release all texture views.
          */
-        auto getSRV() -> core::ref<ShaderResourceView> override;
+        auto invalidateViews() const -> void override;
 
         /**
-         * Get an unordered access view for the entire resource
+         * Get a shader-resource view for the entire resource.
          */
-        auto getUAV() -> core::ref<UnorderedAccessView> override;
+        auto getSRV() -> core::ref<TextureView> { return getSRV(0); }
+
+        /**
+         * Get an unordered access view for the entire resource.
+         */
+        auto getUAV() -> core::ref<TextureView> { return getUAV(0); }
 
         /**
          * Get a shader-resource view.
@@ -200,22 +205,22 @@ namespace april::graphics
             uint32_t mipCount = kMaxPossible,
             uint32_t firstArraySlice = 0,
             uint32_t arraySize = kMaxPossible
-        ) -> core::ref<ShaderResourceView>;
+        ) -> core::ref<TextureView>;
 
         /**
          * Get a render-target view.
          */
-        auto getRTV(uint32_t mipLevel = 0, uint32_t firstArraySlice = 0, uint32_t arraySize = kMaxPossible) -> core::ref<RenderTargetView>;
+        auto getRTV(uint32_t mipLevel = 0, uint32_t firstArraySlice = 0, uint32_t arraySize = kMaxPossible) -> core::ref<TextureView>;
 
         /**
          * Get a depth stencil view.
          */
-        auto getDSV(uint32_t mipLevel = 0, uint32_t firstArraySlice = 0, uint32_t arraySize = kMaxPossible) -> core::ref<DepthStencilView>;
+        auto getDSV(uint32_t mipLevel = 0, uint32_t firstArraySlice = 0, uint32_t arraySize = kMaxPossible) -> core::ref<TextureView>;
 
         /**
          * Get an unordered access view.
          */
-        auto getUAV(uint32_t mipLevel, uint32_t firstArraySlice = 0, uint32_t arraySize = kMaxPossible) -> core::ref<UnorderedAccessView>;
+        auto getUAV(uint32_t mipLevel, uint32_t firstArraySlice = 0, uint32_t arraySize = kMaxPossible) -> core::ref<TextureView>;
 
         /**
          * Get the data layout of a subresource.
@@ -307,6 +312,12 @@ namespace april::graphics
         uint32_t m_sampleCount{0};
         bool m_isSparse{false};
         int3 m_sparsePageRes{0};
+
+        // View caches
+        mutable std::unordered_map<ResourceViewInfo, core::ref<TextureView>, ViewInfoHashFunc> m_srvs;
+        mutable std::unordered_map<ResourceViewInfo, core::ref<TextureView>, ViewInfoHashFunc> m_rtvs;
+        mutable std::unordered_map<ResourceViewInfo, core::ref<TextureView>, ViewInfoHashFunc> m_dsvs;
+        mutable std::unordered_map<ResourceViewInfo, core::ref<TextureView>, ViewInfoHashFunc> m_uavs;
     };
 
     inline auto to_string(TextureUsage usages) -> std::string

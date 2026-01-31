@@ -31,8 +31,8 @@ namespace
 
     void blitToTexture(
         CommandContext* ctx,
-        core::ref<ShaderResourceView> const& src,
-        core::ref<RenderTargetView> const& dst,
+        core::ref<TextureView> const& src,
+        core::ref<TextureView> const& dst,
         uint4 srcRect,
         uint4 dstRect,
         TextureFilteringMode filter,

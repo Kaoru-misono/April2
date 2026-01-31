@@ -348,7 +348,7 @@ namespace april::ui
 
                     pEncoder->setScissor(0, scissor);
 
-                    auto* srvToBind = (ShaderResourceView*)pcmd->TexRef.GetTexID();
+                    auto* srvToBind = (TextureView*)pcmd->TexRef.GetTexID();
                     if (!srvToBind)
                     {
                         // Fallback to default if somehow missing, though RendererHasTextures should handle this.
@@ -356,7 +356,7 @@ namespace april::ui
                         continue;
                     }
 
-                    m_vars->getRootVariable()["fontTexture"].setSrv(core::ref<ShaderResourceView>(srvToBind));
+                    m_vars->getRootVariable()["fontTexture"].setSrv(core::ref<TextureView>(srvToBind));
 
                     pEncoder->drawIndexed(pcmd->ElemCount, pcmd->IdxOffset + globalIdxOffset, pcmd->VtxOffset + globalVtxOffset);
                 }
@@ -385,7 +385,7 @@ namespace april::ui
         // Viewport size is updated after UI is built in renderFrame().
     }
 
-    auto ImGuiLayer::endFrame(graphics::CommandContext* pCtx, core::ref<graphics::RenderTargetView> const& pTargetView) -> void
+    auto ImGuiLayer::endFrame(graphics::CommandContext* pCtx, core::ref<graphics::TextureView> const& pTargetView) -> void
     {
         renderFrame(pCtx);
 

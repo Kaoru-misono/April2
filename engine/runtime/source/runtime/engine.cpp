@@ -71,8 +71,8 @@ namespace april
                 }
 
                 auto targetTexture = m_offscreen ? m_offscreen : backBuffer;
-                auto targetRtv = backBuffer->getRTV();
-                auto targetSrv = backBuffer->getSRV();
+                auto targetRtv = targetTexture->getRTV();
+                auto targetSrv = targetTexture->getSRV();
 
                 m_context->resourceBarrier(targetTexture.get(), graphics::Resource::State::RenderTarget);
 
@@ -179,7 +179,7 @@ namespace april
         m_pendingElements.push_back(element);
     }
 
-    auto Engine::getSceneColorSrv() const -> core::ref<graphics::ShaderResourceView>
+    auto Engine::getSceneColorSrv() const -> core::ref<graphics::TextureView>
     {
         if (!m_renderer)
         {

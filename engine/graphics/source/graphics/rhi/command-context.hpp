@@ -156,8 +156,8 @@ namespace april::graphics
         * @param[in] dstRect Target rectangle to blit to, specified by [left, up, right, down].
         */
         auto blit(
-            core::ref<ShaderResourceView> const& pSrc,
-            core::ref<RenderTargetView> const& pDst,
+            core::ref<TextureView> const& pSrc,
+            core::ref<TextureView> const& pDst,
             uint4 srcRect = kMaxRect,
             uint4 dstRect = kMaxRect,
             TextureFilteringMode filter = TextureFilteringMode::Linear
@@ -354,8 +354,8 @@ namespace april::graphics
         auto wait(Fence* fence, uint64_t value = Fence::kAuto) -> void;
 
         // --- Resource Commands ---
-        auto clearRtv(RenderTargetView const* rtv, float4 const& color) -> void;
-        auto clearDsv(DepthStencilView const* dsv, float depth, uint8_t stencil, bool clearDepth = true, bool clearStencil = true) -> void;
+        auto clearRtv(TextureView const* rtv, float4 const& color) -> void;
+        auto clearDsv(TextureView const* dsv, float depth, uint8_t stencil, bool clearDepth = true, bool clearStencil = true) -> void;
         auto clearTexture(Texture* texture, float4 const& clearColor = {0, 0, 0, 1}) -> void;
         auto clearBuffer(Buffer const* buffer) -> void;
 
@@ -428,8 +428,8 @@ namespace april::graphics
         auto unbindCustomGPUDescriptorPool() -> void;
 
         // Helper for use core::ref<T>
-        auto clearRtv(core::ref<RenderTargetView> const& rtv, float4 const& color) -> void { clearRtv(rtv.get(), color); }
-        auto clearDsv(core::ref<DepthStencilView> const& dsv, float depth, uint8_t stencil, bool clearDepth = true, bool clearStencil = true) -> void { clearDsv(dsv.get(), depth, stencil, clearDepth, clearStencil); }
+        auto clearRtv(core::ref<TextureView> const& rtv, float4 const& color) -> void { clearRtv(rtv.get(), color); }
+        auto clearDsv(core::ref<TextureView> const& dsv, float depth, uint8_t stencil, bool clearDepth = true, bool clearStencil = true) -> void { clearDsv(dsv.get(), depth, stencil, clearDepth, clearStencil); }
         auto clearTexture(core::ref<Texture> const& texture, float4 const& clearColor = {0, 0, 0, 1}) -> void { clearTexture(texture.get(), clearColor); }
         auto clearBuffer(core::ref<Buffer> const& buffer) -> void { clearBuffer(buffer.get()); }
 

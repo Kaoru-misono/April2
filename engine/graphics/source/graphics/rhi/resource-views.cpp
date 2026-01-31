@@ -14,227 +14,193 @@
 
 namespace april::graphics
 {
-    ResourceView::ResourceView(
+    // =====================================================
+    // TextureView Implementation
+    // =====================================================
+
+    TextureView::TextureView(
         Device* pDevice,
-        Resource* pResource,
-        rhi::ComPtr<rhi::ITextureView> pTextureView,
-        uint32_t mostDetailedMip,
-        uint32_t mipCount,
-        uint32_t firstArraySlice,
-        uint32_t arraySize
+        Texture* pTexture,
+        Slang::ComPtr<rhi::ITextureView> gfxTextureView,
+        ResourceViewDesc const& desc
     )
-        : mp_device(pDevice)
-        , mp_resource(pResource)
-        , m_type(ResourceType::Texture)
-        , m_viewInfo(mostDetailedMip, mipCount, firstArraySlice, arraySize)
-        , m_gfxTextureView(pTextureView)
+        : ResourceView(pDevice, desc)
+        , mp_texture(pTexture)
+        , m_gfxTextureView(std::move(gfxTextureView))
     {}
 
-    ResourceView::ResourceView(Device* pDevice, Resource* pResource, rhi::ComPtr<rhi::IBuffer> pBuffer, uint64_t offset, uint64_t size)
-        : mp_device(pDevice), mp_resource(pResource), m_type(ResourceType::Buffer), m_viewInfo(offset, size), mp_gfxBuffer(pBuffer)
-    {}
-
-    auto ResourceView::getGfxBinding() const -> rhi::Binding
+    auto TextureView::create(Device* pDevice, Texture* pTexture, ResourceViewDesc const& desc) -> core::ref<TextureView>
     {
-        if (m_type == ResourceType::Buffer)
+        AP_ASSERT(pTexture != nullptr, "Texture cannot be null");
+
+        // Validate usage flags based on bind type
+        if ((desc.bindFlags & ResourceBindFlags::ShaderResource) != ResourceBindFlags::None)
         {
-            return rhi::Binding{mp_gfxBuffer.get(), rhi::BufferRange{m_viewInfo.offset, m_viewInfo.size}};
+            AP_ASSERT(enum_has_any_flags(pTexture->getUsage(), TextureUsage::ShaderResource),
+                "Texture must have ShaderResource usage for SRV");
         }
-        else if (m_type == ResourceType::Texture)
+        if ((desc.bindFlags & ResourceBindFlags::UnorderedAccess) != ResourceBindFlags::None)
         {
-            return rhi::Binding{m_gfxTextureView.get()};
+            AP_ASSERT(enum_has_any_flags(pTexture->getUsage(), TextureUsage::UnorderedAccess),
+                "Texture must have UnorderedAccess usage for UAV");
+        }
+        if ((desc.bindFlags & ResourceBindFlags::RenderTarget) != ResourceBindFlags::None)
+        {
+            AP_ASSERT(enum_has_any_flags(pTexture->getUsage(), TextureUsage::RenderTarget),
+                "Texture must have RenderTarget usage for RTV");
+        }
+        if ((desc.bindFlags & ResourceBindFlags::DepthStencil) != ResourceBindFlags::None)
+        {
+            AP_ASSERT(enum_has_any_flags(pTexture->getUsage(), TextureUsage::DepthStencil),
+                "Texture must have DepthStencil usage for DSV");
         }
 
-        AP_UNREACHABLE();
+        // Build the RHI texture view descriptor
+        rhi::TextureViewDesc gfxDesc = {};
+
+        // Determine format
+        if (desc.format != ResourceFormat::Unknown)
+        {
+            gfxDesc.format = getGFXFormat(desc.format);
+        }
+        else if ((desc.bindFlags & ResourceBindFlags::ShaderResource) != ResourceBindFlags::None)
+        {
+            // For SRV, convert depth to color format if needed
+            gfxDesc.format = getGFXFormat(depthToColorFormat(pTexture->getFormat()));
+        }
+        else
+        {
+            gfxDesc.format = getGFXFormat(pTexture->getFormat());
+        }
+
+        gfxDesc.aspect = rhi::TextureAspect::All;
+
+        // Set subresource range
+        uint32_t mipCount = desc.texture.mipCount;
+        uint32_t arraySize = desc.texture.arraySize;
+        uint32_t mostDetailedMip = desc.texture.mostDetailedMip;
+        uint32_t firstArraySlice = desc.texture.firstArraySlice;
+
+        // Clamp values to texture bounds
+        uint32_t resMipCount = pTexture->getMipCount();
+        uint32_t resArraySize = pTexture->getArraySize();
+
+        if (mostDetailedMip >= resMipCount) mostDetailedMip = resMipCount - 1;
+        if (firstArraySlice >= resArraySize) firstArraySlice = resArraySize - 1;
+
+        if (mipCount == uint32_t(-1)) mipCount = resMipCount - mostDetailedMip;
+        else if (mipCount + mostDetailedMip > resMipCount) mipCount = resMipCount - mostDetailedMip;
+
+        if (arraySize == uint32_t(-1)) arraySize = resArraySize - firstArraySlice;
+        else if (arraySize + firstArraySlice > resArraySize) arraySize = resArraySize - firstArraySlice;
+
+        gfxDesc.subresourceRange.mip = mostDetailedMip;
+        gfxDesc.subresourceRange.mipCount = mipCount;
+        gfxDesc.subresourceRange.layer = firstArraySlice;
+        gfxDesc.subresourceRange.layerCount = arraySize;
+
+        // Build debug label
+        std::string debugName = pTexture->getName();
+        if ((desc.bindFlags & ResourceBindFlags::ShaderResource) != ResourceBindFlags::None)
+            debugName += "_SRV";
+        else if ((desc.bindFlags & ResourceBindFlags::UnorderedAccess) != ResourceBindFlags::None)
+            debugName += "_UAV";
+        else if ((desc.bindFlags & ResourceBindFlags::RenderTarget) != ResourceBindFlags::None)
+            debugName += "_RTV";
+        else if ((desc.bindFlags & ResourceBindFlags::DepthStencil) != ResourceBindFlags::None)
+            debugName += "_DSV";
+        gfxDesc.label = debugName.c_str();
+
+        // Create the view
+        rhi::ComPtr<rhi::ITextureView> gfxView;
+        checkResult(
+            pTexture->getGfxTextureResource()->createView(gfxDesc, gfxView.writeRef()),
+            "Failed to create texture view"
+        );
+
+        // Create updated desc with clamped values
+        ResourceViewDesc finalDesc = desc;
+        finalDesc.texture.mostDetailedMip = mostDetailedMip;
+        finalDesc.texture.mipCount = mipCount;
+        finalDesc.texture.firstArraySlice = firstArraySlice;
+        finalDesc.texture.arraySize = arraySize;
+
+        return core::ref<TextureView>(new TextureView(pDevice, pTexture, std::move(gfxView), finalDesc));
     }
 
-    auto ResourceView::getGfxTexture() const -> rhi::ITexture* { AP_ASSERT(m_gfxTextureView); return m_gfxTextureView->getTexture(); }
-    auto ResourceView::getGfxBuffer() const -> rhi::IBuffer* { AP_ASSERT(mp_gfxBuffer); return mp_gfxBuffer.get(); }
-    auto ResourceView::getGfxTextureView() const -> rhi::ITextureView* { return m_gfxTextureView.get(); }
-
-    auto ResourceView::invalidate() -> void
+    auto TextureView::getResource() const -> Resource*
     {
-        if (mp_device)
-        {
-            m_gfxTextureView = nullptr;
-            mp_gfxBuffer = nullptr;
-            mp_device = nullptr;
-        }
+        return mp_texture;
     }
 
-    // ShaderResourceView
+    // =====================================================
+    // BufferView Implementation
+    // =====================================================
 
-    ShaderResourceView::ShaderResourceView(
+    BufferView::BufferView(
         Device* pDevice,
-        Resource* pResource,
-        Slang::ComPtr<rhi::ITextureView> gfxResourceView,
-        uint32_t mostDetailedMip,
-        uint32_t mipCount,
-        uint32_t firstArraySlice,
-        uint32_t arraySize
-    )
-        : ResourceView(pDevice, pResource, gfxResourceView, mostDetailedMip, mipCount, firstArraySlice, arraySize)
-    {}
-
-    ShaderResourceView::ShaderResourceView(
-        Device* pDevice,
-        Resource* pResource,
+        Buffer* pBuffer,
         Slang::ComPtr<rhi::IBuffer> gfxBuffer,
-        uint64_t offset,
-        uint64_t size
+        ResourceViewDesc const& desc
     )
-        : ResourceView(pDevice, pResource, gfxBuffer, offset, size)
+        : ResourceView(pDevice, desc)
+        , mp_buffer(pBuffer)
+        , m_gfxBuffer(std::move(gfxBuffer))
     {}
 
-    auto ShaderResourceView::create(
-        Device* pDevice,
-        Texture* pTexture,
-        uint32_t mostDetailedMip,
-        uint32_t mipCount,
-        uint32_t firstArraySlice,
-        uint32_t arraySize
-    ) -> core::ref<ShaderResourceView>
+    auto BufferView::create(Device* pDevice, Buffer* pBuffer, ResourceViewDesc const& desc) -> core::ref<BufferView>
     {
-        AP_ASSERT(enum_has_any_flags(pTexture->getUsage(), TextureUsage::ShaderResource));
-        rhi::ComPtr<rhi::ITextureView> handle{};
-        rhi::TextureViewDesc desc = {};
-        desc.format = getGFXFormat(depthToColorFormat(pTexture->getFormat()));
-        desc.aspect = rhi::TextureAspect::All;
-        desc.subresourceRange.layer = firstArraySlice;
-        desc.subresourceRange.layerCount = arraySize;
-        desc.subresourceRange.mip = mostDetailedMip;
-        desc.subresourceRange.mipCount = mipCount;
-        auto debugName = pTexture->getName() + "SRV";
-        desc.label = debugName.c_str();
-        checkResult(pTexture->getGfxTextureResource()->createView(desc, handle.writeRef()), "Failed to create texture SRV");
-        return core::ref<ShaderResourceView>(new ShaderResourceView(pDevice, pTexture, handle, mostDetailedMip, mipCount, firstArraySlice, arraySize));
+        AP_ASSERT(pBuffer != nullptr, "Buffer cannot be null");
+
+        // For buffer views, we use the buffer's underlying RHI buffer directly
+        // The view is represented by offset/size in the descriptor
+        rhi::ComPtr<rhi::IBuffer> gfxBuffer{pBuffer->getGfxBufferResource()};
+
+        // Calculate actual offset and size
+        uint64_t offset = desc.buffer.offset;
+        uint64_t size = desc.buffer.size;
+
+        if (size == uint64_t(-1))
+        {
+            size = pBuffer->getSize() - offset;
+        }
+
+        AP_ASSERT(offset + size <= pBuffer->getSize(), "Buffer view range exceeds buffer size");
+
+        // Create updated desc with resolved values
+        ResourceViewDesc finalDesc = desc;
+        finalDesc.dimension = ResourceViewDimension::Buffer;
+        finalDesc.buffer.offset = offset;
+        finalDesc.buffer.size = size;
+
+        return core::ref<BufferView>(new BufferView(pDevice, pBuffer, std::move(gfxBuffer), finalDesc));
     }
 
-    auto ShaderResourceView::create(Device* pDevice, Buffer* pBuffer, uint64_t offset, uint64_t size) -> core::ref<ShaderResourceView>
+    auto BufferView::getResource() const -> Resource*
     {
-        return core::ref<ShaderResourceView>(new ShaderResourceView(pDevice, pBuffer, rhi::ComPtr<rhi::IBuffer>{pBuffer->getGfxBufferResource()}, offset, size));
+        return mp_buffer;
     }
 
-    // DepthStencilView
-
-    DepthStencilView::DepthStencilView(
-        Device* pDevice,
-        Resource* pResource,
-        Slang::ComPtr<rhi::ITextureView> gfxResourceView,
-        uint32_t mipLevel,
-        uint32_t firstArraySlice,
-        uint32_t arraySize
-    )
-        : ResourceView(pDevice, pResource, gfxResourceView, mipLevel, 1, firstArraySlice, arraySize)
-    {}
-
-    auto DepthStencilView::create(
-        Device* pDevice,
-        Texture* pTexture,
-        uint32_t mipLevel,
-        uint32_t firstArraySlice,
-        uint32_t arraySize
-    ) -> core::ref<DepthStencilView>
+    auto BufferView::getGfxBinding() const -> rhi::Binding
     {
-        AP_ASSERT(enum_has_any_flags(pTexture->getUsage(), TextureUsage::DepthStencil));
-        rhi::ComPtr<rhi::ITextureView> handle{};
-        rhi::TextureViewDesc desc = {};
-        desc.format = getGFXFormat(pTexture->getFormat());
-        desc.aspect = rhi::TextureAspect::All;
-        desc.subresourceRange.layer = firstArraySlice;
-        desc.subresourceRange.layerCount = arraySize;
-        desc.subresourceRange.mip = mipLevel;
-        desc.subresourceRange.mipCount = 1;
-        auto debugName = pTexture->getName() + "DSV";
-        desc.label = debugName.c_str();
-        checkResult(pTexture->getGfxTextureResource()->createView(desc, handle.writeRef()), "Failed to create texture DSV");
-        return core::ref<DepthStencilView>(new DepthStencilView(pDevice, pTexture, handle, mipLevel, firstArraySlice, arraySize));
+        return rhi::Binding{m_gfxBuffer.get(), rhi::BufferRange{m_desc.buffer.offset, m_desc.buffer.size}};
     }
 
-    // UnorderedAccessView
+    // =====================================================
+    // Helper Functions for RHI Binding
+    // =====================================================
 
-    UnorderedAccessView::UnorderedAccessView(
-        Device* pDevice,
-        Resource* pResource,
-        Slang::ComPtr<rhi::ITextureView> gfxResourceView,
-        uint32_t mipLevel,
-        uint32_t firstArraySlice,
-        uint32_t arraySize
-    )
-        : ResourceView(pDevice, pResource, gfxResourceView, mipLevel, 1, firstArraySlice, arraySize)
-    {}
-
-    UnorderedAccessView::UnorderedAccessView(
-        Device* pDevice,
-        Resource* pResource,
-        Slang::ComPtr<rhi::IBuffer> gfxBuffer,
-        uint64_t offset,
-        uint64_t size
-    )
-        : ResourceView(pDevice, pResource, gfxBuffer, offset, size)
-    {}
-
-    auto UnorderedAccessView::create(
-        Device* pDevice,
-        Texture* pTexture,
-        uint32_t mipLevel,
-        uint32_t firstArraySlice,
-        uint32_t arraySize
-    ) -> core::ref<UnorderedAccessView>
+    auto getGfxBindingFromTextureView(TextureView const* view) -> rhi::Binding
     {
-        AP_ASSERT(enum_has_any_flags(pTexture->getUsage(), TextureUsage::UnorderedAccess));
-        rhi::ComPtr<rhi::ITextureView> handle{};
-        rhi::TextureViewDesc desc = {};
-        desc.format = getGFXFormat(pTexture->getFormat());
-        desc.aspect = rhi::TextureAspect::All;
-        desc.subresourceRange.layer = firstArraySlice;
-        desc.subresourceRange.layerCount = arraySize;
-        desc.subresourceRange.mip = mipLevel;
-        desc.subresourceRange.mipCount = 1;
-        auto debugName = pTexture->getName() + "UAV";
-        desc.label = debugName.c_str();
-        checkResult(pTexture->getGfxTextureResource()->createView(desc, handle.writeRef()), "Failed to create texture UAV");
-        return core::ref<UnorderedAccessView>(new UnorderedAccessView(pDevice, pTexture, handle, mipLevel, firstArraySlice, arraySize));
+        if (!view) return rhi::Binding{};
+        return rhi::Binding{view->getGfxTextureView()};
     }
 
-    auto UnorderedAccessView::create(Device* pDevice, Buffer* pBuffer, uint64_t offset, uint64_t size) -> core::ref<UnorderedAccessView>
+    auto getGfxBindingFromBufferView(BufferView const* view) -> rhi::Binding
     {
-        return core::ref<UnorderedAccessView>(new UnorderedAccessView(pDevice, pBuffer, rhi::ComPtr<rhi::IBuffer>{pBuffer->getGfxBufferResource()}, offset, size));
+        if (!view) return rhi::Binding{};
+        auto const& desc = view->getDesc();
+        return rhi::Binding{view->getGfxBuffer(), rhi::BufferRange{desc.buffer.offset, desc.buffer.size}};
     }
 
-    // RenderTargetView
-
-    RenderTargetView::RenderTargetView(
-        Device* pDevice,
-        Resource* pResource,
-        Slang::ComPtr<rhi::ITextureView> gfxResourceView,
-        uint32_t mipLevel,
-        uint32_t firstArraySlice,
-        uint32_t arraySize
-    )
-        : ResourceView(pDevice, pResource, gfxResourceView, mipLevel, 1, firstArraySlice, arraySize)
-    {}
-
-    auto RenderTargetView::create(
-        Device* pDevice,
-        Texture* pTexture,
-        uint32_t mipLevel,
-        uint32_t firstArraySlice,
-        uint32_t arraySize
-    ) -> core::ref<RenderTargetView>
-    {
-        AP_ASSERT(enum_has_any_flags(pTexture->getUsage(), TextureUsage::RenderTarget));
-        rhi::ComPtr<rhi::ITextureView> handle{};
-        rhi::TextureViewDesc desc = {};
-        desc.format = getGFXFormat(pTexture->getFormat());
-        desc.aspect = rhi::TextureAspect::All;
-        desc.subresourceRange.layer = firstArraySlice;
-        desc.subresourceRange.layerCount = arraySize;
-        desc.subresourceRange.mip = mipLevel;
-        desc.subresourceRange.mipCount = 1;
-        auto debugName = pTexture->getName() + "RTV";
-        desc.label = debugName.c_str();
-        checkResult(pTexture->getGfxTextureResource()->createView(desc, handle.writeRef()), "Failed to create texture RTV");
-        return core::ref<RenderTargetView>(new RenderTargetView(pDevice, pTexture, handle, mipLevel, firstArraySlice, arraySize));
-    }
 } // namespace april::graphics

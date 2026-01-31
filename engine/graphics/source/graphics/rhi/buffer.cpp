@@ -164,34 +164,78 @@ namespace april::graphics
         return m_gfxBuffer;
     }
 
-    auto Buffer::getSRV(uint64_t offset, uint64_t size) -> core::ref<ShaderResourceView>
+    auto Buffer::invalidateViews() const -> void
     {
-        ResourceViewInfo view = ResourceViewInfo(offset, size);
-
-        if (m_srvs.find(view) == m_srvs.end())
-            m_srvs[view] = ShaderResourceView::create(getDevice().get(), this, offset, size);
-
-        return m_srvs[view];
+        m_srvs.clear();
+        m_uavs.clear();
     }
 
-    auto Buffer::getSRV() -> core::ref<ShaderResourceView>
+    auto Buffer::getSRV(uint64_t offset, uint64_t size) -> core::ref<BufferView>
     {
-        return getSRV(0);
+        ResourceViewInfo viewInfo = ResourceViewInfo(offset, size);
+
+        if (m_srvs.find(viewInfo) == m_srvs.end())
+        {
+            ResourceViewDesc desc;
+            desc.bindFlags = ResourceBindFlags::ShaderResource;
+            desc.dimension = ResourceViewDimension::Buffer;
+            desc.buffer.offset = offset;
+            desc.buffer.size = size;
+
+            // Set buffer mode based on buffer type
+            if (isStructured())
+            {
+                desc.buffer.mode = BufferCreationMode::Structured;
+                desc.buffer.elementStride = m_structSize;
+            }
+            else if (isTyped())
+            {
+                desc.buffer.mode = BufferCreationMode::Typed;
+                desc.format = m_format;
+            }
+            else
+            {
+                desc.buffer.mode = BufferCreationMode::Raw;
+            }
+
+            m_srvs[viewInfo] = BufferView::create(getDevice().get(), this, desc);
+        }
+
+        return m_srvs[viewInfo];
     }
 
-    auto Buffer::getUAV(uint64_t offset, uint64_t size) -> core::ref<UnorderedAccessView>
+    auto Buffer::getUAV(uint64_t offset, uint64_t size) -> core::ref<BufferView>
     {
-        ResourceViewInfo view = ResourceViewInfo(offset, size);
+        ResourceViewInfo viewInfo = ResourceViewInfo(offset, size);
 
-        if (m_uavs.find(view) == m_uavs.end())
-            m_uavs[view] = UnorderedAccessView::create(getDevice().get(), this, offset, size);
+        if (m_uavs.find(viewInfo) == m_uavs.end())
+        {
+            ResourceViewDesc desc;
+            desc.bindFlags = ResourceBindFlags::UnorderedAccess;
+            desc.dimension = ResourceViewDimension::Buffer;
+            desc.buffer.offset = offset;
+            desc.buffer.size = size;
 
-        return m_uavs[view];
-    }
+            // Set buffer mode based on buffer type
+            if (isStructured())
+            {
+                desc.buffer.mode = BufferCreationMode::Structured;
+                desc.buffer.elementStride = m_structSize;
+            }
+            else if (isTyped())
+            {
+                desc.buffer.mode = BufferCreationMode::Typed;
+                desc.format = m_format;
+            }
+            else
+            {
+                desc.buffer.mode = BufferCreationMode::Raw;
+            }
 
-    auto Buffer::getUAV() -> core::ref<UnorderedAccessView>
-    {
-        return getUAV(0);
+            m_uavs[viewInfo] = BufferView::create(getDevice().get(), this, desc);
+        }
+
+        return m_uavs[viewInfo];
     }
 
     auto Buffer::setBlob(void const* pData, size_t offset, size_t size) -> void

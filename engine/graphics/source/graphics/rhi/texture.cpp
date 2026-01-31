@@ -221,17 +221,15 @@ namespace april::graphics
         return m_gfxTexture.get();
     }
 
-    auto Texture::getSRV() -> core::ref<ShaderResourceView>
+    auto Texture::invalidateViews() const -> void
     {
-        return getSRV(0);
+        m_srvs.clear();
+        m_rtvs.clear();
+        m_dsvs.clear();
+        m_uavs.clear();
     }
 
-    auto Texture::getUAV() -> core::ref<UnorderedAccessView>
-    {
-        return getUAV(0);
-    }
-
-    auto Texture::getSRV(uint32_t mostDetailedMip, uint32_t mipCount, uint32_t firstArraySlice, uint32_t arraySize) -> core::ref<ShaderResourceView>
+    auto Texture::getSRV(uint32_t mostDetailedMip, uint32_t mipCount, uint32_t firstArraySlice, uint32_t arraySize) -> core::ref<TextureView>
     {
         uint32_t resMipCount = getMipCount();
         uint32_t resArraySize = getArraySize();
@@ -245,17 +243,23 @@ namespace april::graphics
         if (arraySize == kMaxPossible) arraySize = resArraySize - firstArraySlice;
         else if (arraySize + firstArraySlice > resArraySize) arraySize = resArraySize - firstArraySlice;
 
-        ResourceViewInfo view = ResourceViewInfo(mostDetailedMip, mipCount, firstArraySlice, arraySize);
+        ResourceViewInfo viewInfo = ResourceViewInfo(mostDetailedMip, mipCount, firstArraySlice, arraySize);
 
-        if (m_srvs.find(view) == m_srvs.end())
+        if (m_srvs.find(viewInfo) == m_srvs.end())
         {
-            m_srvs[view] = ShaderResourceView::create(mp_device.get(), this, mostDetailedMip, mipCount, firstArraySlice, arraySize);
+            ResourceViewDesc desc;
+            desc.bindFlags = ResourceBindFlags::ShaderResource;
+            desc.texture.mostDetailedMip = mostDetailedMip;
+            desc.texture.mipCount = mipCount;
+            desc.texture.firstArraySlice = firstArraySlice;
+            desc.texture.arraySize = arraySize;
+            m_srvs[viewInfo] = TextureView::create(mp_device.get(), this, desc);
         }
 
-        return m_srvs[view];
+        return m_srvs[viewInfo];
     }
 
-    auto Texture::getRTV(uint32_t mipLevel, uint32_t firstArraySlice, uint32_t arraySize) -> core::ref<RenderTargetView>
+    auto Texture::getRTV(uint32_t mipLevel, uint32_t firstArraySlice, uint32_t arraySize) -> core::ref<TextureView>
     {
         uint32_t resMipCount = getMipCount();
         uint32_t resArraySize = getArraySize();
@@ -266,17 +270,23 @@ namespace april::graphics
         if (arraySize == kMaxPossible) arraySize = resArraySize - firstArraySlice;
         else if (arraySize + firstArraySlice > resArraySize) arraySize = resArraySize - firstArraySlice;
 
-        ResourceViewInfo view = ResourceViewInfo(mipLevel, 1, firstArraySlice, arraySize);
+        ResourceViewInfo viewInfo = ResourceViewInfo(mipLevel, 1, firstArraySlice, arraySize);
 
-        if (m_rtvs.find(view) == m_rtvs.end())
+        if (m_rtvs.find(viewInfo) == m_rtvs.end())
         {
-            m_rtvs[view] = RenderTargetView::create(mp_device.get(), this, mipLevel, firstArraySlice, arraySize);
+            ResourceViewDesc desc;
+            desc.bindFlags = ResourceBindFlags::RenderTarget;
+            desc.texture.mostDetailedMip = mipLevel;
+            desc.texture.mipCount = 1;
+            desc.texture.firstArraySlice = firstArraySlice;
+            desc.texture.arraySize = arraySize;
+            m_rtvs[viewInfo] = TextureView::create(mp_device.get(), this, desc);
         }
 
-        return m_rtvs[view];
+        return m_rtvs[viewInfo];
     }
 
-    auto Texture::getDSV(uint32_t mipLevel, uint32_t firstArraySlice, uint32_t arraySize) -> core::ref<DepthStencilView>
+    auto Texture::getDSV(uint32_t mipLevel, uint32_t firstArraySlice, uint32_t arraySize) -> core::ref<TextureView>
     {
         uint32_t resMipCount = getMipCount();
         uint32_t resArraySize = getArraySize();
@@ -287,17 +297,23 @@ namespace april::graphics
         if (arraySize == kMaxPossible) arraySize = resArraySize - firstArraySlice;
         else if (arraySize + firstArraySlice > resArraySize) arraySize = resArraySize - firstArraySlice;
 
-        ResourceViewInfo view = ResourceViewInfo(mipLevel, 1, firstArraySlice, arraySize);
+        ResourceViewInfo viewInfo = ResourceViewInfo(mipLevel, 1, firstArraySlice, arraySize);
 
-        if (m_dsvs.find(view) == m_dsvs.end())
+        if (m_dsvs.find(viewInfo) == m_dsvs.end())
         {
-            m_dsvs[view] = DepthStencilView::create(mp_device.get(), this, mipLevel, firstArraySlice, arraySize);
+            ResourceViewDesc desc;
+            desc.bindFlags = ResourceBindFlags::DepthStencil;
+            desc.texture.mostDetailedMip = mipLevel;
+            desc.texture.mipCount = 1;
+            desc.texture.firstArraySlice = firstArraySlice;
+            desc.texture.arraySize = arraySize;
+            m_dsvs[viewInfo] = TextureView::create(mp_device.get(), this, desc);
         }
 
-        return m_dsvs[view];
+        return m_dsvs[viewInfo];
     }
 
-    auto Texture::getUAV(uint32_t mipLevel, uint32_t firstArraySlice, uint32_t arraySize) -> core::ref<UnorderedAccessView>
+    auto Texture::getUAV(uint32_t mipLevel, uint32_t firstArraySlice, uint32_t arraySize) -> core::ref<TextureView>
     {
         uint32_t resMipCount = getMipCount();
         uint32_t resArraySize = getArraySize();
@@ -308,14 +324,20 @@ namespace april::graphics
         if (arraySize == kMaxPossible) arraySize = resArraySize - firstArraySlice;
         else if (arraySize + firstArraySlice > resArraySize) arraySize = resArraySize - firstArraySlice;
 
-        ResourceViewInfo view = ResourceViewInfo(mipLevel, 1, firstArraySlice, arraySize);
+        ResourceViewInfo viewInfo = ResourceViewInfo(mipLevel, 1, firstArraySlice, arraySize);
 
-        if (m_uavs.find(view) == m_uavs.end())
+        if (m_uavs.find(viewInfo) == m_uavs.end())
         {
-            m_uavs[view] = UnorderedAccessView::create(mp_device.get(), this, mipLevel, firstArraySlice, arraySize);
+            ResourceViewDesc desc;
+            desc.bindFlags = ResourceBindFlags::UnorderedAccess;
+            desc.texture.mostDetailedMip = mipLevel;
+            desc.texture.mipCount = 1;
+            desc.texture.firstArraySlice = firstArraySlice;
+            desc.texture.arraySize = arraySize;
+            m_uavs[viewInfo] = TextureView::create(mp_device.get(), this, desc);
         }
 
-        return m_uavs[view];
+        return m_uavs[viewInfo];
     }
 
     auto Texture::getSubresourceLayout(uint32_t subresource) const -> SubresourceLayout

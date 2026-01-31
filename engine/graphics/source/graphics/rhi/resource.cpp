@@ -66,23 +66,6 @@ namespace april::graphics
         return mp_device;
     }
 
-    auto Resource::invalidateViews() const -> void
-    {
-        auto invalidateAll = [](auto& map)
-        {
-            for (auto const& item : map)
-            {
-                item.second->invalidate();
-            }
-            map.clear();
-        };
-
-        invalidateAll(m_srvs);
-        invalidateAll(m_uavs);
-        invalidateAll(m_rtvs);
-        invalidateAll(m_dsvs);
-    }
-
     auto Resource::setName(std::string const& name) -> void
     {
         m_name = name;

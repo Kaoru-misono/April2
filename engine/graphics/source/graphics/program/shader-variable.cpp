@@ -189,22 +189,22 @@ namespace april::graphics
         return m_parameterBlock->getTexture(m_offset);
     }
 
-    auto ShaderVariable::setSrv(core::ref<ShaderResourceView> pSrv) const -> void
+    auto ShaderVariable::setSrv(core::ref<ResourceView> pSrv) const -> void
     {
         m_parameterBlock->setSrv(m_offset, pSrv);
     }
 
-    auto ShaderVariable::getSrv() const -> core::ref<ShaderResourceView>
+    auto ShaderVariable::getSrv() const -> core::ref<ResourceView>
     {
         return m_parameterBlock->getSrv(m_offset);
     }
 
-    auto ShaderVariable::setUav(core::ref<UnorderedAccessView> pUav) const -> void
+    auto ShaderVariable::setUav(core::ref<ResourceView> pUav) const -> void
     {
         m_parameterBlock->setUav(m_offset, pUav);
     }
 
-    auto ShaderVariable::getUav() const -> core::ref<UnorderedAccessView>
+    auto ShaderVariable::getUav() const -> core::ref<ResourceView>
     {
         return m_parameterBlock->getUav(m_offset);
     }

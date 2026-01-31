@@ -5,6 +5,8 @@
 #include <core/math/type.hpp>
 #include <graphics/rhi/command-context.hpp>
 #include <graphics/rhi/render-device.hpp>
+#include <graphics/rhi/render-target.hpp>
+#include <graphics/rhi/resource-views.hpp>
 #include <graphics/rhi/swapchain.hpp>
 #include <graphics/rhi/texture.hpp>
 #include <graphics/renderer/scene-renderer.hpp>
@@ -33,7 +35,7 @@ namespace april
         std::function<void()> onInit{};
         std::function<void()> onShutdown{};
         std::function<void(float)> onUpdate{};
-        std::function<void(graphics::CommandContext*, graphics::RenderTargetView*)> onRender{};
+        std::function<void(graphics::CommandContext*, graphics::TextureView*)> onRender{};
         std::function<void()> onUI{};
     };
 
@@ -55,7 +57,7 @@ namespace april
         auto getDevice() const -> core::ref<graphics::Device> { return m_device; }
         auto getSwapchain() const -> core::ref<graphics::Swapchain> { return m_swapchain; }
         auto getImGuiLayer() const -> ui::ImGuiLayer* { return m_imguiLayer.get(); }
-        auto getSceneColorSrv() const -> core::ref<graphics::ShaderResourceView>;
+        auto getSceneColorSrv() const -> core::ref<graphics::TextureView>;
         auto setSceneViewportSize(uint32_t width, uint32_t height) -> void;
         auto isRunning() const -> bool { return m_running; }
 
