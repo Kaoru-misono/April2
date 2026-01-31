@@ -90,7 +90,7 @@ public:
         GraphicsPipelineDesc pipelineDesc;
         pipelineDesc.programKernels = program->getActiveVersion()->getKernels(device.get(), nullptr);
         pipelineDesc.renderTargetCount = 1;
-        pipelineDesc.renderTargetFormats[0] = rhi::Format::RGBA8Unorm;
+        pipelineDesc.renderTargetFormats[0] = ResourceFormat::RGBA8Unorm;
         pipelineDesc.primitiveType = GraphicsPipelineDesc::PrimitiveType::TriangleList;
         RasterizerState::Desc rsDesc;
         rsDesc.setCullMode(RasterizerState::CullMode::None);

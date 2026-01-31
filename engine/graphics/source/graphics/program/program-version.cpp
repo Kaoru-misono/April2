@@ -188,7 +188,7 @@ namespace april::graphics
         {
             std::string log;
             // Need ProgramManager::createProgramKernels
-            auto pKernels = pDevice->getProgramManager()->createProgramKernels(*m_program, *this, *pVars, log);
+            auto pKernels = pDevice->getProgramManager()->createProgramKernels(*m_program, *this, pVars, log);
             if (pKernels)
             {
                 // Success

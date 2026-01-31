@@ -5,6 +5,7 @@
 #include "command-context.hpp"
 #include "render-device.hpp"
 #include "graphics-pipeline.hpp"
+#include "program/program.hpp"
 
 #include "compute-pipeline.hpp"
 #include "ray-tracing-pipeline.hpp"
@@ -21,6 +22,7 @@
 #include <core/tools/alignment.hpp>
 #include <core/tools/enum-flags.hpp>
 #include <core/math/math.hpp>
+#include <slang-rhi/shader-cursor.h>
 #include <slang-rhi.h>
 #include <ranges>
 
@@ -315,8 +317,8 @@ namespace april::graphics
     }
 
     auto RenderPassEncoder::applyState(
-        std::vector<Viewport> const& viewports,
-        std::vector<Scissor> const& scissors,
+        std::span<Viewport> viewports,
+        std::span<Scissor> scissors,
         core::ref<VertexArrayObject> const& vao
     ) -> void
     {
@@ -464,6 +466,126 @@ namespace april::graphics
     auto RenderPassEncoder::blit(core::ref<ShaderResourceView> const& src, core::ref<RenderTargetView> const& dst, uint4 srcRect, uint4 dstRect, TextureFilteringMode filter) -> void
     {
         m_encoder->pushDebugGroup("Blit", rhi::MarkerColor{});
+
+        if (!src || !dst)
+        {
+            m_encoder->popDebugGroup();
+            return;
+        }
+
+        auto device = mp_context->getDevice();
+        auto srcResource = core::ref<Resource>(src->getResource());
+        auto dstResource = core::ref<Resource>(dst->getResource());
+
+        auto srcTexture = srcResource ? srcResource->asTexture() : nullptr;
+        auto dstTexture = dstResource ? dstResource->asTexture() : nullptr;
+
+        if (!srcTexture || !dstTexture)
+        {
+            m_encoder->popDebugGroup();
+            return;
+        }
+
+        auto const& srcViewInfo = src->getViewInfo();
+        auto const& dstViewInfo = dst->getViewInfo();
+
+        auto srcMip = srcViewInfo.mostDetailedMip;
+        auto dstMip = dstViewInfo.mostDetailedMip;
+
+        uint32_t srcWidth = srcTexture->getWidth(srcMip);
+        uint32_t srcHeight = srcTexture->getHeight(srcMip);
+        uint32_t dstWidth = dstTexture->getWidth(dstMip);
+        uint32_t dstHeight = dstTexture->getHeight(dstMip);
+
+        auto normalizeRect = [](uint4 rect, uint32_t width, uint32_t height) -> uint4 {
+            if (rect.x == 0 && rect.y == 0 && rect.z == kUintMax && rect.w == kUintMax)
+            {
+                return uint4(0, 0, width, height);
+            }
+
+            rect.x = std::min(rect.x, width);
+            rect.y = std::min(rect.y, height);
+            rect.z = std::min(rect.z, width);
+            rect.w = std::min(rect.w, height);
+
+            rect.x = std::min(rect.x, rect.z);
+            rect.y = std::min(rect.y, rect.w);
+
+            return rect;
+        };
+
+        srcRect = normalizeRect(srcRect, srcWidth, srcHeight);
+        dstRect = normalizeRect(dstRect, dstWidth, dstHeight);
+
+        uint32_t srcRectWidth = srcRect.z - srcRect.x;
+        uint32_t srcRectHeight = srcRect.w - srcRect.y;
+        uint32_t dstRectWidth = dstRect.z - dstRect.x;
+        uint32_t dstRectHeight = dstRect.w - dstRect.y;
+
+        if (srcRectWidth == 0 || srcRectHeight == 0 || dstRectWidth == 0 || dstRectHeight == 0)
+        {
+            m_encoder->popDebugGroup();
+            return;
+        }
+
+        auto pipeline = device->getBlitPipeline(dstTexture->getFormat(), dstTexture->getSampleCount());
+        auto sampler = device->getBlitSampler(filter);
+
+        mp_lastBoundPipeline = pipeline.get();
+        mp_lastBoundGraphicsVars = nullptr;
+
+        rhi::IShaderObject* rootObject = m_encoder->bindPipeline(pipeline->getGfxPipeline());
+        rhi::ShaderCursor cursor(rootObject);
+        auto applyBindings = [&](rhi::ShaderCursor& targetCursor)
+        {
+            if (!targetCursor.isValid()) return;
+
+            auto texCursor = targetCursor["sourceTexture"];
+            if (texCursor.isValid())
+            {
+                texCursor.setBinding(src->getGfxBinding());
+            }
+            auto samplerCursor = targetCursor["sourceSampler"];
+            if (samplerCursor.isValid())
+            {
+                samplerCursor.setBinding(rhi::Binding(sampler->getGfxSamplerState()));
+            }
+
+            float2 srcSize = float2((float)srcWidth, (float)srcHeight);
+            float2 srcOffset = float2((float)srcRect.x, (float)srcRect.y) / srcSize;
+            float2 srcScale = float2((float)srcRectWidth, (float)srcRectHeight) / srcSize;
+
+            auto uvCursor = targetCursor["uvTransform"];
+            if (uvCursor.isValid())
+            {
+                uvCursor.setData(float4(srcOffset, srcScale));
+            }
+        };
+
+        applyBindings(cursor);
+
+        Viewport vp{};
+        vp.x = (float)dstRect.x;
+        vp.y = (float)dstRect.y;
+        vp.width = (float)dstRectWidth;
+        vp.height = (float)dstRectHeight;
+        vp.minDepth = 0.0f;
+        vp.maxDepth = 1.0f;
+
+        Scissor sc{};
+        sc.offsetX = dstRect.x;
+        sc.offsetY = dstRect.y;
+        sc.extentX = dstRectWidth;
+        sc.extentY = dstRectHeight;
+
+        setViewport(0, vp);
+        setScissor(0, sc);
+        applyState({&vp, 1}, {&sc, 1});
+
+        draw(3, 0);
+
+        m_renderStateDirty = true;
+
         m_encoder->popDebugGroup();
     }
 

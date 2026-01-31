@@ -200,7 +200,7 @@ namespace april::graphics
     auto ProgramManager::createProgramKernels(
         Program const& program,
         ProgramVersion const& programVersion,
-        ProgramVariables const& programVars,
+        ProgramVariables const* programVars,
         std::string& log
     ) const -> core::ref<ProgramKernels const>
     {

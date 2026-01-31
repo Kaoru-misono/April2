@@ -130,7 +130,7 @@ namespace april::ui
         pipeDesc.depthStencilState = DepthStencilState::create(dsDesc);
 
         pipeDesc.renderTargetCount = 1;
-        pipeDesc.renderTargetFormats[0] = rhi::Format::RGBA8Unorm;
+        pipeDesc.renderTargetFormats[0] = ResourceFormat::RGBA8Unorm;
 
         m_pipeline = mp_device->createGraphicsPipeline(pipeDesc);
 

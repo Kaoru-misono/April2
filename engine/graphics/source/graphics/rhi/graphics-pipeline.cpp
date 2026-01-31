@@ -167,9 +167,11 @@ namespace april::graphics
         // Blend State
         auto const& blendState = m_desc.blendState;
         AP_ASSERT(blendState->getRtCount() <= kMaxRenderTargetCount, "Too many render targets");
+        AP_ASSERT(m_desc.renderTargetCount <= blendState->getRtCount(), "Blend state has fewer render targets than pipeline");
 
-        std::vector<rhi::ColorTargetDesc> colorTargets(blendState->getRtCount());
-        gfxDesc.targetCount = blendState->getRtCount();
+        uint32_t rtCount = m_desc.renderTargetCount;
+        std::vector<rhi::ColorTargetDesc> colorTargets(rtCount);
+        gfxDesc.targetCount = rtCount;
         gfxDesc.targets = colorTargets.data();
 
         for (uint32_t i = 0; i < gfxDesc.targetCount; ++i)
@@ -177,7 +179,7 @@ namespace april::graphics
             auto const& rtDesc = blendState->getRtDesc(i);
             auto& gfxRtDesc = colorTargets[i];
 
-            gfxRtDesc.format = m_desc.renderTargetFormats[i];
+            gfxRtDesc.format = getGFXFormat(m_desc.renderTargetFormats[i]);
             gfxRtDesc.enableBlend = rtDesc.blendEnabled;
 
             gfxRtDesc.alpha.dstFactor = getGFXBlendFactor(rtDesc.dstAlphaFunc);
@@ -198,7 +200,7 @@ namespace april::graphics
         // Depth Stencil State
         {
             auto const& dsState = m_desc.depthStencilState;
-            gfxDesc.depthStencil.format = m_desc.depthStencilFormat;
+            gfxDesc.depthStencil.format = getGFXFormat(m_desc.depthStencilFormat);
 
             getGFXStencilDesc(gfxDesc.depthStencil.backFace, dsState->getStencilDesc(DepthStencilState::Face::Back));
             getGFXStencilDesc(gfxDesc.depthStencil.frontFace, dsState->getStencilDesc(DepthStencilState::Face::Front));

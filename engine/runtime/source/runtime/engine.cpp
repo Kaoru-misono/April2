@@ -51,6 +51,7 @@ namespace april
                 if (m_swapchainDirty)
                 {
                     m_swapchain->resize(m_window->getFramebufferWidth(), m_window->getFramebufferHeight());
+                    ensureOffscreenTarget(m_window->getFramebufferWidth(), m_window->getFramebufferHeight());
                     m_swapchainDirty = false;
                 }
 
@@ -69,15 +70,19 @@ namespace april
                     m_hooks.onUpdate(delta.count());
                 }
 
-                m_context->resourceBarrier(backBuffer.get(), graphics::Resource::State::RenderTarget);
+                auto targetTexture = m_offscreen ? m_offscreen : backBuffer;
+                auto targetRtv = backBuffer->getRTV();
+                auto targetSrv = backBuffer->getSRV();
+
+                m_context->resourceBarrier(targetTexture.get(), graphics::Resource::State::RenderTarget);
 
                 if (m_hooks.onRender)
                 {
-                    m_hooks.onRender(m_context, backBuffer->getRTV().get());
+                    m_hooks.onRender(m_context, targetRtv.get());
                 }
                 else
                 {
-                    m_context->clearRtv(backBuffer->getRTV().get(), m_config.clearColor);
+                    m_context->clearRtv(targetRtv.get(), m_config.clearColor);
                 }
 
                 bool uiBegan = false;
@@ -97,26 +102,44 @@ namespace april
                     m_renderer->render(m_context, m_config.clearColor);
                 }
 
-                if (!uiBegan && m_renderer)
+                if (m_renderer && m_config.compositeSceneToOutput && !m_hooks.onRender)
                 {
                     auto sceneSrv = m_renderer->getSceneColorSrv();
                     if (sceneSrv)
                     {
                         auto colorTarget = graphics::ColorTarget(
-                            backBuffer->getRTV(),
-                            graphics::LoadOp::Clear,
-                            graphics::StoreOp::Store,
-                            m_config.clearColor
+                            targetRtv,
+                            graphics::LoadOp::Load,
+                            graphics::StoreOp::Store
                         );
                         auto encoder = m_context->beginRenderPass({colorTarget});
-                        encoder->blit(sceneSrv, backBuffer->getRTV());
+                        encoder->blit(sceneSrv, targetRtv);
                         encoder->end();
                     }
                 }
 
                 if (uiBegan)
                 {
-                    m_imguiLayer->endFrame(m_context, backBuffer->getRTV());
+                    m_imguiLayer->endFrame(m_context, targetRtv);
+                }
+
+                if (m_offscreen)
+                {
+                    m_context->resourceBarrier(targetTexture.get(), graphics::Resource::State::ShaderResource);
+                }
+
+                m_context->resourceBarrier(backBuffer.get(), graphics::Resource::State::RenderTarget);
+                if (m_offscreen && targetSrv)
+                {
+                    auto colorTarget = graphics::ColorTarget(
+                        backBuffer->getRTV(),
+                        graphics::LoadOp::Clear,
+                        graphics::StoreOp::Store,
+                        m_config.clearColor
+                    );
+                    auto encoder = m_context->beginRenderPass({colorTarget});
+                    encoder->blit(targetSrv, backBuffer->getRTV());
+                    encoder->end();
                 }
 
                 m_context->resourceBarrier(backBuffer.get(), graphics::Resource::State::Present);
@@ -214,6 +237,8 @@ namespace april
             m_window->getNativeWindowHandle()
         );
 
+        ensureOffscreenTarget(swapchainDesc.width, swapchainDesc.height);
+
         m_context = m_device->getCommandContext();
         m_renderer = core::make_ref<graphics::SceneRenderer>(m_device);
         m_renderer->setViewportSize(
@@ -261,6 +286,7 @@ namespace april
         }
 
         m_swapchain.reset();
+        m_offscreen.reset();
         m_device.reset();
         m_window.reset();
 
@@ -280,5 +306,31 @@ namespace april
             m_imguiLayer->addElement(element);
         }
         m_pendingElements.clear();
+    }
+
+    auto Engine::ensureOffscreenTarget(uint32_t width, uint32_t height) -> void
+    {
+        if (!m_device || width == 0 || height == 0)
+        {
+            return;
+        }
+
+        if (m_offscreen && width == m_offscreenWidth && height == m_offscreenHeight)
+        {
+            return;
+        }
+
+        m_offscreenWidth = width;
+        m_offscreenHeight = height;
+        m_offscreen = m_device->createTexture2D(
+            width,
+            height,
+            graphics::ResourceFormat::RGBA8Unorm,
+            1,
+            1,
+            nullptr,
+            graphics::TextureUsage::RenderTarget | graphics::TextureUsage::ShaderResource
+        );
+        m_offscreen->setName("Engine.OffscreenColor");
     }
 }

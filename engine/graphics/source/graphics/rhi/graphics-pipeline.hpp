@@ -9,6 +9,7 @@
 #include "rasterizer-state.hpp"
 #include "depth-stencil-state.hpp"
 #include "blend-state.hpp"
+#include "format.hpp"
 
 #include <core/foundation/object.hpp>
 #include <cstdint>
@@ -44,8 +45,8 @@ namespace april::graphics
         PrimitiveType primitiveType{PrimitiveType::TriangleList};
 
         uint32_t renderTargetCount{0};
-        rhi::Format renderTargetFormats[kMaxRenderTargetCount]{rhi::Format::Undefined};
-        rhi::Format depthStencilFormat{rhi::Format::Undefined};
+        ResourceFormat renderTargetFormats[kMaxRenderTargetCount]{ResourceFormat::Unknown};
+        ResourceFormat depthStencilFormat{ResourceFormat::Unknown};
         uint32_t sampleCount{1};
 
         auto operator==(GraphicsPipelineDesc const& other) const -> bool

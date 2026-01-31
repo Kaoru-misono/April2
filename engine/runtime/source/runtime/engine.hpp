@@ -6,6 +6,7 @@
 #include <graphics/rhi/command-context.hpp>
 #include <graphics/rhi/render-device.hpp>
 #include <graphics/rhi/swapchain.hpp>
+#include <graphics/rhi/texture.hpp>
 #include <graphics/renderer/scene-renderer.hpp>
 #include <ui/imgui-layer.hpp>
 #include <ui/element.hpp>
@@ -22,6 +23,7 @@ namespace april
         graphics::Device::Desc device{};
         bool enableUI{true};
         bool vSync{true};
+        bool compositeSceneToOutput{true};
         float4 clearColor{0.1f, 0.1f, 0.1f, 1.0f};
         ui::ImGuiLayerDesc imgui{};
     };
@@ -61,6 +63,7 @@ namespace april
         auto init() -> void;
         auto shutdown() -> void;
         auto attachPendingElements() -> void;
+        auto ensureOffscreenTarget(uint32_t width, uint32_t height) -> void;
 
         EngineConfig m_config{};
         EngineHooks m_hooks{};
@@ -77,6 +80,9 @@ namespace april
         graphics::CommandContext* m_context{};
         core::ref<ui::ImGuiLayer> m_imguiLayer{};
         core::ref<graphics::SceneRenderer> m_renderer{};
+        core::ref<graphics::Texture> m_offscreen{};
+        uint32_t m_offscreenWidth{0};
+        uint32_t m_offscreenHeight{0};
 
         std::vector<core::ref<ui::IElement>> m_pendingElements{};
     };

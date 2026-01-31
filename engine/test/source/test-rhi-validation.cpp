@@ -288,7 +288,7 @@ TEST_SUITE("RHI Validation")
             GraphicsPipelineDesc pipeDesc;
             pipeDesc.programKernels = program->getActiveVersion()->getKernels(device.get(), nullptr);
             pipeDesc.renderTargetCount = 1;
-            pipeDesc.renderTargetFormats[0] = getGFXFormat(ResourceFormat::RGBA8Unorm);
+            pipeDesc.renderTargetFormats[0] = ResourceFormat::RGBA8Unorm;
             RasterizerState::Desc rsDesc;
             rsDesc.setCullMode(RasterizerState::CullMode::None);
             pipeDesc.rasterizerState = RasterizerState::create(rsDesc);

@@ -8,6 +8,7 @@ int main()
     config.device.enableDebugLayer = true;
     config.device.type = april::graphics::Device::Type::Default;
     config.imgui.hasUndockableViewport = true;
+    config.compositeSceneToOutput = false;
 
     april::Engine engine(config);
 

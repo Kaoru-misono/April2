@@ -44,7 +44,7 @@ float4 main(float4 pos : SV_Position, float4 color : COLOR) : SV_Target
         GraphicsPipelineDesc pipelineDesc;
         pipelineDesc.programKernels = program->getActiveVersion()->getKernels(m_device.get(), nullptr);
         pipelineDesc.renderTargetCount = 1;
-        pipelineDesc.renderTargetFormats[0] = rhi::Format::RGBA16Float;
+        pipelineDesc.renderTargetFormats[0] = ResourceFormat::RGBA16Float;
         pipelineDesc.primitiveType = GraphicsPipelineDesc::PrimitiveType::TriangleList;
 
         RasterizerState::Desc rsDesc;

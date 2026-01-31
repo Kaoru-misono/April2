@@ -5,6 +5,7 @@
 #pragma once
 
 #include "resource.hpp"
+#include "format.hpp"
 
 #include <core/foundation/object.hpp>
 #include <core/tools/enum.hpp>

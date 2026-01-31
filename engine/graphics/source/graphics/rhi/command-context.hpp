@@ -202,8 +202,8 @@ namespace april::graphics
 
     private:
         auto applyState(
-            std::vector<Viewport> const& viewports,
-            std::vector<Scissor> const& scissors,
+            std::span<Viewport> viewports,
+            std::span<Scissor> scissors,
             core::ref<VertexArrayObject> const& vao = nullptr
         ) -> void;
         CommandContext* mp_context{nullptr};

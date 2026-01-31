@@ -26,6 +26,7 @@
 
 #include <core/profile/timer.hpp>
 #include <algorithm>
+#include <filesystem>
 #include <ranges>
 
 namespace april::graphics
@@ -300,9 +301,8 @@ namespace april::graphics
         gfxDesc.deviceType = getGfxDeviceType(m_desc.type);
         gfxDesc.slang.slangGlobalSession = m_slangGlobalSession;
         gfxDesc.debugCallback = m_callback.get();
-        char const* paths[] = {
-            "E:/github/April/build/x64-debug/bin/shader/graphics"
-        };
+        auto shaderSearchPath = (std::filesystem::current_path() / "shader/graphics").string();
+        char const* paths[] = { shaderSearchPath.c_str() };
         gfxDesc.slang.searchPathCount = 1;
         gfxDesc.slang.searchPaths = paths;
         // Setup shader cache
@@ -611,12 +611,13 @@ namespace april::graphics
             progDesc.vsEntryPoint("vertexMain");
             progDesc.psEntryPoint("fragmentMain");
             mp_blitProgram = Program::create(core::ref<Device>(this), progDesc);
+            mp_blitProgram->breakStrongReferenceToDevice();
         }
 
         GraphicsPipelineDesc pipelineDesc;
         pipelineDesc.programKernels = mp_blitProgram->getActiveVersion()->getKernels(this, nullptr);
         pipelineDesc.renderTargetCount = 1;
-        pipelineDesc.renderTargetFormats[0] = getGFXFormat(format);
+        pipelineDesc.renderTargetFormats[0] = format;
         pipelineDesc.sampleCount = sampleCount;
         pipelineDesc.primitiveType = GraphicsPipelineDesc::PrimitiveType::TriangleList;
 

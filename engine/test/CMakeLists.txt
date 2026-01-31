@@ -71,8 +71,39 @@ add_executable(test-suite
     source/test-log-foundation.cpp
     source/test-logger-refactor.cpp
     source/test-log-enhancement.cpp
+    source/test-blit-reflection.cpp
 )
 target_include_directories(test-suite PRIVATE external/doctest)
 target_link_libraries(test-suite PRIVATE April_graphics)
 target_compile_features(test-suite PRIVATE cxx_std_23)
 target_compile_definitions(test-suite PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
+
+# Standalone Blit Test
+add_executable(test-blit
+    test-main.cpp
+    test-blit.cpp
+)
+target_include_directories(test-blit PRIVATE external/doctest)
+target_link_libraries(test-blit PRIVATE April_graphics)
+target_compile_features(test-blit PRIVATE cxx_std_23)
+target_compile_definitions(test-blit PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
+
+# Standalone Blit Uniform Readback Test
+add_executable(test-blit-uniform-readback
+    test-main.cpp
+    source/test-blit-uniform-readback.cpp
+)
+target_include_directories(test-blit-uniform-readback PRIVATE external/doctest)
+target_link_libraries(test-blit-uniform-readback PRIVATE April_graphics)
+target_compile_features(test-blit-uniform-readback PRIVATE cxx_std_23)
+target_compile_definitions(test-blit-uniform-readback PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
+
+# Standalone UV Coverage Test
+add_executable(test-uv-coverage
+    test-main.cpp
+    source/test-uv-coverage.cpp
+)
+target_include_directories(test-uv-coverage PRIVATE external/doctest)
+target_link_libraries(test-uv-coverage PRIVATE April_graphics)
+target_compile_features(test-uv-coverage PRIVATE cxx_std_23)
+target_compile_definitions(test-uv-coverage PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)

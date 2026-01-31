@@ -6,10 +6,7 @@ struct VertexOutput
     float2 uv       : TEXCOORD0;
 };
 
-cbuffer BlitUniforms
-{
-    float4 uvTransform; // xy: offset, zw: scale
-};
+uniform float4 uvTransform; // xy: offset, zw: scale
 
 [shader("vertex")]
 VertexOutput vertexMain(uint vertexID : SV_VertexID)
