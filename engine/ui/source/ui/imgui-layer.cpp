@@ -163,6 +163,11 @@ namespace april::ui
 
     auto ImGuiLayer::setupImguiDock() -> void
     {
+        if ((m_imguiConfigFlags & ImGuiConfigFlags_DockingEnable) == 0)
+        {
+            return;
+        }
+
         const ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode | ImGuiDockNodeFlags_NoDockingInCentralNode;
         ImGuiID dockID = ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), dockFlags);
         // Docking layout, must be done only if it doesn't exist

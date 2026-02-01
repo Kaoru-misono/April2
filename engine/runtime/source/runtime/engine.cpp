@@ -135,7 +135,6 @@ namespace april
                     m_context->resourceBarrier(targetTexture.get(), graphics::Resource::State::ShaderResource);
                 }
 
-                m_context->resourceBarrier(backBuffer.get(), graphics::Resource::State::RenderTarget);
                 if (m_offscreen && targetSrv)
                 {
                     auto colorTarget = graphics::ColorTarget(
