@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmake --build:*)",
+      "Bash(dir:*)",
+      "Bash(copy:*)",
+      "Bash(cmake:*)",
+      "Bash(./test-asset.exe:*)",
+      "Bash(python:*)",
+      "Bash(find:*)"
+    ]
+  }
+}
