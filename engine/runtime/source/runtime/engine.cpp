@@ -46,112 +46,13 @@ namespace april
 
             while (m_running)
             {
-                m_window->onEvent();
-
-                if (m_swapchainDirty)
-                {
-                    auto fbWidth = m_window->getFramebufferWidth();
-                    auto fbHeight = m_window->getFramebufferHeight();
-                    if (fbWidth == 0 || fbHeight == 0)
-                    {
-                        continue;
-                    }
-                    m_swapchain->resize(fbWidth, fbHeight);
-                    ensureOffscreenTarget(fbWidth, fbHeight);
-                    m_swapchainDirty = false;
-                }
-
-                auto backBuffer = m_swapchain->acquireNextImage();
-                if (!backBuffer)
-                {
-                    m_swapchainDirty = true;
-                    continue;
-                }
-
                 auto now = Clock::now();
                 std::chrono::duration<float> delta = now - lastTime;
                 lastTime = now;
 
-                if (m_hooks.onUpdate)
-                {
-                    m_hooks.onUpdate(delta.count());
-                }
+                m_window->onEvent();
 
-                auto targetTexture = m_offscreen ? m_offscreen : backBuffer;
-                auto targetRtv = targetTexture->getRTV();
-                auto targetSrv = targetTexture->getSRV();
-
-                m_context->resourceBarrier(targetTexture.get(), graphics::Resource::State::RenderTarget);
-
-                if (m_hooks.onRender)
-                {
-                    m_hooks.onRender(m_context, targetRtv.get());
-                }
-                else
-                {
-                    m_context->clearRtv(targetRtv.get(), m_config.clearColor);
-                }
-
-                bool uiBegan = false;
-                if (m_imguiLayer)
-                {
-                    m_imguiLayer->beginFrame();
-                    uiBegan = true;
-
-                    if (m_hooks.onUI)
-                    {
-                        m_hooks.onUI();
-                    }
-                }
-
-                if (m_renderer)
-                {
-                    m_renderer->render(m_context, m_config.clearColor);
-                }
-
-                if (m_renderer && m_config.compositeSceneToOutput && !m_hooks.onRender)
-                {
-                    auto sceneSrv = m_renderer->getSceneColorSrv();
-                    if (sceneSrv)
-                    {
-                        auto colorTarget = graphics::ColorTarget(
-                            targetRtv,
-                            graphics::LoadOp::Load,
-                            graphics::StoreOp::Store
-                        );
-                        auto encoder = m_context->beginRenderPass({colorTarget});
-                        encoder->blit(sceneSrv, targetRtv);
-                        encoder->end();
-                    }
-                }
-
-                if (uiBegan)
-                {
-                    m_imguiLayer->endFrame(m_context, targetRtv);
-                }
-
-                if (m_offscreen)
-                {
-                    m_context->resourceBarrier(targetTexture.get(), graphics::Resource::State::ShaderResource);
-                }
-
-                if (m_offscreen && targetSrv)
-                {
-                    auto colorTarget = graphics::ColorTarget(
-                        backBuffer->getRTV(),
-                        graphics::LoadOp::Clear,
-                        graphics::StoreOp::Store,
-                        m_config.clearColor
-                    );
-                    auto encoder = m_context->beginRenderPass({colorTarget});
-                    encoder->blit(targetSrv, backBuffer->getRTV());
-                    encoder->end();
-                }
-
-                m_context->resourceBarrier(backBuffer.get(), graphics::Resource::State::Present);
-                m_context->submit();
-                m_swapchain->present();
-                m_device->endFrame();
+                renderFrame(delta.count());
             }
 
             shutdown();
@@ -167,6 +68,110 @@ namespace april
             std::cerr << "Engine unknown exception" << std::endl;
             return 1;
         }
+    }
+
+    auto Engine::renderFrame(float delta) -> void
+    {
+        if (m_swapchainDirty)
+        {
+            auto fbWidth = m_window->getFramebufferWidth();
+            auto fbHeight = m_window->getFramebufferHeight();
+            if (fbWidth == 0 || fbHeight == 0)
+            {
+                return;
+            }
+            m_swapchain->resize(fbWidth, fbHeight);
+            ensureOffscreenTarget(fbWidth, fbHeight);
+            m_swapchainDirty = false;
+        }
+
+        auto backBuffer = m_swapchain->acquireNextImage();
+        if (!backBuffer)
+        {
+            m_swapchainDirty = true;
+            return;
+        }
+
+        if (m_hooks.onUpdate)
+        {
+            m_hooks.onUpdate(delta);
+        }
+
+        auto targetTexture = m_offscreen ? m_offscreen : backBuffer;
+        auto targetRtv = targetTexture->getRTV();
+        auto targetSrv = targetTexture->getSRV();
+
+        m_context->resourceBarrier(targetTexture.get(), graphics::Resource::State::RenderTarget);
+
+        if (m_hooks.onRender)
+        {
+            m_hooks.onRender(m_context, targetRtv.get());
+        }
+        else
+        {
+            m_context->clearRtv(targetRtv.get(), m_config.clearColor);
+        }
+
+        bool uiBegan = false;
+        if (m_imguiLayer)
+        {
+            m_imguiLayer->beginFrame();
+            uiBegan = true;
+
+            if (m_hooks.onUI)
+            {
+                m_hooks.onUI();
+            }
+        }
+
+        if (m_renderer)
+        {
+            m_renderer->render(m_context, m_config.clearColor);
+        }
+
+        if (m_renderer && m_config.compositeSceneToOutput && !m_hooks.onRender)
+        {
+            auto sceneSrv = m_renderer->getSceneColorSrv();
+            if (sceneSrv)
+            {
+                auto colorTarget = graphics::ColorTarget(
+                    targetRtv,
+                    graphics::LoadOp::Load,
+                    graphics::StoreOp::Store
+                );
+                auto encoder = m_context->beginRenderPass({colorTarget});
+                encoder->blit(sceneSrv, targetRtv);
+                encoder->end();
+            }
+        }
+
+        if (uiBegan)
+        {
+            m_imguiLayer->endFrame(m_context, targetRtv);
+        }
+
+        if (m_offscreen)
+        {
+            m_context->resourceBarrier(targetTexture.get(), graphics::Resource::State::ShaderResource);
+        }
+
+        if (m_offscreen && targetSrv)
+        {
+            auto colorTarget = graphics::ColorTarget(
+                backBuffer->getRTV(),
+                graphics::LoadOp::Clear,
+                graphics::StoreOp::Store,
+                m_config.clearColor
+            );
+            auto encoder = m_context->beginRenderPass({colorTarget});
+            encoder->blit(targetSrv, backBuffer->getRTV());
+            encoder->end();
+        }
+
+        m_context->resourceBarrier(backBuffer.get(), graphics::Resource::State::Present);
+        m_context->submit();
+        m_swapchain->present();
+        m_device->endFrame();
     }
 
     auto Engine::stop() -> void
@@ -225,7 +230,10 @@ namespace april
         m_window->subscribe<FrameBufferResizeEvent>([this](FrameBufferResizeEvent const& e) {
             if (e.width > 0 && e.height > 0)
             {
-                m_swapchainDirty = true;
+                m_swapchain->resize(e.width, e.height);
+                ensureOffscreenTarget(e.width, e.height);
+                m_swapchainDirty = false;
+                renderFrame(0.0f);
             }
         });
 
@@ -258,6 +266,7 @@ namespace april
             desc.device = m_device;
             desc.window = m_window.get();
             desc.vSync = m_config.vSync;
+            desc.iniFilename = m_config.imguiIniFilename;
 
             m_imguiLayer = core::make_ref<ui::ImGuiLayer>();
             m_imguiLayer->init(desc);

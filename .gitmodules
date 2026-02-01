@@ -8,3 +8,6 @@
 [submodule "engine/graphics/library/slang-rhi"]
 	path = engine/graphics/library/slang-rhi
 	url = https://github.com/Kaoru-misono/slang-rhi.git
+[submodule "engine/core/library/json"]
+	path = engine/core/library/json
+	url = https://github.com/nlohmann/json.git

@@ -5,6 +5,12 @@ april_helper_add_library(glm ${CURRENT_MODULE_TARGET})
 april_helper_add_library(tinygltf ${CURRENT_MODULE_TARGET})
 april_helper_add_library(stduuid ${CURRENT_MODULE_TARGET})
 
+add_subdirectory(json EXCLUDE_FROM_ALL)
+if(TARGET ${CURRENT_MODULE_TARGET})
+    message(STATUS "[Library] Linking 'nlohmann_json' to '${CURRENT_MODULE_TARGET}'")
+    target_link_libraries(${CURRENT_MODULE_TARGET} PUBLIC nlohmann_json)
+endif()
+
 set(IMGUI_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/imgui")
 
 if(EXISTS "${IMGUI_ROOT}/imgui.h")

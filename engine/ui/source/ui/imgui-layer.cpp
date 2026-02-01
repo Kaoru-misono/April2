@@ -46,6 +46,15 @@ namespace april::ui
             m_imguiConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
         }
 
+        if (!desc.iniFilename.empty())
+        {
+            m_iniFileName = desc.iniFilename;
+        }
+        else
+        {
+            m_iniFileName = "imgui.ini";
+        }
+
         // initializeImGuiContext.
         setupStyle(false);
 
@@ -55,6 +64,8 @@ namespace april::ui
         // ImGui::LoadIniSettingsFromDisk(m_iniFilename.c_str());
 
         auto& io = ImGui::GetIO();
+        io.IniFilename = m_iniFileName.c_str();
+
         addDefaultFont();
         io.FontDefault = getDefaultFont();
         addMonospaceFont();

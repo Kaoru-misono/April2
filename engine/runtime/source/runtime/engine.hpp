@@ -27,6 +27,7 @@ namespace april
         bool vSync{true};
         bool compositeSceneToOutput{true};
         float4 clearColor{0.1f, 0.1f, 0.1f, 1.0f};
+        std::string imguiIniFilename{};
         ui::ImGuiLayerDesc imgui{};
     };
 
@@ -63,6 +64,7 @@ namespace april
 
     private:
         auto init() -> void;
+        auto renderFrame(float deltaTime) -> void;
         auto shutdown() -> void;
         auto attachPendingElements() -> void;
         auto ensureOffscreenTarget(uint32_t width, uint32_t height) -> void;

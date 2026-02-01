@@ -27,6 +27,7 @@ namespace april::ui
         // UI
         bool                         useMenu{true};                 // Include a menubar
         bool                         hasUndockableViewport{false};  // Allow floating windows
+        std::string                  iniFilename{};                 // Custom ini filename
         std::function<void(ImGuiID)> dockSetup;                     // Dock layout setup
         ImGuiConfigFlags             imguiConfigFlags{ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_DockingEnable};
     };
@@ -80,7 +81,7 @@ namespace april::ui
         bool m_useMenubar{true};
         std::function<void(ImGuiID)> m_dockSetup;  // Function to setup the docking
         ImGuiConfigFlags m_imguiConfigFlags{};
-        std::filesystem::path m_iniFileName{};
+        std::string m_iniFileName{};
         SettingsHandler m_settingsHandler{};
         float2 m_viewportSize{};
 

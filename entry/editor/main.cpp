@@ -9,6 +9,7 @@ int main()
     config.device.type = april::graphics::Device::Type::Default;
     config.imgui.hasUndockableViewport = true;
     config.compositeSceneToOutput = false;
+    config.imguiIniFilename = "imgui_editor.ini";
 
     april::Engine engine(config);
 
