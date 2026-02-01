@@ -15,6 +15,8 @@
 #include "buffer.hpp"
 #include "program/program-reflection.hpp"
 
+#include <asset/asset-manager.hpp>
+
 #include <core/foundation/object.hpp>
 #include <core/tools/enum.hpp>
 
@@ -325,6 +327,20 @@ namespace april::graphics
             uint32_t sampleCount,
             TextureUsage usage,
             Resource::State initState
+        ) -> core::ref<Texture>;
+
+        /**
+         * Create a 2D texture from an asset payload.
+         * @param assetManager The asset manager to retrieve texture data from.
+         * @param asset The texture asset metadata.
+         * @param usage Texture usage flags.
+         * @param generateMips Whether to generate mipmaps on GPU after upload.
+         */
+        auto createTextureFromAsset(
+            asset::AssetManager& assetManager,
+            asset::TextureAsset const& asset,
+            TextureUsage usage = TextureUsage::ShaderResource,
+            bool generateMips = true
         ) -> core::ref<Texture>;
 
         /**

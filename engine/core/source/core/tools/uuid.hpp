@@ -4,7 +4,7 @@
 #include <string>
 #include <functional>
 
-namespace april
+namespace april::core
 {
     static constexpr uuids::uuid s_engineNamespace{uuids::uuid::from_string("00000000-0000-0000-0000-000000000000").value()};
 
@@ -61,9 +61,9 @@ namespace april
 namespace std
 {
     template <>
-    struct hash<april::UUID>
+    struct hash<april::core::UUID>
     {
-        auto operator () (april::UUID const& id) const -> size_t
+        auto operator () (april::core::UUID const& id) const -> size_t
         {
             // Use stduuid's built-in hash function.
             return std::hash<uuids::uuid>{}(id.getNative());

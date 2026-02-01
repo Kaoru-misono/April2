@@ -2,12 +2,12 @@
 
 #include "settings-handler.hpp"
 #include "element.hpp"
+
 #include <core/window/window.hpp>
 #include <graphics/rhi/render-device.hpp>
 #include <graphics/rhi/command-context.hpp>
 #include <graphics/rhi/resource-views.hpp>
 #include <graphics/program/program-variables.hpp>
-#include <filesystem>
 
 #include <vector>
 #include <imgui.h>

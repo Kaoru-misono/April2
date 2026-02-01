@@ -1,6 +1,9 @@
 #pragma once
 
+#include "sha1.hpp"
+
 #include <type_traits>
+#include <string>
 
 namespace april::core
 {
@@ -33,5 +36,13 @@ namespace april::core
     {
         auto result = hash(other...);
         return hash_combine(result, first);
+    }
+
+    inline auto computeStringHash(std::string const& input) -> std::string
+    {
+        auto hash = Sha1{};
+        hash.update(input);
+
+        return hash.getHexDigest();
     }
 }

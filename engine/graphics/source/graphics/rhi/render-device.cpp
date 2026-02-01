@@ -554,6 +554,78 @@ namespace april::graphics
         return core::make_ref<Texture>(core::ref<Device>(this), pResource, type, format, width, height, depth, arraySize, mipLevels, sampleCount, usage, initState);
     }
 
+    namespace
+    {
+        auto convertAssetFormat(asset::PixelFormat format) -> ResourceFormat
+        {
+            switch (format)
+            {
+            case asset::PixelFormat::R8Unorm:
+                return ResourceFormat::R8Unorm;
+            case asset::PixelFormat::RG8Unorm:
+                return ResourceFormat::RG8Unorm;
+            case asset::PixelFormat::RGBA8Unorm:
+                return ResourceFormat::RGBA8Unorm;
+            case asset::PixelFormat::RGBA8UnormSrgb:
+                return ResourceFormat::RGBA8UnormSrgb;
+            default:
+                return ResourceFormat::Unknown;
+            }
+        }
+    } // namespace
+
+    auto Device::createTextureFromAsset(
+        asset::AssetManager& assetManager,
+        asset::TextureAsset const& asset,
+        TextureUsage usage,
+        bool generateMips
+    ) -> core::ref<Texture>
+    {
+        // Get compiled texture data from asset manager
+        auto blob = std::vector<std::byte>{};
+        auto payload = assetManager.getTextureData(asset, blob);
+
+        if (!payload.isValid())
+        {
+            AP_ERROR("[Device] Failed to get texture data for asset: {}", asset.getSourcePath());
+            return nullptr;
+        }
+
+        auto const& header = payload.header;
+
+        // Convert asset format to graphics format
+        auto format = convertAssetFormat(header.format);
+        if (format == ResourceFormat::Unknown)
+        {
+            AP_ERROR("[Device] Unknown texture format for asset: {}", asset.getSourcePath());
+            return nullptr;
+        }
+
+        // Determine mip levels
+        auto mipLevels = generateMips ? header.mipLevels : 1u;
+
+        // Create the texture with initial data
+        auto texture = createTexture2D(
+            header.width,
+            header.height,
+            format,
+            1, // arraySize
+            mipLevels,
+            payload.pixelData.data(),
+            usage
+        );
+
+        if (texture)
+        {
+            texture->setSourcePath(asset.getSourcePath());
+
+            AP_INFO("[Device] Created texture from asset: {}x{} {} ({})",
+                    header.width, header.height, to_string(format), asset.getSourcePath());
+        }
+
+        return texture;
+    }
+
     auto Device::createHeap(rhi::HeapDesc const& desc) -> Slang::ComPtr<rhi::IHeap>
     {
         Slang::ComPtr<rhi::IHeap> p_heap;
