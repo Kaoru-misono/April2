@@ -2,22 +2,14 @@
 
 This file tracks all major tracks for the project. Each track has its own detailed plan in its respective folder.
 
-- [x] **Track: Profiler Phase 2: High-Performance Data Collection**
-*Link: [./tracks/high-perf-profiler-collection_20260126/](./tracks/high-perf-profiler-collection_20260126/)*
-
-- [x] **Track: Profiler Phase 1: Foundational Instrumentation**
-- [x] **Track: Profiler Phase 3: GPU Profiling**
-*Link: [./tracks/gpu-profiling_20260126/](./tracks/gpu-profiling_20260126/)*
-
-- [x] **Track: Profiler Phase 4: Synchronization**
-*Link: [./tracks/profiler-synchronization_20260126/](./tracks/profiler-synchronization_20260126/)*        
 
 ---
 
-- [x] **Track: Chrome Tracing Exporter**
-*Link: [./tracks/chrome-tracing-exporter_20260126/](./tracks/chrome-tracing-exporter_20260126/)*
+- [x] **Track: Real-Time Window Resize Support**
+*Link: [./tracks/realtime-resize-fix_20260201/](./tracks/realtime-resize-fix_20260201/)*
 
 ---
 
-- [~] **Track: Implement RenderPassEncoder::blit function**
-*Link: [./tracks/render-pass-encoder-blit_20260130/](./tracks/render-pass-encoder-blit_20260130/)*
+- [x] **Track: Fix Editor Viewport and Docking Issues**
+*Link: [./tracks/editor-viewport-docking-fix_20260201/](./tracks/editor-viewport-docking-fix_20260201/)*
+

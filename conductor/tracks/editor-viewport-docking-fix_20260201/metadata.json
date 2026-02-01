@@ -1,0 +1,8 @@
+{
+  "track_id": "editor-viewport-docking-fix_20260201",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-02-01T21:45:00Z",
+  "updated_at": "2026-02-01T21:45:00Z",
+  "description": "Fix Editor viewport resolution matching OS window instead of panel, and separate ImGui config to prevent docking corruption."
+}
