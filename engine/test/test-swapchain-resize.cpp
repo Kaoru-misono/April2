@@ -505,8 +505,8 @@ private:
         {
             try {
                 auto pair = swapChain.acquireNextImage(UINT64_MAX, *presentCompleteSemaphores[frameIndex], nullptr);
-                result = pair.first;
-                imageIndex = pair.second;
+                result = pair.result;
+                imageIndex = pair.value;
             } catch (const vk::SystemError& err) {
                 result = static_cast<vk::Result>(err.code().value());
             }
