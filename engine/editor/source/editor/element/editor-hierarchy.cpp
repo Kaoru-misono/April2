@@ -15,7 +15,7 @@ namespace april::editor
     auto EditorHierarchyElement::onUIRender() -> void
     {
         ImGui::Begin("Hierarchy");
-        const char* sceneName = m_context.scene.name.c_str();
+        char const* sceneName = m_context.scene.name.c_str();
         bool selected = (m_context.selection.entityName == sceneName);
         if (ImGui::Selectable(sceneName, selected))
         {

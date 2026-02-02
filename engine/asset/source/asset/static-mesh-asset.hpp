@@ -28,7 +28,7 @@ namespace april::asset
             outJson["settings"] = m_settings;
         }
 
-        auto deserializeJson(const nlohmann::json& inJson) -> bool  override
+        auto deserializeJson(nlohmann::json const& inJson) -> bool  override
         {
             if (!Asset::deserializeJson(inJson)) return false;
 

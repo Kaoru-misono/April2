@@ -41,7 +41,7 @@ constexpr bool enableValidationLayers = false;
 constexpr bool enableValidationLayers = true;
 #endif
 
-const std::vector<const char *> requiredDeviceExtensions = {
+const std::vector<char const*> requiredDeviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
 // --- Shader Source ---
@@ -284,7 +284,7 @@ private:
             if (!hasGraphics) return false;
 
             auto exts = dev.enumerateDeviceExtensionProperties();
-            for (const char* req : requiredDeviceExtensions) {
+            for (char const* req : requiredDeviceExtensions) {
                 if (std::ranges::none_of(exts, [req](auto const& e) { return strcmp(e.extensionName, req) == 0; })) return false;
             }
             return true;
@@ -507,7 +507,7 @@ private:
                 auto pair = swapChain.acquireNextImage(UINT64_MAX, *presentCompleteSemaphores[frameIndex], nullptr);
                 result = pair.result;
                 imageIndex = pair.value;
-            } catch (const vk::SystemError& err) {
+            } catch (vk::SystemError const& err) {
                 result = static_cast<vk::Result>(err.code().value());
             }
 
@@ -546,7 +546,7 @@ private:
 
         try {
             result = queue.presentKHR(presentInfo);
-        } catch (const vk::SystemError& err) {
+        } catch (vk::SystemError const& err) {
              result = static_cast<vk::Result>(err.code().value());
         }
 
@@ -625,7 +625,7 @@ private:
         cmd.pipelineBarrier2(depInfo);
     }
 
-    vk::raii::ShaderModule createShaderModule(const std::vector<uint32_t>& code)
+    vk::raii::ShaderModule createShaderModule(std::vector<uint32_t> const& code)
     {
         vk::ShaderModuleCreateInfo info{
             .codeSize = code.size() * sizeof(uint32_t),
@@ -634,19 +634,19 @@ private:
         return vk::raii::ShaderModule(device, info);
     }
 
-    vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& formats) {
+    vk::SurfaceFormatKHR chooseSwapSurfaceFormat(std::vector<vk::SurfaceFormatKHR> const& formats) {
         auto it = std::ranges::find_if(formats, [](auto& f) {
             return f.format == vk::Format::eB8G8R8A8Srgb && f.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear;
         });
         return it != formats.end() ? *it : formats[0];
     }
 
-    vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR>& modes) {
+    vk::PresentModeKHR chooseSwapPresentMode(std::vector<vk::PresentModeKHR> const& modes) {
         auto it = std::ranges::find(modes, vk::PresentModeKHR::eMailbox);
         return it != modes.end() ? *it : vk::PresentModeKHR::eFifo;
     }
 
-    vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& caps) {
+    vk::Extent2D chooseSwapExtent(vk::SurfaceCapabilitiesKHR const& caps) {
         if (caps.currentExtent.width != std::numeric_limits<uint32_t>::max()) return caps.currentExtent;
         int w, h;
         glfwGetFramebufferSize(window, &w, &h);
@@ -656,10 +656,10 @@ private:
         };
     }
 
-    std::vector<const char*> getRequiredExtensions() {
+    std::vector<char const*> getRequiredExtensions() {
         uint32_t count = 0;
-        const char** glfwExts = glfwGetRequiredInstanceExtensions(&count);
-        std::vector<const char*> exts(glfwExts, glfwExts + count);
+        char const** glfwExts = glfwGetRequiredInstanceExtensions(&count);
+        std::vector<char const*> exts(glfwExts, glfwExts + count);
         if (enableValidationLayers) exts.push_back(vk::EXTDebugUtilsExtensionName);
         return exts;
     }
@@ -686,7 +686,7 @@ private:
     static VKAPI_ATTR vk::Bool32 VKAPI_CALL debugCallback(
         vk::DebugUtilsMessageSeverityFlagBitsEXT severity,
         vk::DebugUtilsMessageTypeFlagsEXT type,
-        const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData,
+        vk::DebugUtilsMessengerCallbackDataEXT const* pCallbackData,
         void*)
     {
         if (severity >= vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning)
@@ -700,7 +700,7 @@ int main()
     try {
         SwapchainResizeTest app;
         app.run();
-    } catch (const std::exception& e) {
+    } catch (std::exception const& e) {
         std::cerr << "Fatal: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }

@@ -221,14 +221,14 @@ namespace april::asset
         auto constexpr VERTEX_STRIDE_FLOATS = 12; // pos(3) + norm(3) + tan(4) + uv(2)
 
         // Helper lambda to get buffer pointer and stride
-        auto getBufferData = [&](int accessorIdx) -> std::pair<const uint8_t*, int> {
+        auto getBufferData = [&](int accessorIdx) -> std::pair<uint8_t const*, int> {
             if (accessorIdx < 0) return {nullptr, 0};
 
-            const auto& accessor = model.accessors[accessorIdx];
-            const auto& bufferView = model.bufferViews[accessor.bufferView];
-            const auto& buffer = model.buffers[bufferView.buffer];
+            auto const& accessor = model.accessors[accessorIdx];
+            auto const& bufferView = model.bufferViews[accessor.bufferView];
+            auto const& buffer = model.buffers[bufferView.buffer];
 
-            const uint8_t* dataStart = buffer.data.data() + bufferView.byteOffset + accessor.byteOffset;
+            uint8_t const* dataStart = buffer.data.data() + bufferView.byteOffset + accessor.byteOffset;
 
             int stride = accessor.ByteStride(bufferView);
             if (stride == 0)
@@ -268,13 +268,13 @@ namespace april::asset
                  continue;
             }
 
-            const auto& posAccessor = model.accessors[primitive.attributes.at("POSITION")];
+            auto const& posAccessor = model.accessors[primitive.attributes.at("POSITION")];
             size_t vertexCount = posAccessor.count;
 
             for (size_t i = 0; i < vertexCount; ++i)
             {
                 // Position
-                const float* p = reinterpret_cast<const float*>(posData + i * posStride);
+                float const* p = reinterpret_cast<float const*>(posData + i * posStride);
 
                 float px = p[0] * settings.scale;
                 float py = p[1] * settings.scale;
@@ -295,7 +295,7 @@ namespace april::asset
                 // Normal
                 if (normData)
                 {
-                    const float* n = reinterpret_cast<const float*>(normData + i * normStride);
+                    float const* n = reinterpret_cast<float const*>(normData + i * normStride);
                     vertices.push_back(n[0]);
                     vertices.push_back(n[1]);
                     vertices.push_back(n[2]);
@@ -325,7 +325,7 @@ namespace april::asset
                 // TexCoord
                 if (uvData)
                 {
-                    const float* uv = reinterpret_cast<const float*>(uvData + i * uvStride);
+                    float const* uv = reinterpret_cast<float const*>(uvData + i * uvStride);
                     vertices.push_back(uv[0]);
                     vertices.push_back(uv[1]);
                 }
@@ -340,24 +340,24 @@ namespace april::asset
             if (primitive.indices >= 0)
             {
                 auto [idxData, idxStride] = getBufferData(primitive.indices);
-                const auto& idxAccessor = model.accessors[primitive.indices];
+                auto const& idxAccessor = model.accessors[primitive.indices];
 
                 for (size_t i = 0; i < idxAccessor.count; ++i)
                 {
                     uint32_t index = 0;
-                    const uint8_t* ptr = idxData + i * idxStride;
+                    uint8_t const* ptr = idxData + i * idxStride;
 
                     if (idxAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
                     {
-                        index = *reinterpret_cast<const uint16_t*>(ptr);
+                        index = *reinterpret_cast<uint16_t const*>(ptr);
                     }
                     else if (idxAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT)
                     {
-                        index = *reinterpret_cast<const uint32_t*>(ptr);
+                        index = *reinterpret_cast<uint32_t const*>(ptr);
                     }
                     else if (idxAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE)
                     {
-                        index = *reinterpret_cast<const uint8_t*>(ptr);
+                        index = *reinterpret_cast<uint8_t const*>(ptr);
                     }
 
                     indices.push_back(baseVertexOffset + index);

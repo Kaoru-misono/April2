@@ -13,7 +13,7 @@ namespace april::asset
         outJson["source_path"] = m_sourcePath;
     }
 
-    auto Asset::deserializeJson(const nlohmann::json& inJson) -> bool
+    auto Asset::deserializeJson(nlohmann::json const& inJson) -> bool
     {
         if (inJson.contains("guid"))
         {

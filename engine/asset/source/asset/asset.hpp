@@ -37,7 +37,7 @@ namespace april::asset
         auto setSourcePath(std::string_view path) -> void { m_sourcePath = path; }
 
         virtual auto serializeJson(nlohmann::json& outJson) -> void;
-        virtual auto deserializeJson(const nlohmann::json& inJson) -> bool;
+        virtual auto deserializeJson(nlohmann::json const& inJson) -> bool;
 
     protected:
         Asset(AssetType type)
