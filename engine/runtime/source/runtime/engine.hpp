@@ -12,6 +12,7 @@
 #include <graphics/renderer/scene-renderer.hpp>
 #include <ui/imgui-layer.hpp>
 #include <ui/element.hpp>
+#include <asset/asset-manager.hpp>
 
 #include <functional>
 #include <memory>
@@ -82,6 +83,7 @@ namespace april
         core::ref<graphics::Device> m_device{};
         core::ref<graphics::Swapchain> m_swapchain{};
         graphics::CommandContext* m_context{};
+        std::unique_ptr<asset::AssetManager> m_assetManager{};
         core::ref<ui::ImGuiLayer> m_imguiLayer{};
         core::ref<graphics::SceneRenderer> m_renderer{};
         core::ref<graphics::Texture> m_offscreen{};

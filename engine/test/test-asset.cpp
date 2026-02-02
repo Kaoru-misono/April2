@@ -7,6 +7,7 @@
 
 #include <asset/asset.hpp>
 #include <asset/texture-asset.hpp>
+#include <asset/static-mesh-asset.hpp>
 #include <asset/blob-header.hpp>
 #include <asset/ddc/ddc-manager.hpp>
 #include <asset/asset-manager.hpp>
@@ -456,5 +457,154 @@ TEST_SUITE("Asset System - Stage 3 & 4")
 
         fs::remove_all(testDir);
         fs::remove_all(cacheDir);
+    }
+
+    TEST_CASE("MeshHeader - Binary Layout")
+    {
+        using namespace april::asset;
+
+        SUBCASE("Header size is fixed at 80 bytes")
+        {
+            CHECK(sizeof(MeshHeader) == 80);
+        }
+
+        SUBCASE("Header magic value is correct")
+        {
+            auto header = MeshHeader{};
+            CHECK(header.magic == 0x41504D58); // "APMX"
+        }
+
+        SUBCASE("Default header is invalid (zero counts)")
+        {
+            auto header = MeshHeader{};
+            CHECK_FALSE(header.isValid());
+        }
+
+        SUBCASE("Header with valid counts is valid")
+        {
+            auto header = MeshHeader{};
+            header.vertexCount = 3;
+            header.indexCount = 3;
+            CHECK(header.isValid());
+        }
+
+        SUBCASE("Header with wrong magic is invalid")
+        {
+            auto header = MeshHeader{};
+            header.vertexCount = 3;
+            header.indexCount = 3;
+            header.magic = 0x12345678;
+            CHECK_FALSE(header.isValid());
+        }
+    }
+
+    TEST_CASE("MeshPayload - Validation")
+    {
+        using namespace april::asset;
+
+        SUBCASE("Empty payload is invalid")
+        {
+            auto payload = MeshPayload{};
+            CHECK_FALSE(payload.isValid());
+        }
+
+        SUBCASE("Payload with valid header but empty data is invalid")
+        {
+            auto payload = MeshPayload{};
+            payload.header.vertexCount = 3;
+            payload.header.indexCount = 3;
+            CHECK_FALSE(payload.isValid());
+        }
+
+        SUBCASE("Payload with valid header and data is valid")
+        {
+            auto vertexData = std::vector<std::byte>(144); // 3 vertices * 48 bytes
+            auto indexData = std::vector<std::byte>(12);   // 3 indices * 4 bytes
+            auto submeshes = std::vector<Submesh>(1);
+
+            auto payload = MeshPayload{};
+            payload.header.vertexCount = 3;
+            payload.header.indexCount = 3;
+            payload.submeshes = std::span<Submesh const>{submeshes};
+            payload.vertexData = std::span<std::byte const>{vertexData};
+            payload.indexData = std::span<std::byte const>{indexData};
+
+            CHECK(payload.isValid());
+        }
+    }
+
+    TEST_CASE("StaticMeshAsset - JSON Serialization")
+    {
+        using namespace april::asset;
+
+        auto const testDir = std::string{"TestAssets_MeshSerialize"};
+        auto const srcFile = testDir + "/test.gltf";
+
+        fs::create_directories(testDir);
+
+        SUBCASE("Serialize and deserialize preserves data")
+        {
+            auto asset = StaticMeshAsset{};
+            asset.setSourcePath(srcFile);
+            asset.m_settings.optimize = true;
+            asset.m_settings.generateTangents = true;
+            asset.m_settings.flipWindingOrder = false;
+            asset.m_settings.scale = 2.0f;
+
+            auto json = nlohmann::json{};
+            asset.serializeJson(json);
+
+            CHECK(json["source_path"] == srcFile);
+            CHECK(json["type"] == "Mesh");
+            CHECK(json["settings"]["optimize"] == true);
+            CHECK(json["settings"]["generateTangents"] == true);
+            CHECK(json["settings"]["flipWindingOrder"] == false);
+            CHECK(json["settings"]["scale"] == doctest::Approx(2.0f));
+
+            auto asset2 = StaticMeshAsset{};
+            CHECK(asset2.deserializeJson(json));
+            CHECK(asset2.getSourcePath() == srcFile);
+            CHECK(asset2.m_settings.optimize == true);
+            CHECK(asset2.m_settings.generateTangents == true);
+            CHECK(asset2.m_settings.flipWindingOrder == false);
+            CHECK(asset2.m_settings.scale == doctest::Approx(2.0f));
+        }
+
+        SUBCASE("Different settings produce different DDC keys")
+        {
+            auto asset1 = StaticMeshAsset{};
+            asset1.setSourcePath(srcFile);
+            asset1.m_settings.scale = 1.0f;
+
+            auto asset2 = StaticMeshAsset{};
+            asset2.setSourcePath(srcFile);
+            asset2.m_settings.scale = 2.0f;
+
+            auto key1 = asset1.computeDDCKey();
+            auto key2 = asset2.computeDDCKey();
+
+            CHECK(key1.length() == 40); // SHA1 hex
+            CHECK(key2.length() == 40);
+            CHECK(key1 != key2);
+        }
+
+        fs::remove_all(testDir);
+    }
+
+    TEST_CASE("Submesh Structure")
+    {
+        using namespace april::asset;
+
+        SUBCASE("Submesh has correct layout")
+        {
+            auto submesh = Submesh{};
+            submesh.indexOffset = 0;
+            submesh.indexCount = 36;
+            submesh.materialIndex = 1;
+
+            CHECK(submesh.indexOffset == 0);
+            CHECK(submesh.indexCount == 36);
+            CHECK(submesh.materialIndex == 1);
+        }
     }
 }

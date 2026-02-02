@@ -254,7 +254,11 @@ namespace april
         ensureOffscreenTarget(swapchainDesc.width, swapchainDesc.height);
 
         m_context = m_device->getCommandContext();
-        m_renderer = core::make_ref<graphics::SceneRenderer>(m_device);
+
+        // Create asset manager (path relative to executable directory)
+        m_assetManager = std::make_unique<asset::AssetManager>("E:/github/April2/content", "E:/github/April2/Cache/DDC");
+
+        m_renderer = core::make_ref<graphics::SceneRenderer>(m_device, m_assetManager.get());
         m_renderer->setViewportSize(
             m_window->getFramebufferWidth(),
             m_window->getFramebufferHeight()

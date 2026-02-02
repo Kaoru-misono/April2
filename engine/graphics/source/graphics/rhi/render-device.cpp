@@ -626,6 +626,104 @@ namespace april::graphics
         return texture;
     }
 
+    auto Device::createMeshFromAsset(
+        asset::AssetManager& assetManager,
+        asset::StaticMeshAsset const& asset
+    ) -> core::ref<StaticMesh>
+    {
+        // Get compiled mesh data from asset manager
+        auto blob = std::vector<std::byte>{};
+        auto payload = assetManager.getMeshData(asset, blob);
+
+        if (!payload.isValid())
+        {
+            AP_ERROR("[Device] Failed to get mesh data for asset: {}", asset.getSourcePath());
+            return nullptr;
+        }
+
+        auto const& header = payload.header;
+
+        // Create vertex layout
+        // Standard format: position(3) + normal(3) + tangent(4) + texcoord(2) = 12 floats = 48 bytes
+        auto bufferLayout = VertexBufferLayout::create();
+        bufferLayout->addElement("POSITION", 0, ResourceFormat::RGB32Float, 1, 0);
+        bufferLayout->addElement("NORMAL", 12, ResourceFormat::RGB32Float, 1, 1);
+        bufferLayout->addElement("TANGENT", 24, ResourceFormat::RGBA32Float, 1, 2);
+        bufferLayout->addElement("TEXCOORD", 40, ResourceFormat::RG32Float, 1, 3);
+
+        auto vertexLayout = VertexLayout::create();
+        vertexLayout->addBufferLayout(0, bufferLayout);
+
+        // Create vertex buffer
+        auto vertexBuffer = createBuffer(
+            header.vertexDataSize,
+            BufferUsage::VertexBuffer | BufferUsage::ShaderResource,
+            MemoryType::DeviceLocal,
+            payload.vertexData.data()
+        );
+
+        if (!vertexBuffer)
+        {
+            AP_ERROR("[Device] Failed to create vertex buffer for asset: {}", asset.getSourcePath());
+            return nullptr;
+        }
+
+        // Create index buffer
+        auto indexFormat = header.indexFormat == 0 ? ResourceFormat::R16Uint : ResourceFormat::R32Uint;
+        auto indexBuffer = createBuffer(
+            header.indexDataSize,
+            BufferUsage::IndexBuffer | BufferUsage::ShaderResource,
+            MemoryType::DeviceLocal,
+            payload.indexData.data()
+        );
+
+        if (!indexBuffer)
+        {
+            AP_ERROR("[Device] Failed to create index buffer for asset: {}", asset.getSourcePath());
+            return nullptr;
+        }
+
+        // Create VAO
+        auto vao = VertexArrayObject::create(
+            VertexArrayObject::Topology::TriangleList,
+            vertexLayout,
+            {vertexBuffer},
+            indexBuffer,
+            indexFormat
+        );
+
+        if (!vao)
+        {
+            AP_ERROR("[Device] Failed to create VAO for asset: {}", asset.getSourcePath());
+            return nullptr;
+        }
+
+        // Convert submeshes to draw ranges
+        auto drawRanges = std::vector<StaticMesh::DrawRange>{};
+        drawRanges.reserve(payload.submeshes.size());
+        for (auto const& submesh : payload.submeshes)
+        {
+            drawRanges.push_back({
+                submesh.indexOffset,
+                submesh.indexCount,
+                submesh.materialIndex
+            });
+        }
+
+        // Create StaticMesh
+        auto mesh = core::make_ref<StaticMesh>(
+            vao,
+            std::move(drawRanges),
+            std::array<float, 3>{header.boundsMin[0], header.boundsMin[1], header.boundsMin[2]},
+            std::array<float, 3>{header.boundsMax[0], header.boundsMax[1], header.boundsMax[2]}
+        );
+
+        AP_INFO("[Device] Created mesh from asset: {} vertices, {} indices, {} submeshes ({})",
+                header.vertexCount, header.indexCount, header.submeshCount, asset.getSourcePath());
+
+        return mesh;
+    }
+
     auto Device::createHeap(rhi::HeapDesc const& desc) -> Slang::ComPtr<rhi::IHeap>
     {
         Slang::ComPtr<rhi::IHeap> p_heap;

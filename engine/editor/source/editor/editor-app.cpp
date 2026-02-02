@@ -88,7 +88,7 @@ namespace april::editor
     {
         if (!m_profiler)
         {
-            m_profiler = core::make_ref<ui::ElementProfiler>(true);
+            m_profiler = core::make_ref<ui::ElementProfiler>(false);
             m_profiler->setMenuEnabled(false);
         }
         return m_profiler;

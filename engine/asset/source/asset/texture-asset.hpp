@@ -21,14 +21,14 @@ namespace april::asset
 
         TextureImportSettings m_settings;
 
-        void serializeJson(nlohmann::json& outJson) override
+        auto serializeJson(nlohmann::json& outJson) -> void override
         {
             Asset::serializeJson(outJson);
 
             outJson["settings"] = m_settings;
         }
 
-        bool deserializeJson(const nlohmann::json& inJson) override
+        auto deserializeJson(const nlohmann::json& inJson) -> bool override
         {
             if (!Asset::deserializeJson(inJson)) return false;
 

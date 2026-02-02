@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../texture-asset.hpp"
+#include "../static-mesh-asset.hpp"
 
 #include <vector>
 #include <filesystem>
@@ -9,7 +10,7 @@ namespace april::asset
 {
     /**
      * DDCManager - Derived Data Cache Manager.
-     * Handles caching and compilation of texture assets into binary blobs.
+     * Handles caching and compilation of texture and mesh assets into binary blobs.
      */
     class DDCManager
     {
@@ -23,10 +24,18 @@ namespace april::asset
          */
         auto getOrCompileTexture(TextureAsset const& asset) -> std::vector<std::byte>;
 
+        /**
+         * Get or compile a mesh asset.
+         * Returns the compiled binary blob (header + submeshes + vertex data + index data).
+         * Uses cache if available, otherwise compiles from source.
+         */
+        auto getOrCompileMesh(StaticMeshAsset const& asset) -> std::vector<std::byte>;
+
     private:
         std::filesystem::path m_cacheRoot;
 
         auto compileInternal(TextureAsset const& asset) -> std::vector<std::byte>;
+        auto compileInternalMesh(StaticMeshAsset const& asset) -> std::vector<std::byte>;
         auto loadFile(std::filesystem::path const& path) -> std::vector<std::byte>;
         auto saveFile(std::filesystem::path const& path, std::vector<std::byte> const& data) -> void;
 

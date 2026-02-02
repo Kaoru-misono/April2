@@ -14,6 +14,7 @@
 #include "resource.hpp"
 #include "buffer.hpp"
 #include "program/program-reflection.hpp"
+#include "resources/static-mesh.hpp"
 
 #include <asset/asset-manager.hpp>
 
@@ -342,6 +343,17 @@ namespace april::graphics
             TextureUsage usage = TextureUsage::ShaderResource,
             bool generateMips = true
         ) -> core::ref<Texture>;
+
+        /**
+         * Create a static mesh from an asset payload.
+         * @param assetManager The asset manager to retrieve mesh data from.
+         * @param asset The mesh asset metadata.
+         * @return A StaticMesh containing VAO with vertex/index buffers and submesh ranges.
+         */
+        auto createMeshFromAsset(
+            asset::AssetManager& assetManager,
+            asset::StaticMeshAsset const& asset
+        ) -> core::ref<StaticMesh>;
 
         /**
          * Create a new graphics heap.

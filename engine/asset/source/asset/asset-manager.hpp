@@ -2,6 +2,7 @@
 
 #include "asset.hpp"
 #include "texture-asset.hpp"
+#include "static-mesh-asset.hpp"
 #include "blob-header.hpp"
 #include "ddc/ddc-manager.hpp"
 
@@ -113,6 +114,76 @@ namespace april::asset
         }
 
         /**
+         * Get compiled mesh data for a StaticMeshAsset.
+         * Returns a MeshPayload with header, submeshes, vertex data, and index data spans.
+         * The blob is stored in the provided output vector for lifetime management.
+         */
+        [[nodiscard]] auto getMeshData(StaticMeshAsset const& asset, std::vector<std::byte>& outBlob) -> MeshPayload
+        {
+            outBlob = m_ddcManager.getOrCompileMesh(asset);
+
+            if (outBlob.size() < sizeof(MeshHeader))
+            {
+                AP_ERROR("[AssetManager] Invalid mesh blob size for: {}", asset.getSourcePath());
+                return {};
+            }
+
+            auto payload = MeshPayload{};
+
+            // Parse header
+            std::memcpy(&payload.header, outBlob.data(), sizeof(MeshHeader));
+
+            if (!payload.header.isValid())
+            {
+                AP_ERROR("[AssetManager] Invalid mesh header for: {}", asset.getSourcePath());
+                return {};
+            }
+
+            auto offset = sizeof(MeshHeader);
+
+            // Create span for submeshes
+            auto const submeshDataSize = payload.header.submeshCount * sizeof(Submesh);
+            if (offset + submeshDataSize > outBlob.size())
+            {
+                AP_ERROR("[AssetManager] Invalid mesh submesh data for: {}", asset.getSourcePath());
+                return {};
+            }
+
+            payload.submeshes = std::span<Submesh const>{
+                reinterpret_cast<Submesh const*>(outBlob.data() + offset),
+                payload.header.submeshCount
+            };
+            offset += submeshDataSize;
+
+            // Create span for vertex data
+            if (offset + payload.header.vertexDataSize > outBlob.size())
+            {
+                AP_ERROR("[AssetManager] Invalid mesh vertex data for: {}", asset.getSourcePath());
+                return {};
+            }
+
+            payload.vertexData = std::span<std::byte const>{
+                outBlob.data() + offset,
+                static_cast<size_t>(payload.header.vertexDataSize)
+            };
+            offset += payload.header.vertexDataSize;
+
+            // Create span for index data
+            if (offset + payload.header.indexDataSize > outBlob.size())
+            {
+                AP_ERROR("[AssetManager] Invalid mesh index data for: {}", asset.getSourcePath());
+                return {};
+            }
+
+            payload.indexData = std::span<std::byte const>{
+                outBlob.data() + offset,
+                static_cast<size_t>(payload.header.indexDataSize)
+            };
+
+            return payload;
+        }
+
+        /**
          * Register an asset path in the registry for UUID-based lookup.
          */
         auto registerAssetPath(core::UUID handle, std::filesystem::path const& path) -> void
@@ -203,6 +274,10 @@ namespace april::asset
             if (typeStr == "Texture")
             {
                 type = AssetType::Texture;
+            }
+            else if (typeStr == "Mesh")
+            {
+                type = AssetType::Mesh;
             }
             // Add more types as needed
 

@@ -34,7 +34,7 @@ namespace april::asset
         [[nodiscard]] auto getType() const -> AssetType { return m_type; }
 
         [[nodiscard]] auto getSourcePath() const -> std::string const& { return m_sourcePath; }
-        void setSourcePath(std::string_view path) { m_sourcePath = path; }
+        auto setSourcePath(std::string_view path) -> void { m_sourcePath = path; }
 
         virtual auto serializeJson(nlohmann::json& outJson) -> void;
         virtual auto deserializeJson(const nlohmann::json& inJson) -> bool;
