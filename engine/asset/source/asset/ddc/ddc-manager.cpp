@@ -218,56 +218,73 @@ namespace april::asset
         auto boundsMin = std::array<float, 3>{std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
         auto boundsMax = std::array<float, 3>{std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest()};
 
-        auto constexpr VERTEX_STRIDE_FLOATS = 12; // position(3) + normal(3) + tangent(4) + texcoord(2)
+        auto constexpr VERTEX_STRIDE_FLOATS = 12; // pos(3) + norm(3) + tan(4) + uv(2)
 
-        // Process each primitive (submesh)
+        // Helper lambda to get buffer pointer and stride
+        auto getBufferData = [&](int accessorIdx) -> std::pair<const uint8_t*, int> {
+            if (accessorIdx < 0) return {nullptr, 0};
+
+            const auto& accessor = model.accessors[accessorIdx];
+            const auto& bufferView = model.bufferViews[accessor.bufferView];
+            const auto& buffer = model.buffers[bufferView.buffer];
+
+            const uint8_t* dataStart = buffer.data.data() + bufferView.byteOffset + accessor.byteOffset;
+
+            int stride = accessor.ByteStride(bufferView);
+            if (stride == 0)
+            {
+                // Calculate tightly packed stride if not specified
+                // Assuming standard component types for simplicity (Float for vec3/vec2/vec4)
+                if (accessor.type == TINYGLTF_TYPE_VEC3) stride = 12;
+                else if (accessor.type == TINYGLTF_TYPE_VEC2) stride = 8;
+                else if (accessor.type == TINYGLTF_TYPE_VEC4) stride = 16;
+                else if (accessor.type == TINYGLTF_TYPE_SCALAR)
+                {
+                     // Handle scalar types for indices
+                     if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) stride = 2;
+                     else if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) stride = 4;
+                     else if (accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE) stride = 1;
+                }
+            }
+            return {dataStart, stride};
+        };
+
+        auto baseVertexOffset = 0u;
+
         for (auto const& primitive : mesh.primitives)
         {
             auto submesh = Submesh{};
             submesh.indexOffset = static_cast<uint32_t>(indices.size());
             submesh.materialIndex = static_cast<uint32_t>(primitive.material);
 
-            // Get accessors
-            auto const& posAccessor = model.accessors[primitive.attributes.at("POSITION")];
-            auto const& posBufferView = model.bufferViews[posAccessor.bufferView];
-            auto const& posBuffer = model.buffers[posBufferView.buffer];
-            auto const* positions = reinterpret_cast<float const*>(posBuffer.data.data() + posBufferView.byteOffset + posAccessor.byteOffset);
+            // Get accessors and strides
+            auto [posData, posStride] = getBufferData(primitive.attributes.count("POSITION") ? primitive.attributes.at("POSITION") : -1);
+            auto [normData, normStride] = getBufferData(primitive.attributes.count("NORMAL") ? primitive.attributes.at("NORMAL") : -1);
+            auto [uvData, uvStride] = getBufferData(primitive.attributes.count("TEXCOORD_0") ? primitive.attributes.at("TEXCOORD_0") : -1);
 
-            // Normals (required)
-            float const* normals = nullptr;
-            if (primitive.attributes.find("NORMAL") != primitive.attributes.end())
+            if (!posData)
             {
-                auto const& normAccessor = model.accessors[primitive.attributes.at("NORMAL")];
-                auto const& normBufferView = model.bufferViews[normAccessor.bufferView];
-                auto const& normBuffer = model.buffers[normBufferView.buffer];
-                normals = reinterpret_cast<float const*>(normBuffer.data.data() + normBufferView.byteOffset + normAccessor.byteOffset);
+                 AP_ERROR("[DDC] Primitive missing POSITION attribute");
+                 continue;
             }
 
-            // Texture coordinates (optional, default to 0)
-            float const* texCoords = nullptr;
-            if (primitive.attributes.find("TEXCOORD_0") != primitive.attributes.end())
-            {
-                auto const& uvAccessor = model.accessors[primitive.attributes.at("TEXCOORD_0")];
-                auto const& uvBufferView = model.bufferViews[uvAccessor.bufferView];
-                auto const& uvBuffer = model.buffers[uvBufferView.buffer];
-                texCoords = reinterpret_cast<float const*>(uvBuffer.data.data() + uvBufferView.byteOffset + uvAccessor.byteOffset);
-            }
+            const auto& posAccessor = model.accessors[primitive.attributes.at("POSITION")];
+            size_t vertexCount = posAccessor.count;
 
-            auto vertexCount = posAccessor.count;
-            auto baseVertex = static_cast<uint32_t>(vertices.size() / VERTEX_STRIDE_FLOATS);
-
-            // Build vertices
             for (size_t i = 0; i < vertexCount; ++i)
             {
                 // Position
-                auto px = positions[i * 3 + 0] * settings.scale;
-                auto py = positions[i * 3 + 1] * settings.scale;
-                auto pz = positions[i * 3 + 2] * settings.scale;
+                const float* p = reinterpret_cast<const float*>(posData + i * posStride);
+
+                float px = p[0] * settings.scale;
+                float py = p[1] * settings.scale;
+                float pz = p[2] * settings.scale;
+
                 vertices.push_back(px);
                 vertices.push_back(py);
                 vertices.push_back(pz);
 
-                // Update bounds
+                // Bounds update
                 boundsMin[0] = std::min(boundsMin[0], px);
                 boundsMin[1] = std::min(boundsMin[1], py);
                 boundsMin[2] = std::min(boundsMin[2], pz);
@@ -276,17 +293,16 @@ namespace april::asset
                 boundsMax[2] = std::max(boundsMax[2], pz);
 
                 // Normal
-                if (normals)
+                if (normData)
                 {
-                    vertices.push_back(normals[i * 3 + 0]);
-                    vertices.push_back(normals[i * 3 + 1]);
-                    vertices.push_back(normals[i * 3 + 2]);
+                    const float* n = reinterpret_cast<const float*>(normData + i * normStride);
+                    vertices.push_back(n[0]);
+                    vertices.push_back(n[1]);
+                    vertices.push_back(n[2]);
                 }
                 else
                 {
-                    vertices.push_back(0.0f);
-                    vertices.push_back(1.0f);
-                    vertices.push_back(0.0f);
+                    vertices.push_back(0.0f); vertices.push_back(1.0f); vertices.push_back(0.0f);
                 }
 
                 // Tangent (simplified - use binormal approximation)
@@ -307,10 +323,11 @@ namespace april::asset
                 }
 
                 // TexCoord
-                if (texCoords)
+                if (uvData)
                 {
-                    vertices.push_back(texCoords[i * 2 + 0]);
-                    vertices.push_back(texCoords[i * 2 + 1]);
+                    const float* uv = reinterpret_cast<const float*>(uvData + i * uvStride);
+                    vertices.push_back(uv[0]);
+                    vertices.push_back(uv[1]);
                 }
                 else
                 {
@@ -320,32 +337,37 @@ namespace april::asset
             }
 
             // Indices
-            auto const& idxAccessor = model.accessors[primitive.indices];
-            auto const& idxBufferView = model.bufferViews[idxAccessor.bufferView];
-            auto const& idxBuffer = model.buffers[idxBufferView.buffer];
-            auto const* idxData = idxBuffer.data.data() + idxBufferView.byteOffset + idxAccessor.byteOffset;
-
-            for (size_t i = 0; i < idxAccessor.count; ++i)
+            if (primitive.indices >= 0)
             {
-                uint32_t index = 0;
-                if (idxAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
-                {
-                    index = reinterpret_cast<uint16_t const*>(idxData)[i];
-                }
-                else if (idxAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT)
-                {
-                    index = reinterpret_cast<uint32_t const*>(idxData)[i];
-                }
-                else if (idxAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE)
-                {
-                    index = reinterpret_cast<uint8_t const*>(idxData)[i];
-                }
+                auto [idxData, idxStride] = getBufferData(primitive.indices);
+                const auto& idxAccessor = model.accessors[primitive.indices];
 
-                indices.push_back(baseVertex + index);
+                for (size_t i = 0; i < idxAccessor.count; ++i)
+                {
+                    uint32_t index = 0;
+                    const uint8_t* ptr = idxData + i * idxStride;
+
+                    if (idxAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
+                    {
+                        index = *reinterpret_cast<const uint16_t*>(ptr);
+                    }
+                    else if (idxAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT)
+                    {
+                        index = *reinterpret_cast<const uint32_t*>(ptr);
+                    }
+                    else if (idxAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE)
+                    {
+                        index = *reinterpret_cast<const uint8_t*>(ptr);
+                    }
+
+                    indices.push_back(baseVertexOffset + index);
+                }
             }
 
             submesh.indexCount = static_cast<uint32_t>(indices.size()) - submesh.indexOffset;
             submeshes.push_back(submesh);
+
+            baseVertexOffset += static_cast<uint32_t>(vertexCount);
         }
 
         // Build mesh header
@@ -367,9 +389,9 @@ namespace april::asset
 
         // Create blob: header + submeshes + vertex data + index data
         auto totalSize = sizeof(MeshHeader) +
-                        submeshes.size() * sizeof(Submesh) +
-                        header.vertexDataSize +
-                        header.indexDataSize;
+                         submeshes.size() * sizeof(Submesh) +
+                         header.vertexDataSize +
+                         header.indexDataSize;
         auto blob = std::vector<std::byte>(totalSize);
 
         auto offset = size_t{0};

@@ -74,23 +74,47 @@ float4 main(PSIn input) : SV_Target
 
         // Load cube mesh
         auto assetPath = std::string{"E:/github/April2/content/model/cube.asset"};
-        auto meshAsset = m_assetManager->loadAsset<asset::StaticMeshAsset>(assetPath);
-        if (meshAsset)
+        if (std::filesystem::exists(assetPath))
         {
-            m_cubeMesh = m_device->createMeshFromAsset(*m_assetManager, *meshAsset);
-            if (m_cubeMesh)
+            auto meshAsset = m_assetManager->loadAsset<asset::StaticMeshAsset>(assetPath);
+            if (meshAsset)
             {
-                AP_INFO("[SceneRenderer] Loaded cube mesh with {} submeshes", m_cubeMesh->getSubmeshCount());
+                m_cubeMesh = m_device->createMeshFromAsset(*m_assetManager, *meshAsset);
+                if (m_cubeMesh)
+                {
+                    AP_INFO("[SceneRenderer] Loaded cube mesh with {} submeshes", m_cubeMesh->getSubmeshCount());
+                }
+                else
+                {
+                    AP_ERROR("[SceneRenderer] Failed to create mesh from asset");
+                }
             }
             else
             {
-                AP_ERROR("[SceneRenderer] Failed to create mesh from asset");
+                AP_ERROR("[SceneRenderer] Failed to load mesh asset: {}", assetPath);
             }
         }
         else
         {
-            AP_ERROR("[SceneRenderer] Failed to load mesh asset: {}", assetPath);
+            auto meshAsset = std::static_pointer_cast<asset::StaticMeshAsset>(m_assetManager->importAsset("E:/github/April2/content/model/cube.gltf"));
+            if (meshAsset)
+            {
+                m_cubeMesh = m_device->createMeshFromAsset(*m_assetManager, *meshAsset);
+                if (m_cubeMesh)
+                {
+                    AP_INFO("[SceneRenderer] Loaded cube mesh with {} submeshes", m_cubeMesh->getSubmeshCount());
+                }
+                else
+                {
+                    AP_ERROR("[SceneRenderer] Failed to create mesh from asset");
+                }
+            }
+            else
+            {
+                AP_ERROR("[SceneRenderer] Failed to load mesh asset: {}", assetPath);
+            }
         }
+
 
         // Create standard vertex layout for mesh rendering
         auto bufferLayout = VertexBufferLayout::create();

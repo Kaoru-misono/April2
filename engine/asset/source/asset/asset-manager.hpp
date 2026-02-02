@@ -38,6 +38,73 @@ namespace april::asset
         }
 
         /**
+         * Import a raw file (e.g., .png, .gltf) into the asset system.
+         * Creates a corresponding .asset file alongside the source file.
+         */
+        [[nodiscard]] auto importAsset(std::filesystem::path const& sourcePath) -> std::shared_ptr<Asset>
+        {
+            if (!std::filesystem::exists(sourcePath))
+            {
+                AP_ERROR("[AssetManager] Import failed: Source file not found: {}", sourcePath.string());
+                return nullptr;
+            }
+
+            auto extension = sourcePath.extension().string();
+            // Convert extension to lowercase for robust check (optional but recommended)
+            std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+
+            std::shared_ptr<Asset> newAsset = nullptr;
+
+            // 1. Identify Asset Type based on extension
+            if (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".tga")
+            {
+                newAsset = std::make_shared<TextureAsset>();
+            }
+            else if (extension == ".gltf" || extension == ".glb")
+            {
+                newAsset = std::make_shared<StaticMeshAsset>();
+            }
+            else
+            {
+                AP_WARN("[AssetManager] Import skipped: Unsupported file extension '{}' for {}", extension, sourcePath.string());
+                return nullptr;
+            }
+
+            // 2. Configure the new asset
+            // Note: We store the relative path or absolute path depending on your project policy.
+            // Here we store the path exactly as passed, but usually you want relative to ProjectRoot.
+            newAsset->setSourcePath(sourcePath.string());
+
+            // 3. Determine output path for the .asset file (e.g., "Texture.png" -> "Texture.png.asset")
+            auto assetFilePath = sourcePath;
+            assetFilePath += ".asset"; // Append .asset to the existing extension
+
+            // 4. Serialize to JSON
+            nlohmann::json json;
+            newAsset->serializeJson(json);
+
+            // 5. Write to disk
+            auto file = std::ofstream{assetFilePath};
+            if (!file.is_open())
+            {
+                AP_ERROR("[AssetManager] Failed to write .asset file: {}", assetFilePath.string());
+                return nullptr;
+            }
+            file << json.dump(4); // Pretty print with 4 spaces indent
+            file.close();
+
+            // 6. Register and Cache
+            auto handle = newAsset->getHandle();
+            m_assetRegistry[handle] = assetFilePath;
+            m_loadedAssets[handle] = newAsset;
+
+            AP_INFO("[AssetManager] Imported asset: {} -> {} (UUID: {})",
+                sourcePath.string(), assetFilePath.string(), handle.toString());
+
+            return newAsset;
+        }
+
+        /**
          * Get an asset by UUID from cache or load from registry.
          */
         template <typename T>
