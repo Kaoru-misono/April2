@@ -9,7 +9,9 @@
       "Bash(python:*)",
       "Bash(find:*)",
       "Bash(./editor.exe)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(timeout:*)"
     ]
   }
 }

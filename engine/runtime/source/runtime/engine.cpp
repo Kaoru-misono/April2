@@ -99,6 +99,16 @@ namespace april
             m_hooks.onUpdate(delta);
         }
 
+        // Update scene systems
+        if (m_sceneGraph)
+        {
+            m_sceneGraph->updateTransforms();
+            m_sceneGraph->updateCameras(
+                m_window->getFramebufferWidth(),
+                m_window->getFramebufferHeight()
+            );
+        }
+
         auto targetTexture = m_offscreen ? m_offscreen : backBuffer;
         auto targetRtv = targetTexture->getRTV();
         auto targetSrv = targetTexture->getSRV();
@@ -126,9 +136,9 @@ namespace april
             }
         }
 
-        if (m_renderer)
+        if (m_renderer && m_sceneGraph)
         {
-            m_renderer->render(m_context, m_config.clearColor);
+            m_renderer->render(m_context, *m_sceneGraph, m_config.clearColor);
         }
 
         if (m_renderer && m_config.compositeSceneToOutput && !m_hooks.onRender)
@@ -210,13 +220,6 @@ namespace april
         m_renderer->setViewportSize(width, height);
     }
 
-    auto Engine::setSceneViewProjection(float4x4 const& viewProj) -> void
-    {
-        if (m_renderer)
-        {
-            m_renderer->setExternalViewProjection(viewProj);
-        }
-    }
 
     auto Engine::init() -> void
     {
@@ -268,12 +271,14 @@ namespace april
         // Create asset manager (path relative to executable directory)
         m_assetManager = std::make_unique<asset::AssetManager>("E:/github/April2/content", "E:/github/April2/Cache/DDC");
 
+        // Create scene graph
+        m_sceneGraph = std::make_unique<scene::SceneGraph>();
+
         m_renderer = core::make_ref<graphics::SceneRenderer>(m_device, m_assetManager.get());
         m_renderer->setViewportSize(
             m_window->getFramebufferWidth(),
             m_window->getFramebufferHeight()
         );
-        m_renderer->setUseExternalCamera(m_config.enableUI);
 
         if (m_config.enableUI)
         {

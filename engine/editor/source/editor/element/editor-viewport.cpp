@@ -11,7 +11,8 @@ namespace april::editor
         auto constexpr kDefaultFov = 45.0f;
         m_camera = std::make_unique<SimpleCamera>(glm::radians(kDefaultFov), 1.777f, 0.1f, 1000.0f);
         m_camera->setPosition(float3{0.0f, 0.0f, 10.0f});
-        Engine::get().setSceneViewProjection(m_camera->getViewProjectionMatrix());
+        // TODO: Integrate editor camera with scene graph
+        // Engine::get().setSceneViewProjection(m_camera->getViewProjectionMatrix());
     }
 
     auto EditorViewportElement::onDetach() -> void {}
@@ -44,7 +45,8 @@ namespace april::editor
         {
             m_camera->setInputEnabled(hovered || focused);
             m_camera->onUpdate(ImGui::GetIO().DeltaTime);
-            Engine::get().setSceneViewProjection(m_camera->getViewProjectionMatrix());
+            // TODO: Integrate editor camera with scene graph
+            // Engine::get().setSceneViewProjection(m_camera->getViewProjectionMatrix());
         }
         auto size = ImGui::GetContentRegionAvail();
         auto sceneSrv = Engine::get().getSceneColorSrv();

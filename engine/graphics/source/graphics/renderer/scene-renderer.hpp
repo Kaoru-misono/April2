@@ -9,12 +9,13 @@
 #include <graphics/rhi/resource-views.hpp>
 #include <graphics/rhi/texture.hpp>
 #include <graphics/resources/static-mesh.hpp>
-#include <graphics/camera/fixed-camera.hpp>
 #include <graphics/program/program.hpp>
 #include <graphics/program/program-variables.hpp>
 #include <asset/asset-manager.hpp>
+#include <scene/scene.hpp>
 
 #include <memory>
+#include <unordered_map>
 
 namespace april::graphics
 {
@@ -25,20 +26,16 @@ namespace april::graphics
         explicit SceneRenderer(core::ref<Device> device, asset::AssetManager* assetManager);
 
         auto setViewportSize(uint32_t width, uint32_t height) -> void;
-        auto render(CommandContext* pContext, float4 const& clearColor) -> void;
-
-        auto setUseExternalCamera(bool enabled) -> void { m_useExternalCamera = enabled; }
-        auto setExternalViewProjection(float4x4 const& viewProj) -> void
-        {
-            m_externalViewProj = viewProj;
-            m_hasExternalViewProj = true;
-        }
+        auto render(CommandContext* pContext, scene::SceneGraph const& scene, float4 const& clearColor) -> void;
 
         auto getSceneColorTexture() const -> core::ref<Texture> { return m_sceneColor; }
         auto getSceneColorSrv() const -> core::ref<TextureView> { return m_sceneColorSrv; }
 
     private:
         auto ensureTarget(uint32_t width, uint32_t height) -> void;
+        auto getMeshForPath(std::string const& path) -> core::ref<StaticMesh>;
+        auto updateActiveCamera(scene::Registry const& registry) -> void;
+        auto renderMeshEntities(core::ref<RenderPassEncoder> encoder, scene::Registry const& registry) -> void;
 
         core::ref<Device> m_device{};
         asset::AssetManager* m_assetManager{};
@@ -49,14 +46,11 @@ namespace april::graphics
         core::ref<TextureView> m_sceneColorSrv{};
         core::ref<GraphicsPipeline> m_pipeline{};
         core::ref<ProgramVariables> m_vars{};
-        core::ref<StaticMesh> m_cubeMesh{};
-        std::unique_ptr<FixedCamera> m_gameCamera{};
-        bool m_useExternalCamera{false};
-        bool m_hasExternalViewProj{false};
-        float4x4 m_externalViewProj{1.0f};
+        std::unordered_map<std::string, core::ref<StaticMesh>> m_meshCache{};
+        float4x4 m_viewProjectionMatrix{1.0f};
+        bool m_hasActiveCamera{false};
         uint32_t m_width{0};
         uint32_t m_height{0};
         ResourceFormat m_format{ResourceFormat::RGBA16Float};
-        float m_time{0.0f};
     };
 }

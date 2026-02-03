@@ -73,50 +73,6 @@ float4 main(PSIn input) : SV_Target
         AP_ASSERT(m_device, "SceneRenderer requires a valid device.");
         AP_ASSERT(m_assetManager, "SceneRenderer requires a valid asset manager.");
 
-        // Load cube mesh
-        auto assetPath = std::string{"E:/github/April2/content/model/cube.asset"};
-        if (std::filesystem::exists(assetPath))
-        {
-            auto meshAsset = m_assetManager->loadAsset<asset::StaticMeshAsset>(assetPath);
-            if (meshAsset)
-            {
-                m_cubeMesh = m_device->createMeshFromAsset(*m_assetManager, *meshAsset);
-                if (m_cubeMesh)
-                {
-                    AP_INFO("[SceneRenderer] Loaded cube mesh with {} submeshes", m_cubeMesh->getSubmeshCount());
-                }
-                else
-                {
-                    AP_ERROR("[SceneRenderer] Failed to create mesh from asset");
-                }
-            }
-            else
-            {
-                AP_ERROR("[SceneRenderer] Failed to load mesh asset: {}", assetPath);
-            }
-        }
-        else
-        {
-            auto meshAsset = std::static_pointer_cast<asset::StaticMeshAsset>(m_assetManager->importAsset("E:/github/April2/content/model/cube.gltf"));
-            if (meshAsset)
-            {
-                m_cubeMesh = m_device->createMeshFromAsset(*m_assetManager, *meshAsset);
-                if (m_cubeMesh)
-                {
-                    AP_INFO("[SceneRenderer] Loaded cube mesh with {} submeshes", m_cubeMesh->getSubmeshCount());
-                }
-                else
-                {
-                    AP_ERROR("[SceneRenderer] Failed to create mesh from asset");
-                }
-            }
-            else
-            {
-                AP_ERROR("[SceneRenderer] Failed to load mesh asset: {}", assetPath);
-            }
-        }
-
-
         // Create standard vertex layout for mesh rendering
         auto bufferLayout = VertexBufferLayout::create();
         bufferLayout->addElement("POSITION", 0, ResourceFormat::RGB32Float, 1, 0);
@@ -156,17 +112,6 @@ float4 main(PSIn input) : SV_Target
         pipelineDesc.depthStencilState = DepthStencilState::create(dsDesc);
 
         m_pipeline = m_device->createGraphicsPipeline(pipelineDesc);
-
-        auto constexpr kDefaultFov = 45.0f;
-        m_gameCamera = std::make_unique<FixedCamera>(
-            float3{0.0f, 3.0f, 10.0f},
-            float3{0.0f, 0.0f, 0.0f},
-            float3{0.0f, 1.0f, 0.0f},
-            glm::radians(kDefaultFov),
-            1.777f,
-            0.1f,
-            1000.0f
-        );
     }
 
     auto SceneRenderer::setViewportSize(uint32_t width, uint32_t height) -> void
@@ -183,14 +128,10 @@ float4 main(PSIn input) : SV_Target
 
         m_width = width;
         m_height = height;
-        if (m_gameCamera)
-        {
-            m_gameCamera->setViewportSize(width, height);
-        }
         ensureTarget(m_width, m_height);
     }
 
-    auto SceneRenderer::render(CommandContext* pContext, float4 const& clearColor) -> void
+    auto SceneRenderer::render(CommandContext* pContext, scene::SceneGraph const& scene, float4 const& clearColor) -> void
     {
         if (!pContext || !m_device)
         {
@@ -202,56 +143,168 @@ float4 main(PSIn input) : SV_Target
             return;
         }
 
-        m_time += 0.016f;
+        auto const& registry = scene.getRegistry();
 
+        pContext->resourceBarrier(m_sceneColor.get(), Resource::State::RenderTarget);
+        pContext->resourceBarrier(m_sceneDepth.get(), Resource::State::DepthStencil);
+
+        // Extract active camera
+        updateActiveCamera(registry);
+        if (!m_hasActiveCamera)
+        {
+            return;
+        }
+
+        // Preload all meshes BEFORE starting render pass
+        auto const* meshPool = registry.getPool<scene::MeshRendererComponent>();
+        if (meshPool)
+        {
+            for (size_t i = 0; i < meshPool->data().size(); ++i)
+            {
+                auto const& meshComp = meshPool->data()[i];
+                if (meshComp.enabled && !meshComp.meshAssetPath.empty())
+                {
+                    getMeshForPath(meshComp.meshAssetPath);
+                }
+            }
+        }
+
+        // Now start render pass again with meshes loaded
         pContext->resourceBarrier(m_sceneColor.get(), Resource::State::RenderTarget);
         pContext->resourceBarrier(m_sceneDepth.get(), Resource::State::DepthStencil);
 
         auto colorTarget = ColorTarget(m_sceneColorRtv, LoadOp::Clear, StoreOp::Store, clearColor);
         auto depthTarget = DepthStencilTarget(m_sceneDepthDsv, LoadOp::Clear, StoreOp::Store, 1.0f, 0);
         auto encoder = pContext->beginRenderPass({colorTarget}, depthTarget);
-        encoder->pushDebugGroup("SceneRenderer");
 
         Viewport vp = Viewport::fromSize((float)m_width, (float)m_height);
         encoder->setViewport(0, vp);
         encoder->setScissor(0, {0, 0, (uint32_t)vp.width, (uint32_t)vp.height});
+        encoder->pushDebugGroup("SceneRenderer");
+        encoder->setViewport(0, vp);
+        encoder->setScissor(0, {0, 0, (uint32_t)vp.width, (uint32_t)vp.height});
 
-        if (m_pipeline && m_vars && m_cubeMesh)
-        {
-            auto viewProj = glm::mat4(1.0f);
-            if (m_useExternalCamera && m_hasExternalViewProj)
-            {
-                viewProj = m_externalViewProj;
-            }
-            else if (m_gameCamera)
-            {
-                m_gameCamera->onUpdate(0.016f);
-                viewProj = m_gameCamera->getViewProjectionMatrix();
-            }
-
-            auto model = glm::rotate(glm::mat4(1.0f), m_time * 0.5f, glm::vec3(0.0f, 1.0f, 0.0f));
-
-            // Set shader uniforms
-            auto rootVar = m_vars->getRootVariable();
-            rootVar["perFrame"]["viewProj"].setBlob(&viewProj, sizeof(glm::mat4));
-            rootVar["perFrame"]["model"].setBlob(&model, sizeof(glm::mat4));
-            rootVar["perFrame"]["time"].set(m_time);
-
-            encoder->setVao(m_cubeMesh->getVAO());
-            encoder->bindPipeline(m_pipeline.get(), m_vars.get());
-
-            // Draw all submeshes
-            for (size_t i = 0; i < m_cubeMesh->getSubmeshCount(); ++i)
-            {
-                auto const& submesh = m_cubeMesh->getSubmesh(i);
-                encoder->drawIndexed(submesh.indexCount, submesh.indexOffset, 0);
-            }
-        }
+        // Render all mesh entities
+        renderMeshEntities(encoder, registry);
 
         encoder->popDebugGroup();
         encoder->end();
 
         pContext->resourceBarrier(m_sceneColor.get(), Resource::State::ShaderResource);
+    }
+
+    auto SceneRenderer::getMeshForPath(std::string const& path) -> core::ref<StaticMesh>
+    {
+        // Check cache
+        auto it = m_meshCache.find(path);
+        if (it != m_meshCache.end())
+        {
+            return it->second;
+        }
+
+        // Load from asset
+        core::ref<StaticMesh> mesh{};
+        if (std::filesystem::exists(path))
+        {
+            auto meshAsset = m_assetManager->loadAsset<asset::StaticMeshAsset>(path);
+            if (meshAsset)
+            {
+                mesh = m_device->createMeshFromAsset(*m_assetManager, *meshAsset);
+                if (mesh)
+                {
+                    AP_INFO("[SceneRenderer] Loaded mesh from asset: {} ({} submeshes)", path, mesh->getSubmeshCount());
+                }
+                else
+                {
+                    AP_ERROR("[SceneRenderer] Failed to create mesh from asset: {}", path);
+                }
+            }
+            else
+            {
+                AP_ERROR("[SceneRenderer] Failed to load mesh asset: {}", path);
+            }
+        }
+        else
+        {
+            AP_ERROR("[SceneRenderer] Mesh asset not found: {}", path);
+        }
+
+        if (mesh)
+        {
+            m_meshCache[path] = mesh;
+        }
+
+        return mesh;
+    }
+
+    auto SceneRenderer::updateActiveCamera(scene::Registry const& registry) -> void
+    {
+        auto activeCamera = scene::NullEntity;
+
+        // Find active camera (this is a simplified approach, should use SceneGraph::getActiveCamera)
+        auto const* cameraPool = registry.getPool<scene::CameraComponent>();
+        if (!cameraPool || cameraPool->data().empty())
+        {
+            AP_WARN("[SceneRenderer] No active camera found");
+            m_hasActiveCamera = false;
+            return;
+        }
+
+        // For now, just use the first camera
+        // In a full implementation, we'd look for "MainCamera" tag
+        activeCamera = cameraPool->getEntity(0);
+
+        auto const& camComp = registry.get<scene::CameraComponent>(activeCamera);
+        m_viewProjectionMatrix = camComp.viewProjectionMatrix;
+        m_hasActiveCamera = true;
+    }
+
+    auto SceneRenderer::renderMeshEntities(core::ref<RenderPassEncoder> encoder, scene::Registry const& registry) -> void
+    {
+        auto const* meshPool = registry.getPool<scene::MeshRendererComponent>();
+        if (!meshPool)
+        {
+            AP_WARN("[SceneRenderer] No mesh pool found");
+            return;
+        }
+
+        for (size_t i = 0; i < meshPool->data().size(); ++i)
+        {
+            auto entity = meshPool->getEntity(i);
+            auto const& meshComp = meshPool->data()[i];
+
+            if (!meshComp.enabled)
+            {
+                continue;
+            }
+
+            if (!registry.allOf<scene::TransformComponent>(entity))
+            {
+                continue;
+            }
+
+            auto const& transform = registry.get<scene::TransformComponent>(entity);
+            auto mesh = getMeshForPath(meshComp.meshAssetPath);
+            if (!mesh)
+            {
+                continue;
+            }
+
+            // Set shader uniforms
+            auto rootVar = m_vars->getRootVariable();
+            rootVar["perFrame"]["viewProj"].setBlob(&m_viewProjectionMatrix, sizeof(float4x4));
+            rootVar["perFrame"]["model"].setBlob(&transform.worldMatrix, sizeof(float4x4));
+
+            // Draw mesh
+            encoder->setVao(mesh->getVAO());
+            encoder->bindPipeline(m_pipeline.get(), m_vars.get());
+
+            for (size_t s = 0; s < mesh->getSubmeshCount(); ++s)
+            {
+                auto const& submesh = mesh->getSubmesh(s);
+                encoder->drawIndexed(submesh.indexCount, submesh.indexOffset, 0);
+            }
+        }
     }
 
     auto SceneRenderer::ensureTarget(uint32_t width, uint32_t height) -> void

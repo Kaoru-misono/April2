@@ -13,6 +13,7 @@
 #include <ui/imgui-layer.hpp>
 #include <ui/element.hpp>
 #include <asset/asset-manager.hpp>
+#include <scene/scene.hpp>
 
 #include <functional>
 #include <memory>
@@ -61,8 +62,8 @@ namespace april
         auto getImGuiLayer() const -> ui::ImGuiLayer* { return m_imguiLayer.get(); }
         auto getSceneColorSrv() const -> core::ref<graphics::TextureView>;
         auto setSceneViewportSize(uint32_t width, uint32_t height) -> void;
-        auto setSceneViewProjection(float4x4 const& viewProj) -> void;
         auto isRunning() const -> bool { return m_running; }
+        auto getSceneGraph() -> scene::SceneGraph* { return m_sceneGraph.get(); }
 
     private:
         auto init() -> void;
@@ -85,6 +86,7 @@ namespace april
         core::ref<graphics::Swapchain> m_swapchain{};
         graphics::CommandContext* m_context{};
         std::unique_ptr<asset::AssetManager> m_assetManager{};
+        std::unique_ptr<scene::SceneGraph> m_sceneGraph{};
         core::ref<ui::ImGuiLayer> m_imguiLayer{};
         core::ref<graphics::SceneRenderer> m_renderer{};
         core::ref<graphics::Texture> m_offscreen{};

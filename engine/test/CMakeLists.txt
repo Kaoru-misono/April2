@@ -1,6 +1,6 @@
 set(TARGET_NAME APP)
 
-find_package(Vulkan REQUIRED)
+# find_package(Vulkan 1.4.330...1.4.341 REQUIRED)
 
 # file(GLOB_RECURSE SRC_FILES "source/asset-system-test.cpp")
 file(GLOB_RECURSE SRC_FILES "test-triangle.cpp")
@@ -8,10 +8,10 @@ file(GLOB_RECURSE SRC_FILES "test-triangle.cpp")
 add_executable(APP test-triangle.cpp)
 target_link_libraries(APP PRIVATE April_graphics)
 
-add_executable(test-swapchain-resize test-swapchain-resize.cpp)
-target_link_libraries(test-swapchain-resize PRIVATE Vulkan::Vulkan glfw slang)
-target_compile_features(test-swapchain-resize PRIVATE cxx_std_23)
-target_compile_definitions(test-swapchain-resize PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
+# add_executable(test-swapchain-resize test-swapchain-resize.cpp)
+# target_link_libraries(test-swapchain-resize PRIVATE Vulkan::Vulkan glfw slang)
+# target_compile_features(test-swapchain-resize PRIVATE cxx_std_23)
+# target_compile_definitions(test-swapchain-resize PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE)
 
 add_executable(test-object test-object.cpp)
 target_link_libraries(test-object PRIVATE April_graphics)
