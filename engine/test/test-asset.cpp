@@ -4,6 +4,7 @@
 #include <fstream>
 #include <thread>
 #include <cstring>
+#include <chrono>
 
 #include <asset/asset.hpp>
 #include <asset/texture-asset.hpp>
@@ -47,6 +48,78 @@ auto create2x2PNG(std::string const& path) -> void
 
     std::ofstream file(path, std::ios::binary);
     file.write(reinterpret_cast<char const*>(pngData), sizeof(pngData));
+}
+
+// Helper: Create a minimal valid glTF file (single triangle)
+auto createMinimalGLTF(std::string const& path) -> void
+{
+    static constexpr auto base64Buffer = "AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAABAAIA";
+
+    auto json = std::string{};
+    json += "{\n";
+    json += "  \"asset\": { \"version\": \"2.0\" },\n";
+    json += "  \"buffers\": [\n";
+    json += "    {\n";
+    json += "      \"uri\": \"data:application/octet-stream;base64,";
+    json += base64Buffer;
+    json += "\",\n";
+    json += "      \"byteLength\": 42\n";
+    json += "    }\n";
+    json += "  ],\n";
+    json += "  \"bufferViews\": [\n";
+    json += "    { \"buffer\": 0, \"byteOffset\": 0, \"byteLength\": 36 },\n";
+    json += "    { \"buffer\": 0, \"byteOffset\": 36, \"byteLength\": 6 }\n";
+    json += "  ],\n";
+    json += "  \"accessors\": [\n";
+    json += "    {\n";
+    json += "      \"bufferView\": 0,\n";
+    json += "      \"byteOffset\": 0,\n";
+    json += "      \"componentType\": 5126,\n";
+    json += "      \"count\": 3,\n";
+    json += "      \"type\": \"VEC3\",\n";
+    json += "      \"min\": [0, 0, 0],\n";
+    json += "      \"max\": [1, 1, 0]\n";
+    json += "    },\n";
+    json += "    {\n";
+    json += "      \"bufferView\": 1,\n";
+    json += "      \"byteOffset\": 0,\n";
+    json += "      \"componentType\": 5123,\n";
+    json += "      \"count\": 3,\n";
+    json += "      \"type\": \"SCALAR\"\n";
+    json += "    }\n";
+    json += "  ],\n";
+    json += "  \"meshes\": [\n";
+    json += "    {\n";
+    json += "      \"primitives\": [\n";
+    json += "        {\n";
+    json += "          \"attributes\": { \"POSITION\": 0 },\n";
+    json += "          \"indices\": 1\n";
+    json += "        }\n";
+    json += "      ]\n";
+    json += "    }\n";
+    json += "  ],\n";
+    json += "  \"nodes\": [ { \"mesh\": 0 } ],\n";
+    json += "  \"scenes\": [ { \"nodes\": [0] } ],\n";
+    json += "  \"scene\": 0\n";
+    json += "}\n";
+
+    std::ofstream file(path, std::ios::binary);
+    file.write(json.data(), static_cast<std::streamsize>(json.size()));
+}
+
+auto readBinaryFile(std::string const& path) -> std::vector<std::byte>
+{
+    auto file = std::ifstream{path, std::ios::binary | std::ios::ate};
+    if (!file.is_open())
+    {
+        return {};
+    }
+
+    auto size = static_cast<std::streamsize>(file.tellg());
+    auto buffer = std::vector<std::byte>(static_cast<size_t>(size));
+    file.seekg(0, std::ios::beg);
+    file.read(reinterpret_cast<char*>(buffer.data()), size);
+    return buffer;
 }
 
 // Helper: Create a dummy text file (for error testing)
@@ -589,6 +662,165 @@ TEST_SUITE("Asset System - Stage 3 & 4")
         }
 
         fs::remove_all(testDir);
+    }
+
+    TEST_CASE("StaticMeshAsset - DDC Key includes .asset timestamp")
+    {
+        using namespace april::asset;
+
+        auto const testDir = std::string{"TestAssets_MeshDDCKey"};
+        auto const srcFile = testDir + "/triangle.gltf";
+        auto const assetFile = testDir + "/triangle.gltf.asset";
+
+        fs::remove_all(testDir);
+        fs::create_directories(testDir);
+
+        createMinimalGLTF(srcFile);
+
+        auto asset = StaticMeshAsset{};
+        asset.setSourcePath(srcFile);
+        asset.setAssetPath(assetFile);
+
+        {
+            auto json = nlohmann::json{};
+            asset.serializeJson(json);
+            std::ofstream file(assetFile);
+            file << json.dump(2);
+        }
+
+        auto key1 = asset.computeDDCKey();
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        auto newTime = fs::file_time_type::clock::now() + std::chrono::seconds(1);
+        fs::last_write_time(assetFile, newTime);
+
+        auto key2 = asset.computeDDCKey();
+
+        CHECK(key1 != key2);
+
+        fs::remove_all(testDir);
+    }
+
+    TEST_CASE("DDCManager - Mesh Compilation")
+    {
+        using namespace april::asset;
+
+        auto const testDir = std::string{"TestAssets_MeshDDC"};
+        auto const cacheDir = std::string{"TestCache_MeshDDC"};
+        auto const srcFile = testDir + "/triangle.gltf";
+
+        fs::remove_all(testDir);
+        fs::remove_all(cacheDir);
+        fs::create_directories(testDir);
+
+        createMinimalGLTF(srcFile);
+
+        SUBCASE("Compiles valid glTF to binary blob")
+        {
+            auto manager = DDCManager{cacheDir};
+            auto asset = StaticMeshAsset{};
+            asset.setSourcePath(srcFile);
+
+            auto blob = manager.getOrCompileMesh(asset);
+
+            CHECK(blob.size() > sizeof(MeshHeader));
+
+            auto header = MeshHeader{};
+            std::memcpy(&header, blob.data(), sizeof(MeshHeader));
+
+            CHECK(header.isValid());
+            CHECK(header.vertexCount == 3);
+            CHECK(header.indexCount == 3);
+            CHECK(header.submeshCount == 1);
+            CHECK(header.vertexStride == 48);
+            CHECK(header.indexFormat == 1);
+            CHECK(header.vertexDataSize == 144);
+            CHECK(header.indexDataSize == 12);
+            CHECK(header.vertexDataSize == static_cast<uint64_t>(header.vertexCount) * header.vertexStride);
+
+            auto expectedSize = sizeof(MeshHeader) + sizeof(Submesh) + header.vertexDataSize + header.indexDataSize;
+            CHECK(blob.size() == expectedSize);
+        }
+
+        SUBCASE("Cache hit returns same data")
+        {
+            auto manager = DDCManager{cacheDir};
+            auto asset = StaticMeshAsset{};
+            asset.setSourcePath(srcFile);
+
+            auto blob1 = manager.getOrCompileMesh(asset);
+            auto blob2 = manager.getOrCompileMesh(asset);
+
+            CHECK(blob1 == blob2);
+        }
+
+        SUBCASE("Cache file matches compiled blob")
+        {
+            auto manager = DDCManager{cacheDir};
+            auto asset = StaticMeshAsset{};
+            asset.setSourcePath(srcFile);
+
+            auto blob = manager.getOrCompileMesh(asset);
+
+            auto key = asset.computeDDCKey();
+            auto subDir = key.substr(0, 2);
+            auto cacheFile = fs::path(cacheDir) / subDir / (key + ".bin");
+
+            CHECK(fs::exists(cacheFile));
+
+            auto fileData = readBinaryFile(cacheFile.string());
+            CHECK(fileData == blob);
+        }
+
+        fs::remove_all(testDir);
+        fs::remove_all(cacheDir);
+    }
+
+    TEST_CASE("AssetManager - Mesh Loading")
+    {
+        using namespace april::asset;
+
+        auto const testDir = std::string{"TestAssets_MeshManager"};
+        auto const cacheDir = std::string{"TestCache_MeshManager"};
+        auto const srcFile = testDir + "/triangle.gltf";
+        auto const assetFile = testDir + "/triangle.gltf.asset";
+
+        fs::remove_all(testDir);
+        fs::remove_all(cacheDir);
+        fs::create_directories(testDir);
+
+        createMinimalGLTF(srcFile);
+
+        {
+            auto asset = StaticMeshAsset{};
+            asset.setSourcePath(srcFile);
+            auto json = nlohmann::json{};
+            asset.serializeJson(json);
+            std::ofstream file(assetFile);
+            file << json.dump(2);
+        }
+
+        SUBCASE("Get mesh data returns valid payload")
+        {
+            auto manager = AssetManager{testDir, cacheDir};
+            auto asset = manager.loadAsset<StaticMeshAsset>(assetFile);
+            REQUIRE(asset != nullptr);
+
+            auto blob = std::vector<std::byte>{};
+            auto payload = manager.getMeshData(*asset, blob);
+
+            CHECK(payload.isValid());
+            CHECK(payload.header.vertexCount == 3);
+            CHECK(payload.header.indexCount == 3);
+            CHECK(payload.submeshes.size() == 1);
+            CHECK(payload.vertexData.size() == payload.header.vertexDataSize);
+            CHECK(payload.indexData.size() == payload.header.indexDataSize);
+            CHECK(payload.submeshes[0].indexOffset == 0);
+            CHECK(payload.submeshes[0].indexCount == 3);
+        }
+
+        fs::remove_all(testDir);
+        fs::remove_all(cacheDir);
     }
 
     TEST_CASE("Submesh Structure")

@@ -208,6 +208,14 @@ namespace april
         m_renderer->setViewportSize(width, height);
     }
 
+    auto Engine::setSceneViewProjection(float4x4 const& viewProj) -> void
+    {
+        if (m_renderer)
+        {
+            m_renderer->setExternalViewProjection(viewProj);
+        }
+    }
+
     auto Engine::init() -> void
     {
         if (m_initialized)
@@ -263,6 +271,7 @@ namespace april
             m_window->getFramebufferWidth(),
             m_window->getFramebufferHeight()
         );
+        m_renderer->setUseExternalCamera(m_config.enableUI);
 
         if (m_config.enableUI)
         {

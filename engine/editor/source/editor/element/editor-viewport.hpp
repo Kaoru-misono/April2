@@ -2,6 +2,9 @@
 
 #include "../editor-context.hpp"
 #include <ui/element.hpp>
+#include <graphics/camera/simple-camera.hpp>
+
+#include <memory>
 
 namespace april::editor
 {
@@ -25,5 +28,6 @@ namespace april::editor
 
     private:
         EditorContext& m_context;
+        std::unique_ptr<SimpleCamera> m_camera{};
     };
 }

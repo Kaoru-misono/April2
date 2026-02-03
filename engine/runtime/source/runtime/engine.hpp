@@ -61,6 +61,7 @@ namespace april
         auto getImGuiLayer() const -> ui::ImGuiLayer* { return m_imguiLayer.get(); }
         auto getSceneColorSrv() const -> core::ref<graphics::TextureView>;
         auto setSceneViewportSize(uint32_t width, uint32_t height) -> void;
+        auto setSceneViewProjection(float4x4 const& viewProj) -> void;
         auto isRunning() const -> bool { return m_running; }
 
     private:

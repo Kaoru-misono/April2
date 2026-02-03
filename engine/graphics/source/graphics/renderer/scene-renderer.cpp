@@ -27,19 +27,20 @@ struct VSOut
     float2 texCoord : TEXCOORD;
 };
 
-cbuffer PerFrame
+struct PerFrame
 {
     float4x4 viewProj;
     float4x4 model;
     float time;
 };
+ParameterBlock<PerFrame> perFrame;
 
 VSOut main(VSIn input)
 {
     VSOut output;
-    float4 worldPos = mul(model, float4(input.position, 1.0));
-    output.pos = mul(viewProj, worldPos);
-    output.normal = mul((float3x3)model, input.normal);
+    float4 worldPos = mul(perFrame.model, float4(input.position, 1.0));
+    output.pos = mul(perFrame.viewProj, worldPos);
+    output.normal = mul((float3x3)perFrame.model, input.normal);
     output.texCoord = input.texCoord;
     return output;
 }
@@ -155,6 +156,17 @@ float4 main(PSIn input) : SV_Target
         pipelineDesc.depthStencilState = DepthStencilState::create(dsDesc);
 
         m_pipeline = m_device->createGraphicsPipeline(pipelineDesc);
+
+        auto constexpr kDefaultFov = 45.0f;
+        m_gameCamera = std::make_unique<FixedCamera>(
+            float3{0.0f, 3.0f, 10.0f},
+            float3{0.0f, 0.0f, 0.0f},
+            float3{0.0f, 1.0f, 0.0f},
+            glm::radians(kDefaultFov),
+            1.777f,
+            0.1f,
+            1000.0f
+        );
     }
 
     auto SceneRenderer::setViewportSize(uint32_t width, uint32_t height) -> void
@@ -171,6 +183,10 @@ float4 main(PSIn input) : SV_Target
 
         m_width = width;
         m_height = height;
+        if (m_gameCamera)
+        {
+            m_gameCamera->setViewportSize(width, height);
+        }
         ensureTarget(m_width, m_height);
     }
 
@@ -202,23 +218,24 @@ float4 main(PSIn input) : SV_Target
 
         if (m_pipeline && m_vars && m_cubeMesh)
         {
-            // Setup camera matrices
-            auto aspect = (float)m_width / (float)m_height;
-            auto proj = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
-            auto view = glm::lookAt(
-                glm::vec3(10.0f * std::cos(m_time * 0.5f), 5.0f, 10.0f * std::sin(m_time * 0.5f)),
-                glm::vec3(0.0f, 0.0f, 0.0f),
-                glm::vec3(0.0f, 1.0f, 0.0f)
-            );
-            auto viewProj = proj * view;
+            auto viewProj = glm::mat4(1.0f);
+            if (m_useExternalCamera && m_hasExternalViewProj)
+            {
+                viewProj = m_externalViewProj;
+            }
+            else if (m_gameCamera)
+            {
+                m_gameCamera->onUpdate(0.016f);
+                viewProj = m_gameCamera->getViewProjectionMatrix();
+            }
 
             auto model = glm::rotate(glm::mat4(1.0f), m_time * 0.5f, glm::vec3(0.0f, 1.0f, 0.0f));
 
             // Set shader uniforms
             auto rootVar = m_vars->getRootVariable();
-            rootVar["PerFrame"]["viewProj"].setBlob(&viewProj, sizeof(glm::mat4));
-            rootVar["PerFrame"]["model"].setBlob(&model, sizeof(glm::mat4));
-            rootVar["PerFrame"]["time"].set(m_time);
+            rootVar["perFrame"]["viewProj"].setBlob(&viewProj, sizeof(glm::mat4));
+            rootVar["perFrame"]["model"].setBlob(&model, sizeof(glm::mat4));
+            rootVar["perFrame"]["time"].set(m_time);
 
             encoder->setVao(m_cubeMesh->getVAO());
             encoder->bindPipeline(m_pipeline.get(), m_vars.get());

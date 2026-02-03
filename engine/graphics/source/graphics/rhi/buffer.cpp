@@ -4,6 +4,7 @@
 
 #include "buffer.hpp"
 #include "render-device.hpp"
+#include "command-context.hpp"
 #include "rhi-tools.hpp"
 
 #include <core/error/assert.hpp>
@@ -254,8 +255,7 @@ namespace april::graphics
         }
         else if (m_memoryType == MemoryType::DeviceLocal)
         {
-            // TODO:
-            // mp_device->getRenderContext()->updateBuffer(this, pData, offset, size);
+            mp_device->getCommandContext()->updateBuffer(this, pData, offset, size);
         }
         else if (m_memoryType == MemoryType::ReadBack)
         {

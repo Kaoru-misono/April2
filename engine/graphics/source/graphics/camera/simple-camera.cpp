@@ -18,10 +18,20 @@ namespace april
     auto SimpleCamera::onUpdate(float dt) -> void
     {
         auto& io = ImGui::GetIO();
-
-        if (io.WantCaptureMouse) return;
-
         const float2 mouse{ io.MousePos.x, io.MousePos.y };
+
+        if (!m_inputEnabled)
+        {
+            m_initialMousePosition = mouse;
+            return;
+        }
+
+        if (io.WantCaptureMouse && !ImGui::IsMouseDown(ImGuiMouseButton_Right))
+        {
+            m_initialMousePosition = mouse;
+            return;
+        }
+
         float2 delta = (mouse - m_initialMousePosition) * 0.003f;
         m_initialMousePosition = mouse;
 

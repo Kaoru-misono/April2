@@ -305,6 +305,7 @@ namespace april::graphics
         char const* paths[] = { shaderSearchPath.c_str() };
         gfxDesc.slang.searchPathCount = 1;
         gfxDesc.slang.searchPaths = paths;
+        gfxDesc.slang.defaultMatrixLayoutMode = SLANG_MATRIX_LAYOUT_COLUMN_MAJOR;
         // Setup shader cache
         gfxDesc.persistentShaderCache = m_shaderCache.get();
         gfxDesc.persistentPipelineCache = m_pipelineCache.get();
@@ -554,7 +555,7 @@ namespace april::graphics
         return core::make_ref<Texture>(core::ref<Device>(this), pResource, type, format, width, height, depth, arraySize, mipLevels, sampleCount, usage, initState);
     }
 
-    namespace
+    inline namespace
     {
         auto convertAssetFormat(asset::PixelFormat format) -> ResourceFormat
         {

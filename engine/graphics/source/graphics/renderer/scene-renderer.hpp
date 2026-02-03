@@ -9,9 +9,12 @@
 #include <graphics/rhi/resource-views.hpp>
 #include <graphics/rhi/texture.hpp>
 #include <graphics/resources/static-mesh.hpp>
+#include <graphics/camera/fixed-camera.hpp>
 #include <graphics/program/program.hpp>
 #include <graphics/program/program-variables.hpp>
 #include <asset/asset-manager.hpp>
+
+#include <memory>
 
 namespace april::graphics
 {
@@ -23,6 +26,13 @@ namespace april::graphics
 
         auto setViewportSize(uint32_t width, uint32_t height) -> void;
         auto render(CommandContext* pContext, float4 const& clearColor) -> void;
+
+        auto setUseExternalCamera(bool enabled) -> void { m_useExternalCamera = enabled; }
+        auto setExternalViewProjection(float4x4 const& viewProj) -> void
+        {
+            m_externalViewProj = viewProj;
+            m_hasExternalViewProj = true;
+        }
 
         auto getSceneColorTexture() const -> core::ref<Texture> { return m_sceneColor; }
         auto getSceneColorSrv() const -> core::ref<TextureView> { return m_sceneColorSrv; }
@@ -40,6 +50,10 @@ namespace april::graphics
         core::ref<GraphicsPipeline> m_pipeline{};
         core::ref<ProgramVariables> m_vars{};
         core::ref<StaticMesh> m_cubeMesh{};
+        std::unique_ptr<FixedCamera> m_gameCamera{};
+        bool m_useExternalCamera{false};
+        bool m_hasExternalViewProj{false};
+        float4x4 m_externalViewProj{1.0f};
         uint32_t m_width{0};
         uint32_t m_height{0};
         ResourceFormat m_format{ResourceFormat::RGBA16Float};

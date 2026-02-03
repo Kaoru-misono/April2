@@ -70,14 +70,27 @@ namespace april::asset
                 return nullptr;
             }
 
-            // 2. Configure the new asset
+            // 2. Determine output path for the .asset file (e.g., "Texture.png" -> "Texture.png.asset")
+            auto assetFilePath = sourcePath;
+            assetFilePath += ".asset"; // Append .asset to the existing extension
+
+            if (std::filesystem::exists(assetFilePath))
+            {
+                if (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".tga")
+                {
+                    return loadAssetFromFile<TextureAsset>(assetFilePath);
+                }
+                if (extension == ".gltf" || extension == ".glb")
+                {
+                    return loadAssetFromFile<StaticMeshAsset>(assetFilePath);
+                }
+            }
+
+            // 3. Configure the new asset
             // Note: We store the relative path or absolute path depending on your project policy.
             // Here we store the path exactly as passed, but usually you want relative to ProjectRoot.
             newAsset->setSourcePath(sourcePath.string());
-
-            // 3. Determine output path for the .asset file (e.g., "Texture.png" -> "Texture.png.asset")
-            auto assetFilePath = sourcePath;
-            assetFilePath += ".asset"; // Append .asset to the existing extension
+            newAsset->setAssetPath(assetFilePath.string());
 
             // 4. Serialize to JSON
             nlohmann::json json;
@@ -387,6 +400,8 @@ namespace april::asset
                 AP_ERROR("[AssetManager] Failed to deserialize asset: {}", assetPath.string());
                 return nullptr;
             }
+
+            asset->setAssetPath(assetPath.string());
 
             // Cache the asset
             m_loadedAssets[asset->getHandle()] = asset;

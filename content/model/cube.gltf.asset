@@ -1,0 +1,11 @@
+{
+    "guid": "a37f91a2-4ebe-4c31-8a77-45c2e30a4cc2",
+    "settings": {
+        "flipWindingOrder": false,
+        "generateTangents": true,
+        "optimize": true,
+        "scale": 1.0
+    },
+    "source_path": "E:/github/April2/content/model/cube.gltf",
+    "type": "Mesh"
+}

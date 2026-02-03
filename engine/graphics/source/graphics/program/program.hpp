@@ -227,7 +227,7 @@ namespace april::graphics
         std::vector<EntryPointGroup> entryPointGroups{};
         TypeConformanceList typeConformances{};
         ShaderModel shaderModel{ShaderModel::Unknown};
-        SlangCompilerFlags compilerFlags{SlangCompilerFlags::None};
+        SlangCompilerFlags compilerFlags{SlangCompilerFlags::MatrixLayoutColumnMajor};
         std::vector<std::string> compilerArguments{};
 
         // RayTracing specific

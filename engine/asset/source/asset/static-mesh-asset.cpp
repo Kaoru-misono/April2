@@ -24,23 +24,34 @@ namespace april::asset
         rawKeyData += std::format("{:.6f}", m_settings.scale);
         rawKeyData += "|";
 
-        try
+        auto appendTimestamp = [&](std::string_view label, std::string const& path) -> void
         {
-            if (std::filesystem::exists(m_sourcePath))
+            rawKeyData += std::string{label};
+            rawKeyData += "=";
+
+            try
             {
-                auto ftime = std::filesystem::last_write_time(m_sourcePath);
-                auto timestamp = ftime.time_since_epoch().count();
-                rawKeyData += std::to_string(timestamp);
+                if (!path.empty() && std::filesystem::exists(path))
+                {
+                    auto ftime = std::filesystem::last_write_time(path);
+                    auto timestamp = ftime.time_since_epoch().count();
+                    rawKeyData += std::to_string(timestamp);
+                }
+                else
+                {
+                    rawKeyData += "MISSING_FILE";
+                }
             }
-            else
+            catch (...)
             {
-                rawKeyData += "MISSING_FILE";
+                rawKeyData += "ERROR_TIME";
             }
-        }
-        catch (...)
-        {
-            rawKeyData += "ERROR_TIME";
-        }
+
+            rawKeyData += "|";
+        };
+
+        appendTimestamp("source", m_sourcePath);
+        appendTimestamp("asset", m_assetPath);
 
         return core::computeStringHash(rawKeyData);
     }

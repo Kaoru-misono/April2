@@ -10,6 +10,7 @@ namespace april
         SimpleCamera(float fov, float aspect, float nearClip, float farClip);
 
         auto onUpdate(float dt) -> void override;
+        auto setInputEnabled(bool enabled) -> void { m_inputEnabled = enabled; }
 
         [[nodiscard]] auto getDistance() const -> float { return m_distance; }
         auto setDistance(float distance) -> void { m_distance = distance; }
@@ -25,6 +26,7 @@ namespace april
     private:
         float m_distance = 10.0f;
         float2 m_initialMousePosition = { 0.0f, 0.0f };
+        bool m_inputEnabled = true;
 
         float m_pitch = 0.0f;
         float m_yaw = 0.0f;
