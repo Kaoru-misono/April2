@@ -1,6 +1,7 @@
 #include "engine.hpp"
 
 #include <core/error/assert.hpp>
+#include <core/input/input.hpp>
 #include <core/log/logger.hpp>
 
 #include <chrono>
@@ -50,6 +51,7 @@ namespace april
                 std::chrono::duration<float> delta = now - lastTime;
                 lastTime = now;
 
+                Input::beginFrame();
                 m_window->onEvent();
 
                 renderFrame(delta.count());

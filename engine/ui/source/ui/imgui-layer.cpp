@@ -5,6 +5,7 @@
 #include <graphics/rhi/command-context.hpp>
 #include <graphics/rhi/resource-views.hpp>
 #include <graphics/rhi/vertex-array-object.hpp>
+#include <core/input/input.hpp>
 #include <core/window/window.hpp>
 #include <core/math/type.hpp>
 #include <core/log/logger.hpp>
@@ -404,6 +405,10 @@ namespace april::ui
     auto ImGuiLayer::endFrame(graphics::CommandContext* pCtx, core::ref<graphics::TextureView> const& pTargetView) -> void
     {
         renderFrame(pCtx);
+        {
+            auto& io = ImGui::GetIO();
+            Input::setUiCapture(io.WantCaptureMouse, io.WantCaptureKeyboard);
+        }
 
         if (pTargetView)
         {

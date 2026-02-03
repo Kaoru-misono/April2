@@ -1,5 +1,7 @@
 #include "glfw-window.hpp"
-#include "core/log/logger.hpp"
+#include <core/input/input.hpp>
+#include <core/log/logger.hpp>
+#include <core/math/type.hpp>
 
 #include <GLFW/glfw3.h>
 #ifdef _WIN32
@@ -134,8 +136,94 @@ namespace april
             dataPtr->dispatchEvent(event);
         });
 
-        // 3. Key Callback
-        // glfwSetKeyCallback(...)
+        // 4. Window Focus
+        glfwSetWindowFocusCallback(m_glfwWindow, [](GLFWwindow* window, int focused) {
+            auto* dataPtr = static_cast<WindowData*>(glfwGetWindowUserPointer(window));
+
+            Input::setWindowFocused(focused == GLFW_TRUE);
+            if (focused == GLFW_TRUE)
+            {
+                auto event = WindowFocusEvent{};
+                dataPtr->dispatchEvent(event);
+            }
+            else
+            {
+                auto event = WindowLostFocusEvent{};
+                dataPtr->dispatchEvent(event);
+            }
+        });
+
+        // 5. Key Callback
+        glfwSetKeyCallback(m_glfwWindow, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
+            auto* dataPtr = static_cast<WindowData*>(glfwGetWindowUserPointer(window));
+
+            if (action == GLFW_PRESS)
+            {
+                Input::setKeyDown(key, true);
+                auto event = KeyPressedEvent{key, scancode, mods};
+                dataPtr->dispatchEvent(event);
+            }
+            else if (action == GLFW_RELEASE)
+            {
+                Input::setKeyDown(key, false);
+                auto event = KeyReleasedEvent{key, scancode, mods};
+                dataPtr->dispatchEvent(event);
+            }
+            else if (action == GLFW_REPEAT)
+            {
+                Input::setKeyDown(key, true);
+                auto event = KeyRepeatedEvent{key, scancode, mods};
+                dataPtr->dispatchEvent(event);
+            }
+        });
+
+        // 6. Char Callback
+        glfwSetCharCallback(m_glfwWindow, [](GLFWwindow* window, unsigned int codepoint) {
+            auto* dataPtr = static_cast<WindowData*>(glfwGetWindowUserPointer(window));
+
+            auto event = CharInputEvent{static_cast<uint32_t>(codepoint)};
+            dataPtr->dispatchEvent(event);
+        });
+
+        // 7. Mouse Button Callback
+        glfwSetMouseButtonCallback(m_glfwWindow, [](GLFWwindow* window, int button, int action, int mods) {
+            auto* dataPtr = static_cast<WindowData*>(glfwGetWindowUserPointer(window));
+
+            if (action == GLFW_PRESS)
+            {
+                Input::setMouseButtonDown(button, true);
+                auto event = MouseButtonPressedEvent{button, mods};
+                dataPtr->dispatchEvent(event);
+            }
+            else if (action == GLFW_RELEASE)
+            {
+                Input::setMouseButtonDown(button, false);
+                auto event = MouseButtonReleasedEvent{button, mods};
+                dataPtr->dispatchEvent(event);
+            }
+        });
+
+        // 8. Mouse Position Callback
+        glfwSetCursorPosCallback(m_glfwWindow, [](GLFWwindow* window, double xPos, double yPos) {
+            auto* dataPtr = static_cast<WindowData*>(glfwGetWindowUserPointer(window));
+
+            auto position = float2{static_cast<float>(xPos), static_cast<float>(yPos)};
+            Input::setMousePosition(position);
+
+            auto event = MouseMovedEvent{position.x, position.y};
+            dataPtr->dispatchEvent(event);
+        });
+
+        // 9. Mouse Scroll Callback
+        glfwSetScrollCallback(m_glfwWindow, [](GLFWwindow* window, double xOffset, double yOffset) {
+            auto* dataPtr = static_cast<WindowData*>(glfwGetWindowUserPointer(window));
+
+            auto delta = float2{static_cast<float>(xOffset), static_cast<float>(yOffset)};
+            Input::addMouseWheel(delta);
+
+            auto event = MouseScrolledEvent{delta.x, delta.y};
+            dataPtr->dispatchEvent(event);
+        });
     }
 
     auto GlfwWindow::shutdown() -> void
