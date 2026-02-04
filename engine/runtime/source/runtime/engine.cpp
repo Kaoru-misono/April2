@@ -274,7 +274,7 @@ namespace april
         // Create scene graph
         m_sceneGraph = std::make_unique<scene::SceneGraph>();
 
-        m_renderer = core::make_ref<graphics::SceneRenderer>(m_device, m_assetManager.get());
+        m_renderer = core::make_ref<scene::SceneRenderer>(m_device, m_assetManager.get());
         m_renderer->setViewportSize(
             m_window->getFramebufferWidth(),
             m_window->getFramebufferHeight()

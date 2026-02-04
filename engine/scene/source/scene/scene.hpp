@@ -4,3 +4,4 @@
 #include "ecs-core.hpp"
 #include "components.hpp"
 #include "scene-graph.hpp"
+#include "renderer/scene-renderer.hpp"

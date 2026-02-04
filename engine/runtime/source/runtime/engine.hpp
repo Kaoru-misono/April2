@@ -9,7 +9,6 @@
 #include <graphics/rhi/resource-views.hpp>
 #include <graphics/rhi/swapchain.hpp>
 #include <graphics/rhi/texture.hpp>
-#include <graphics/renderer/scene-renderer.hpp>
 #include <ui/imgui-layer.hpp>
 #include <ui/element.hpp>
 #include <asset/asset-manager.hpp>
@@ -89,7 +88,7 @@ namespace april
         std::unique_ptr<asset::AssetManager> m_assetManager{};
         std::unique_ptr<scene::SceneGraph> m_sceneGraph{};
         core::ref<ui::ImGuiLayer> m_imguiLayer{};
-        core::ref<graphics::SceneRenderer> m_renderer{};
+        core::ref<scene::SceneRenderer> m_renderer{};
         core::ref<graphics::Texture> m_offscreen{};
         uint32_t m_offscreenWidth{0};
         uint32_t m_offscreenHeight{0};
