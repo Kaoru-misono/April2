@@ -210,6 +210,11 @@ namespace april::scene
 
     auto SceneGraph::updateCameras(uint32_t viewportWidth, uint32_t viewportHeight) -> void
     {
+        if (viewportWidth == 0 || viewportHeight == 0)
+        {
+            return;
+        }
+
         auto* cameraPool = m_registry.getPool<CameraComponent>();
         if (!cameraPool)
         {
@@ -231,8 +236,7 @@ namespace april::scene
                 camera.isDirty = true;
             }
 
-            // Recompute matrices if dirty
-            if (camera.isDirty)
+            // Always update view from current world transform
             {
                 // Get world transform
                 if (m_registry.allOf<TransformComponent>(entity))
@@ -246,8 +250,11 @@ namespace april::scene
                 {
                     camera.viewMatrix = float4x4{1.0f};
                 }
+            }
 
-                // Compute projection matrix
+            // Compute projection matrix if dirty or resized
+            if (camera.isDirty)
+            {
                 auto const aspect = static_cast<float>(viewportWidth) / static_cast<float>(viewportHeight);
                 if (camera.isPerspective)
                 {
@@ -269,11 +276,11 @@ namespace april::scene
                         camera.farClip
                     );
                 }
-
-                // Compute combined matrix
-                camera.viewProjectionMatrix = camera.projectionMatrix * camera.viewMatrix;
                 camera.isDirty = false;
             }
+
+            // Compute combined matrix
+            camera.viewProjectionMatrix = camera.projectionMatrix * camera.viewMatrix;
         }
     }
 

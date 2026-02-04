@@ -3,6 +3,7 @@
 #include "../editor-context.hpp"
 #include <ui/element.hpp>
 #include <graphics/camera/simple-camera.hpp>
+#include <scene/ecs-core.hpp>
 
 #include <memory>
 
@@ -29,5 +30,6 @@ namespace april::editor
     private:
         EditorContext& m_context;
         std::unique_ptr<SimpleCamera> m_camera{};
+        scene::Entity m_cameraEntity{scene::NullEntity};
     };
 }

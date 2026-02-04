@@ -1,4 +1,7 @@
 #include "input.hpp"
+#include <core/input/input.hpp>
+
+#include <array>
 
 namespace april
 {
@@ -26,14 +29,24 @@ namespace april
 
         auto g_state = InputState{};
 
-        [[nodiscard]] auto isValidKey(int key) -> bool
+        [[nodiscard]] auto isValidKey(Key key) -> bool
         {
-            return key >= 0 && key < static_cast<int>(Input::kMaxKeys);
+            return key != Key::Unknown;
         }
 
-        [[nodiscard]] auto isValidMouseButton(int button) -> bool
+        [[nodiscard]] auto isValidMouseButton(MouseButton button) -> bool
         {
-            return button >= 0 && button < static_cast<int>(Input::kMaxMouseButtons);
+            return button != MouseButton::Unknown;
+        }
+
+        [[nodiscard]] auto toIndex(Key key) -> size_t
+        {
+            return static_cast<size_t>(key);
+        }
+
+        [[nodiscard]] auto toIndex(MouseButton button) -> size_t
+        {
+            return static_cast<size_t>(button);
         }
     }
 
@@ -47,14 +60,14 @@ namespace april
         g_state.mouseWheelDelta = float2{0.0f, 0.0f};
     }
 
-    auto Input::setKeyDown(int key, bool down) -> void
+    auto Input::setKeyDown(Key key, bool down) -> void
     {
         if (!isValidKey(key))
         {
             return;
         }
 
-        auto const index = static_cast<size_t>(key);
+        auto const index = toIndex(key);
         bool const wasDown = g_state.keysDown[index];
         if (down && !wasDown)
         {
@@ -67,14 +80,14 @@ namespace april
         g_state.keysDown[index] = down;
     }
 
-    auto Input::setMouseButtonDown(int button, bool down) -> void
+    auto Input::setMouseButtonDown(MouseButton button, bool down) -> void
     {
         if (!isValidMouseButton(button))
         {
             return;
         }
 
-        auto const index = static_cast<size_t>(button);
+        auto const index = toIndex(button);
         bool const wasDown = g_state.mouseDown[index];
         if (down && !wasDown)
         {
@@ -116,64 +129,64 @@ namespace april
         g_state.uiKeyboardCaptured = keyboardCaptured;
     }
 
-    auto Input::isKeyDown(int key) -> bool
+    auto Input::isKeyDown(Key key) -> bool
     {
         if (!isValidKey(key))
         {
             return false;
         }
 
-        return g_state.keysDown[static_cast<size_t>(key)];
+        return g_state.keysDown[toIndex(key)];
     }
 
-    auto Input::wasKeyPressed(int key) -> bool
+    auto Input::wasKeyPressed(Key key) -> bool
     {
         if (!isValidKey(key))
         {
             return false;
         }
 
-        return g_state.keysPressed[static_cast<size_t>(key)];
+        return g_state.keysPressed[toIndex(key)];
     }
 
-    auto Input::wasKeyReleased(int key) -> bool
+    auto Input::wasKeyReleased(Key key) -> bool
     {
         if (!isValidKey(key))
         {
             return false;
         }
 
-        return g_state.keysReleased[static_cast<size_t>(key)];
+        return g_state.keysReleased[toIndex(key)];
     }
 
-    auto Input::isMouseDown(int button) -> bool
+    auto Input::isMouseDown(MouseButton button) -> bool
     {
         if (!isValidMouseButton(button))
         {
             return false;
         }
 
-        return g_state.mouseDown[static_cast<size_t>(button)];
+        return g_state.mouseDown[toIndex(button)];
     }
 
-    auto Input::wasMousePressed(int button) -> bool
+    auto Input::wasMousePressed(MouseButton button) -> bool
     {
         if (!isValidMouseButton(button))
         {
             return false;
         }
 
-        return g_state.mousePressed[static_cast<size_t>(button)];
+        return g_state.mousePressed[toIndex(button)];
     }
 
-    auto Input::wasMouseReleased(int button) -> bool
+    auto Input::wasMouseReleased(MouseButton button) -> bool
     {
         if (!isValidMouseButton(button))
         {
             return false;
         }
 
-        return g_state.mouseReleased[static_cast<size_t>(button)];
+        return g_state.mouseReleased[toIndex(button)];
     }
 
     auto Input::getMousePosition() -> float2

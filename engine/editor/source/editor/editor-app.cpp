@@ -7,6 +7,7 @@
 
 #include <editor/element/element-logger.hpp>
 #include <editor/element/element-profiler.hpp>
+#include <scene/ecs-core.hpp>
 
 namespace april::editor
 {
@@ -59,6 +60,7 @@ namespace april::editor
     {
         ensureDefaultSelection();
 
+
         if (!m_defaultsRegistered && m_factories.empty())
         {
             registerDefaultElements();
@@ -96,9 +98,6 @@ namespace april::editor
 
     auto EditorApp::ensureDefaultSelection() -> void
     {
-        if (m_context.selection.entityName.empty())
-        {
-            m_context.selection.entityName = m_context.scene.name;
-        }
+        m_context.selection.entity = scene::NullEntity;
     }
 }

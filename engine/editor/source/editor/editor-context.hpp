@@ -1,13 +1,14 @@
 #pragma once
 
 #include <core/math/type.hpp>
+#include <scene/ecs-core.hpp>
 #include <string>
 
 namespace april::editor
 {
     struct EditorSelection
     {
-        std::string entityName{};
+        scene::Entity entity{scene::NullEntity};
     };
 
     struct EditorSceneRef

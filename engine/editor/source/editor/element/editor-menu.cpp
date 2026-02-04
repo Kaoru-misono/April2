@@ -3,7 +3,11 @@
 #include "element-logger.hpp"
 #include "element-profiler.hpp"
 
+#include <runtime/engine.hpp>
+#include <asset/asset-manager.hpp>
 #include <imgui.h>
+
+#include <filesystem>
 
 namespace april::editor
 {
@@ -19,6 +23,20 @@ namespace april::editor
     {
         if (ImGui::BeginMenu("File"))
         {
+            if (ImGui::BeginMenu("Import Asset"))
+            {
+                ImGui::InputText("Source Path", m_importBuffer.data(), m_importBuffer.size());
+                if (ImGui::Button("Import"))
+                {
+                    auto* assetManager = Engine::get().getAssetManager();
+                    if (assetManager)
+                    {
+                        assetManager->importAsset(std::filesystem::path{m_importBuffer.data()});
+                    }
+                }
+                ImGui::EndMenu();
+            }
+
             if (ImGui::MenuItem("Exit"))
             {
                 if (m_onExit)

@@ -11,6 +11,7 @@ namespace april
 
         auto onUpdate(float dt) -> void override;
         auto setInputEnabled(bool enabled) -> void { m_inputEnabled = enabled; }
+        auto setRotation(float pitch, float yaw) -> void;
 
         [[nodiscard]] auto getDistance() const -> float { return m_distance; }
         auto setDistance(float distance) -> void { m_distance = distance; }

@@ -64,6 +64,7 @@ namespace april
         auto setSceneViewportSize(uint32_t width, uint32_t height) -> void;
         auto isRunning() const -> bool { return m_running; }
         auto getSceneGraph() -> scene::SceneGraph* { return m_sceneGraph.get(); }
+        auto getAssetManager() -> asset::AssetManager* { return m_assetManager.get(); }
 
     private:
         auto init() -> void;

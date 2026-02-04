@@ -149,7 +149,7 @@ float4 main(PSIn input) : SV_Target
         pContext->resourceBarrier(m_sceneDepth.get(), Resource::State::DepthStencil);
 
         // Extract active camera
-        updateActiveCamera(registry);
+        updateActiveCamera(scene);
         if (!m_hasActiveCamera)
         {
             return;
@@ -237,22 +237,23 @@ float4 main(PSIn input) : SV_Target
         return mesh;
     }
 
-    auto SceneRenderer::updateActiveCamera(scene::Registry const& registry) -> void
+    auto SceneRenderer::updateActiveCamera(scene::SceneGraph const& scene) -> void
     {
-        auto activeCamera = scene::NullEntity;
-
-        // Find active camera (this is a simplified approach, should use SceneGraph::getActiveCamera)
-        auto const* cameraPool = registry.getPool<scene::CameraComponent>();
-        if (!cameraPool || cameraPool->data().empty())
+        auto const activeCamera = scene.getActiveCamera();
+        if (activeCamera == scene::NullEntity)
         {
             AP_WARN("[SceneRenderer] No active camera found");
             m_hasActiveCamera = false;
             return;
         }
 
-        // For now, just use the first camera
-        // In a full implementation, we'd look for "MainCamera" tag
-        activeCamera = cameraPool->getEntity(0);
+        auto const& registry = scene.getRegistry();
+        if (!registry.allOf<scene::CameraComponent>(activeCamera))
+        {
+            AP_WARN("[SceneRenderer] Active camera missing CameraComponent");
+            m_hasActiveCamera = false;
+            return;
+        }
 
         auto const& camComp = registry.get<scene::CameraComponent>(activeCamera);
         m_viewProjectionMatrix = camComp.viewProjectionMatrix;
@@ -264,7 +265,6 @@ float4 main(PSIn input) : SV_Target
         auto const* meshPool = registry.getPool<scene::MeshRendererComponent>();
         if (!meshPool)
         {
-            AP_WARN("[SceneRenderer] No mesh pool found");
             return;
         }
 

@@ -63,15 +63,16 @@ auto Engine::run() -> void
 2. Acquire backbuffer from swapchain
 3. Call user onUpdate hook (game logic)
 4. Setup render target (offscreen or backbuffer)
-5. Call user onRender hook OR SceneRenderer::render
+5. Call user onRender hook (or clear target if absent)
 6. ImGuiLayer begins frame (if enabled)
 7. Call user onUI hook
-8. SceneRenderer composite to output
-9. ImGuiLayer renders UI
-10. Transition backbuffer to Present
-11. Submit commands to GPU
-12. Swapchain present
-13. Device endFrame (resource cleanup)
+8. SceneRenderer::render (if scene graph exists)
+9. SceneRenderer composite to output
+10. ImGuiLayer renders UI
+11. Transition backbuffer to Present
+12. Submit commands to GPU
+13. Swapchain present
+14. Device endFrame (resource cleanup)
 ```
 
 **Key State**:
@@ -212,7 +213,7 @@ struct DrawRange
 };
 ```
 
-**Loading**: `Device::createMeshFromAsset(assetPath)`
+**Loading**: `Device::createMeshFromAsset(*assetManager, *meshAsset)` (after `AssetManager::loadAsset`)
 
 ### GraphicsPipeline: Rendering State
 
@@ -336,6 +337,39 @@ struct RelationshipComponent
 };
 ```
 
+#### MeshRendererComponent
+```cpp
+struct MeshRendererComponent
+{
+    std::string meshAssetPath{};  // Path to .asset file
+    uint32_t materialId{0};
+    bool castShadows{true};
+    bool receiveShadows{true};
+    bool enabled{true};
+};
+```
+
+#### CameraComponent
+```cpp
+struct CameraComponent
+{
+    bool isPerspective{true};
+    float fov{glm::radians(45.0f)};
+    float orthoSize{10.0f};
+    float nearClip{0.1f};
+    float farClip{1000.0f};
+
+    uint32_t viewportWidth{1920};
+    uint32_t viewportHeight{1080};
+
+    float4x4 viewMatrix{1.0f};
+    float4x4 projectionMatrix{1.0f};
+    float4x4 viewProjectionMatrix{1.0f};
+
+    bool isDirty{true};
+};
+```
+
 **Hierarchy Structure**: Intrusive linked list
 
 ```
@@ -375,64 +409,54 @@ auto updateTransform(Entity, float4x4 const& parentMatrix, bool parentDirty) -> 
 
 ---
 
-## 4. SceneRenderer: Example Renderer
+## 4. SceneRenderer: ECS Renderer
 
 **Location**: `engine/graphics/source/graphics/renderer/scene-renderer.hpp/cpp`
 
-**Current State** (before integration):
-- Hardcoded cube mesh loading
-- Internal FixedCamera with animation
-- Simple diffuse shading (embedded Slang shaders)
+**Current State**:
+- ECS-driven rendering via `MeshRendererComponent` + `TransformComponent`
+- Active camera pulled from `SceneGraph::getActiveCamera()` (tag `MainCamera` or first camera)
+- Mesh cache keyed by asset path, loaded through `AssetManager`
 - Offscreen rendering to RGBA16Float + D32Float
+- Simple diffuse shading (embedded Slang shaders)
 
 **Constructor**:
-1. Load cube mesh from `"E:/github/April2/content/model/cube.asset"`
-2. Create graphics pipeline with vertex/pixel shaders
-3. Initialize internal camera at (0, 3, 10) looking at origin
+1. Create graphics pipeline with vertex/pixel shaders
+2. Initialize program variables and state (no hardcoded mesh or camera)
 
 **Render Method**:
 ```cpp
-auto render(CommandContext* ctx, float4 const& clearColor) -> void
+auto render(CommandContext* ctx, scene::SceneGraph const& scene, float4 const& clearColor) -> void
 {
-    // 1. Ensure render targets exist
     ensureTarget(m_width, m_height);
-
-    // 2. Resource barriers
     ctx->resourceBarrier(m_sceneColor, RenderTarget);
     ctx->resourceBarrier(m_sceneDepth, DepthStencil);
 
-    // 3. Begin render pass
+    updateActiveCamera(scene);
+    if (!m_hasActiveCamera)
+    {
+        return;
+    }
+
+    auto const& registry = scene.getRegistry();
+
+    // Preload meshes into GPU cache
+    for (auto const& meshComp : registry.getPool<MeshRendererComponent>()->data())
+    {
+        if (meshComp.enabled && !meshComp.meshAssetPath.empty())
+        {
+            getMeshForPath(meshComp.meshAssetPath);
+        }
+    }
+
     auto encoder = ctx->beginRenderPass(colorTarget, depthTarget);
     encoder->setViewport(0, viewport);
     encoder->setScissor(0, scissor);
 
-    // 4. Setup camera (external or internal)
-    auto viewProj = m_useExternalCamera ? m_externalViewProj : m_gameCamera->getViewProjectionMatrix();
-
-    // 5. Animate model rotation
-    auto model = glm::rotate(identity, m_time * 0.5f, float3{0, 1, 0});
-
-    // 6. Set shader uniforms
-    auto rootVar = m_vars->getRootVariable();
-    rootVar["perFrame"]["viewProj"].setBlob(&viewProj, ...);
-    rootVar["perFrame"]["model"].setBlob(&model, ...);
-
-    // 7. Draw cube mesh
-    encoder->setVao(m_cubeMesh->getVAO());
-    encoder->bindPipeline(m_pipeline, m_vars);
-
-    for (size_t i = 0; i < m_cubeMesh->getSubmeshCount(); ++i)
-    {
-        auto const& submesh = m_cubeMesh->getSubmesh(i);
-        encoder->drawIndexed(submesh.indexCount, submesh.indexOffset, 0);
-    }
+    renderMeshEntities(encoder, registry);
 
     encoder->end();
-
-    // 8. Transition to shader resource for compositing
     ctx->resourceBarrier(m_sceneColor, ShaderResource);
-
-    m_time += 0.016f;  // Assume 60 FPS
 }
 ```
 
@@ -474,9 +498,7 @@ float4 fragmentMain(VertexOut pin) : SV_Target {
 ```
 
 **External Camera Support**:
-- `setUseExternalCamera(bool)` - Enable/disable external camera
-- `setExternalViewProjection(float4x4 const&)` - Set view-projection matrix
-- Used by editor viewport for camera control
+- Removed; editor viewport currently does not drive the scene renderer camera.
 
 ---
 
@@ -511,7 +533,7 @@ struct EditorContext
 **Functionality**:
 - Contains `SimpleCamera` for navigation
 - Captures mouse/keyboard input when hovered
-- Sets viewport size and external camera via `Engine::setSceneViewProjection()`
+- Sets viewport size for scene rendering
 - Displays scene color texture as ImGui image
 
 **Render Flow**:
@@ -526,7 +548,6 @@ auto EditorViewportElement::render(EditorContext& ctx) -> void
 
     // Set viewport size and camera
     engine->setSceneViewportSize(width, height);
-    engine->setSceneViewProjection(m_camera->getViewProjectionMatrix());
 
     // Display scene texture
     auto srv = engine->getSceneColorSrv();
@@ -574,7 +595,8 @@ m_assetManager = std::make_unique<AssetManager>(
 
 **Usage**:
 ```cpp
-auto mesh = m_device->createMeshFromAsset(assetPath);
+auto meshAsset = m_assetManager->loadAsset<asset::StaticMeshAsset>(assetPath);
+auto mesh = m_device->createMeshFromAsset(*m_assetManager, *meshAsset);
 auto texture = m_device->createTextureFromAsset(texPath);
 ```
 
@@ -626,20 +648,16 @@ auto mat = glm::translate(identity, position);
 
 ## 8. Integration Points for Rendering
 
-### Current Disconnects
+### Current State
 
-1. **Scene ECS exists but unused**: Entities/components created but not rendered
-2. **SceneRenderer is hardcoded**: Single cube mesh, no entity awareness
-3. **No entity-to-mesh binding**: No component links entities to renderable geometry
-4. **Camera is internal**: Editor camera doesn't control scene camera
+1. **Scene ECS is rendered**: Entities with `MeshRendererComponent` are drawn by SceneRenderer
+2. **Camera is component-based**: Active camera comes from `SceneGraph::getActiveCamera()`
+3. **Transforms updated per frame**: Engine calls `updateTransforms()` and `updateCameras()`
+4. **Editor camera is not wired**: Editor viewport uses `SimpleCamera` but does not drive scene cameras yet
 
-### Required Connections
+### Remaining Connections
 
-1. **MeshRendererComponent** → SceneRenderer iterates entities with this component
-2. **TransformComponent** → SceneRenderer uses world matrices for rendering
-3. **CameraComponent** → SceneRenderer extracts view/projection from active camera
-4. **SceneGraph** → Engine updates transforms before rendering
-5. **Entity iteration** → Registry needs to expose entity IDs for multi-component queries
+1. **Editor viewport camera** → Sync `SimpleCamera` output into a SceneGraph camera entity
 
 ---
 
@@ -669,7 +687,7 @@ auto mat = glm::translate(identity, position);
 
 ## 10. Future Extensions
 
-### Phase 1: Basic Entity Rendering (Current Plan)
+### Phase 1: Basic Entity Rendering (Implemented)
 - MeshRendererComponent, CameraComponent
 - Entity iteration and rendering
 - Transform propagation integration

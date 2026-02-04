@@ -1,5 +1,6 @@
 #include "simple-camera.hpp"
 #include <imgui.h>
+#include <glm/glm.hpp>
 
 namespace april
 {
@@ -40,7 +41,7 @@ namespace april
             if (delta.x != 0.0f || delta.y != 0.0f)
             {
                 float yawSign = getUpDirection().y < 0 ? -1.0f : 1.0f;
-                m_yaw   += yawSign * delta.x;
+                m_yaw   -= yawSign * delta.x;
                 m_pitch += delta.y;
             }
 
@@ -51,13 +52,20 @@ namespace april
 
             if (ImGui::IsKeyDown(ImGuiKey_W)) m_position += getForwardDirection() * speed;
             if (ImGui::IsKeyDown(ImGuiKey_S)) m_position -= getForwardDirection() * speed;
-            if (ImGui::IsKeyDown(ImGuiKey_A)) m_position -= getRightDirection() * speed;
-            if (ImGui::IsKeyDown(ImGuiKey_D)) m_position += getRightDirection() * speed;
+            if (ImGui::IsKeyDown(ImGuiKey_A)) m_position += getRightDirection() * speed;
+            if (ImGui::IsKeyDown(ImGuiKey_D)) m_position -= getRightDirection() * speed;
 
             if (ImGui::IsKeyDown(ImGuiKey_Q)) m_position -= float3(0.0f, 1.0f, 0.0f) * speed;
             if (ImGui::IsKeyDown(ImGuiKey_E)) m_position += float3(0.0f, 1.0f, 0.0f) * speed;
         }
 
+        updateCameraView();
+    }
+
+    auto SimpleCamera::setRotation(float pitch, float yaw) -> void
+    {
+        m_pitch = pitch;
+        m_yaw = yaw;
         updateCameraView();
     }
 
@@ -84,7 +92,9 @@ namespace april
 
     auto SimpleCamera::getRightDirection() const -> float3
     {
-        return getRotation() * float3(1.0f, 0.0f, 0.0f);
+        auto const forward = getForwardDirection();
+        auto const up = float3(0.0f, 1.0f, 0.0f);
+        return glm::normalize(glm::cross(up, forward));
     }
 
     auto SimpleCamera::getUpDirection() const -> float3

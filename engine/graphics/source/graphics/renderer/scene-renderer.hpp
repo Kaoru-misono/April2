@@ -34,7 +34,7 @@ namespace april::graphics
     private:
         auto ensureTarget(uint32_t width, uint32_t height) -> void;
         auto getMeshForPath(std::string const& path) -> core::ref<StaticMesh>;
-        auto updateActiveCamera(scene::Registry const& registry) -> void;
+        auto updateActiveCamera(scene::SceneGraph const& scene) -> void;
         auto renderMeshEntities(core::ref<RenderPassEncoder> encoder, scene::Registry const& registry) -> void;
 
         core::ref<Device> m_device{};

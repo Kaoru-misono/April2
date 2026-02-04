@@ -4,8 +4,8 @@
 
 namespace
 {
-    constexpr int kTestKey = 65;
-    constexpr int kTestMouseButton = 1;
+    constexpr auto kTestKey = april::Key::A;
+    constexpr auto kTestMouseButton = april::MouseButton::Right;
 }
 
 TEST_CASE("Input key transitions")

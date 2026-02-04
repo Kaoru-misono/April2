@@ -5,6 +5,7 @@
 #include <core/foundation/object.hpp>
 
 #include <functional>
+#include <array>
 
 namespace april::ui
 {
@@ -44,5 +45,6 @@ namespace april::editor
         std::function<void()> m_onExit;
         core::ref<ui::ElementLogger> m_logger;
         core::ref<ui::ElementProfiler> m_profiler;
+        std::array<char, 260> m_importBuffer{};
     };
 }

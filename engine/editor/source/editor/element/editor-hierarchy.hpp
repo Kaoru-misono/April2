@@ -3,6 +3,8 @@
 #include "../editor-context.hpp"
 #include <ui/element.hpp>
 
+#include <scene/ecs-core.hpp>
+
 namespace april::editor
 {
     class EditorHierarchyElement final : public ui::IElement

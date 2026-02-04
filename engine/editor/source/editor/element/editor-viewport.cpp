@@ -1,6 +1,7 @@
 #include "editor-viewport.hpp"
 
 #include <runtime/engine.hpp>
+#include <scene/scene.hpp>
 #include <imgui.h>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -11,11 +12,65 @@ namespace april::editor
         auto constexpr kDefaultFov = 45.0f;
         m_camera = std::make_unique<SimpleCamera>(glm::radians(kDefaultFov), 1.777f, 0.1f, 1000.0f);
         m_camera->setPosition(float3{0.0f, 0.0f, 10.0f});
-        // TODO: Integrate editor camera with scene graph
-        // Engine::get().setSceneViewProjection(m_camera->getViewProjectionMatrix());
+
+        auto* scene = Engine::get().getSceneGraph();
+        if (!scene)
+        {
+            return;
+        }
+
+        m_cameraEntity = scene->createEntity("MainCamera");
+        auto& registry = scene->getRegistry();
+        auto& cameraComponent = registry.emplace<scene::CameraComponent>(m_cameraEntity);
+        cameraComponent.isPerspective = true;
+        cameraComponent.fov = glm::radians(kDefaultFov);
+        cameraComponent.nearClip = 0.1f;
+        cameraComponent.farClip = 1000.0f;
+
+        auto& transform = registry.get<scene::TransformComponent>(m_cameraEntity);
+        transform.localPosition = m_camera->getPosition();
+        transform.isDirty = true;
+
+        auto const* meshPool = registry.getPool<scene::MeshRendererComponent>();
+        if (!meshPool || meshPool->data().empty())
+        {
+            auto cube = scene->createEntity("Cube");
+            auto& meshRenderer = registry.emplace<scene::MeshRendererComponent>(cube);
+            meshRenderer.meshAssetPath = "E:/github/April2/content/model/cube.gltf.asset";
+            meshRenderer.enabled = true;
+
+            auto& cubeTransform = registry.get<scene::TransformComponent>(cube);
+            cubeTransform.localPosition = {0.0f, 0.0f, 0.0f};
+            cubeTransform.isDirty = true;
+
+            auto cubeChild = scene->createEntity("CubeChild");
+            auto& childRenderer = registry.emplace<scene::MeshRendererComponent>(cubeChild);
+            childRenderer.meshAssetPath = "E:/github/April2/content/model/cube.gltf.asset";
+            childRenderer.enabled = true;
+
+            auto& childTransform = registry.get<scene::TransformComponent>(cubeChild);
+            childTransform.localPosition = {2.5f, 0.5f, 0.0f};
+            childTransform.localScale = {0.6f, 0.6f, 0.6f};
+            childTransform.isDirty = true;
+
+            scene->setParent(cubeChild, cube);
+        }
     }
 
-    auto EditorViewportElement::onDetach() -> void {}
+    auto EditorViewportElement::onDetach() -> void
+    {
+        auto* scene = Engine::get().getSceneGraph();
+        if (!scene)
+        {
+            return;
+        }
+
+        if (m_cameraEntity != scene::NullEntity)
+        {
+            scene->destroyEntity(m_cameraEntity);
+            m_cameraEntity = scene::NullEntity;
+        }
+    }
     auto EditorViewportElement::onUIMenu() -> void {}
     auto EditorViewportElement::onPreRender() -> void {}
     auto EditorViewportElement::onRender(graphics::CommandContext* /*pContext*/) -> void {}
@@ -33,6 +88,18 @@ namespace april::editor
             {
                 m_camera->setViewportSize(width, height);
             }
+            if (m_cameraEntity != scene::NullEntity)
+            {
+                auto* scene = Engine::get().getSceneGraph();
+                if (scene)
+                {
+                    auto& registry = scene->getRegistry();
+                    auto& cameraComponent = registry.get<scene::CameraComponent>(m_cameraEntity);
+                    cameraComponent.viewportWidth = width;
+                    cameraComponent.viewportHeight = height;
+                    cameraComponent.isDirty = true;
+                }
+            }
         }
     }
 
@@ -43,10 +110,38 @@ namespace april::editor
         auto focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
         if (m_camera)
         {
-            m_camera->setInputEnabled(hovered || focused);
+            auto const inputActive = hovered || focused;
+            m_camera->setInputEnabled(inputActive);
             m_camera->onUpdate(ImGui::GetIO().DeltaTime);
-            // TODO: Integrate editor camera with scene graph
-            // Engine::get().setSceneViewProjection(m_camera->getViewProjectionMatrix());
+
+            if (m_cameraEntity != scene::NullEntity)
+            {
+                auto* scene = Engine::get().getSceneGraph();
+                if (scene)
+                {
+                    auto& registry = scene->getRegistry();
+                    auto& transform = registry.get<scene::TransformComponent>(m_cameraEntity);
+                    auto const selected = m_context.selection.entity == m_cameraEntity;
+
+                    if (!inputActive && selected)
+                    {
+                        m_camera->setPosition(transform.localPosition);
+                        m_camera->setRotation(transform.localRotation.x, transform.localRotation.y);
+                    }
+                    else
+                    {
+                        auto const position = m_camera->getPosition();
+                        auto const direction = m_camera->getDirection();
+
+                        auto const yaw = std::atan2(direction.x, -direction.z);
+                        auto const pitch = std::asin(std::clamp(direction.y, -0.99f, 0.99f));
+
+                        transform.localPosition = position;
+                        transform.localRotation = {pitch, yaw, 0.0f};
+                        transform.isDirty = true;
+                    }
+                }
+            }
         }
         auto size = ImGui::GetContentRegionAvail();
         auto sceneSrv = Engine::get().getSceneColorSrv();

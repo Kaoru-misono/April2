@@ -3,6 +3,10 @@
 #include "../editor-context.hpp"
 #include <ui/element.hpp>
 
+#include <scene/ecs-core.hpp>
+
+#include <array>
+
 namespace april::editor
 {
     class EditorInspectorElement final : public ui::IElement
@@ -25,5 +29,8 @@ namespace april::editor
 
     private:
         EditorContext& m_context;
+        scene::Entity m_lastEntity{scene::NullEntity};
+        std::array<char, 128> m_tagBuffer{};
+        std::array<char, 256> m_meshBuffer{};
     };
 }
