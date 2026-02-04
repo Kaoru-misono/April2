@@ -34,5 +34,3 @@ endif()
 set(_DLL_TARGETS slang slang-rhi)
 
 set(MODULE_DLL_COPY_LIST ${_DLL_TARGETS} PARENT_SCOPE)
-
-april_helper_add_library(meshoptimizer ${CURRENT_MODULE_TARGET})
