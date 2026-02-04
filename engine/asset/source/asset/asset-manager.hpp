@@ -3,6 +3,7 @@
 #include "asset.hpp"
 #include "texture-asset.hpp"
 #include "static-mesh-asset.hpp"
+#include "material-asset.hpp"
 #include "blob-header.hpp"
 #include "ddc/ddc-manager.hpp"
 
@@ -264,6 +265,41 @@ namespace april::asset
         }
 
         /**
+         * Save a MaterialAsset to a .material.asset file.
+         */
+        auto saveMaterialAsset(std::shared_ptr<MaterialAsset> const& material, std::filesystem::path const& outputPath) -> bool
+        {
+            if (!material)
+            {
+                AP_ERROR("[AssetManager] Cannot save null material asset");
+                return false;
+            }
+
+            material->setAssetPath(outputPath.string());
+
+            nlohmann::json json;
+            material->serializeJson(json);
+
+            auto file = std::ofstream{outputPath};
+            if (!file.is_open())
+            {
+                AP_ERROR("[AssetManager] Failed to write material asset file: {}", outputPath.string());
+                return false;
+            }
+
+            file << json.dump(4);
+            file.close();
+
+            // Register and cache
+            auto handle = material->getHandle();
+            m_assetRegistry[handle] = outputPath;
+            m_loadedAssets[handle] = material;
+
+            AP_INFO("[AssetManager] Saved material asset: {} (UUID: {})", outputPath.string(), handle.toString());
+            return true;
+        }
+
+        /**
          * Register an asset path in the registry for UUID-based lookup.
          */
         auto registerAssetPath(core::UUID handle, std::filesystem::path const& path) -> void
@@ -358,6 +394,10 @@ namespace april::asset
             else if (typeStr == "Mesh")
             {
                 type = AssetType::Mesh;
+            }
+            else if (typeStr == "Material")
+            {
+                type = AssetType::Material;
             }
             // Add more types as needed
 

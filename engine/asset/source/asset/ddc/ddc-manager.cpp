@@ -8,6 +8,8 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <tinygltf/tiny_gltf.h>
 
+#include <meshoptimizer.h>
+
 #include <fstream>
 #include <cstring>
 #include <cmath>
@@ -368,6 +370,145 @@ namespace april::asset
             submeshes.push_back(submesh);
 
             baseVertexOffset += static_cast<uint32_t>(vertexCount);
+        }
+
+        // Apply meshoptimizer optimizations
+        if (settings.optimize && !indices.empty() && !vertices.empty())
+        {
+            auto const vertexCount = static_cast<size_t>(vertices.size() / VERTEX_STRIDE_FLOATS);
+            auto const indexCount = indices.size();
+            auto const vertexSize = VERTEX_STRIDE_FLOATS * sizeof(float);
+
+            AP_INFO("[DDC] Applying mesh optimizations...");
+
+            // Step 1: Generate vertex remap for deduplication
+            auto remap = std::vector<unsigned int>(vertexCount);
+            auto const uniqueVertexCount = meshopt_generateVertexRemap(
+                remap.data(),
+                indices.data(),
+                indexCount,
+                vertices.data(),
+                vertexCount,
+                vertexSize
+            );
+
+            AP_INFO("[DDC]   - Deduplication: {} -> {} vertices ({:.1f}% reduction)",
+                    vertexCount, uniqueVertexCount,
+                    100.0f * (1.0f - static_cast<float>(uniqueVertexCount) / vertexCount));
+
+            // Step 2: Remap vertices and indices
+            auto remappedVertices = std::vector<float>(uniqueVertexCount * VERTEX_STRIDE_FLOATS);
+            meshopt_remapVertexBuffer(
+                remappedVertices.data(),
+                vertices.data(),
+                vertexCount,
+                vertexSize,
+                remap.data()
+            );
+
+            auto remappedIndices = std::vector<unsigned int>(indexCount);
+            meshopt_remapIndexBuffer(
+                remappedIndices.data(),
+                indices.data(),
+                indexCount,
+                remap.data()
+            );
+
+            // Update submesh index offsets (they remain the same as indices are just remapped)
+            // No changes needed to submeshes
+
+            // Step 3: Optimize vertex cache
+            auto vcacheOptIndices = std::vector<unsigned int>(indexCount);
+            meshopt_optimizeVertexCache(
+                vcacheOptIndices.data(),
+                remappedIndices.data(),
+                indexCount,
+                uniqueVertexCount
+            );
+
+            // Measure vertex cache efficiency
+            auto const vcacheStats = meshopt_analyzeVertexCache(
+                vcacheOptIndices.data(),
+                indexCount,
+                uniqueVertexCount,
+                32, 32, 32 // Cache size parameters (typical GPU)
+            );
+            AP_INFO("[DDC]   - Vertex cache: ACMR={:.2f}, ATVR={:.2f}",
+                    vcacheStats.acmr, vcacheStats.atvr);
+
+            // Step 4: Optimize overdraw (optional, takes more time but improves rendering)
+            auto overdrawOptIndices = std::vector<unsigned int>(indexCount);
+            meshopt_optimizeOverdraw(
+                overdrawOptIndices.data(),
+                vcacheOptIndices.data(),
+                indexCount,
+                reinterpret_cast<float const*>(remappedVertices.data()),
+                uniqueVertexCount,
+                vertexSize,
+                1.05f // Allow 5% vertex cache degradation for better overdraw
+            );
+
+            // Measure overdraw
+            auto const overdrawStats = meshopt_analyzeOverdraw(
+                overdrawOptIndices.data(),
+                indexCount,
+                reinterpret_cast<float const*>(remappedVertices.data()),
+                uniqueVertexCount,
+                vertexSize
+            );
+            AP_INFO("[DDC]   - Overdraw: {:.2f}x (covered={}, shaded={})",
+                    overdrawStats.overdraw, overdrawStats.pixels_covered, overdrawStats.pixels_shaded);
+
+            // Step 5: Optimize vertex fetch (reorder vertices for better cache locality)
+            auto finalVertices = std::vector<float>(uniqueVertexCount * VERTEX_STRIDE_FLOATS);
+            auto finalIndices = std::vector<unsigned int>(indexCount);
+            std::copy(overdrawOptIndices.begin(), overdrawOptIndices.end(), finalIndices.begin());
+
+            auto const finalVertexCount = meshopt_optimizeVertexFetch(
+                finalVertices.data(),
+                finalIndices.data(),
+                indexCount,
+                remappedVertices.data(),
+                uniqueVertexCount,
+                vertexSize
+            );
+
+            // Measure vertex fetch efficiency
+            auto const vfetchStats = meshopt_analyzeVertexFetch(
+                finalIndices.data(),
+                indexCount,
+                finalVertexCount,
+                vertexSize
+            );
+            AP_INFO("[DDC]   - Vertex fetch: {:.2f} bytes/vertex fetched (efficiency: {:.1f}%)",
+                    vfetchStats.bytes_fetched / static_cast<float>(indexCount),
+                    100.0f * vertexSize / vfetchStats.bytes_fetched * indexCount / finalVertexCount);
+
+            // Replace original data with optimized data
+            vertices = std::move(finalVertices);
+            indices.resize(finalIndices.size());
+            for (size_t i = 0; i < finalIndices.size(); ++i)
+            {
+                indices[i] = static_cast<uint32_t>(finalIndices[i]);
+            }
+
+            // Update bounds (they shouldn't change, but recalculate for safety)
+            boundsMin = {std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
+            boundsMax = {std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest()};
+
+            for (size_t i = 0; i < finalVertexCount; ++i)
+            {
+                auto const px = vertices[i * VERTEX_STRIDE_FLOATS + 0];
+                auto const py = vertices[i * VERTEX_STRIDE_FLOATS + 1];
+                auto const pz = vertices[i * VERTEX_STRIDE_FLOATS + 2];
+
+                boundsMin[0] = std::min(boundsMin[0], px);
+                boundsMin[1] = std::min(boundsMin[1], py);
+                boundsMin[2] = std::min(boundsMin[2], pz);
+                boundsMax[0] = std::max(boundsMax[0], px);
+                boundsMax[1] = std::max(boundsMax[1], py);
+                boundsMax[2] = std::max(boundsMax[2], pz);
+            }
         }
 
         // Build mesh header

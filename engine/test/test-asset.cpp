@@ -9,6 +9,7 @@
 #include <asset/asset.hpp>
 #include <asset/texture-asset.hpp>
 #include <asset/static-mesh-asset.hpp>
+#include <asset/material-asset.hpp>
 #include <asset/blob-header.hpp>
 #include <asset/ddc/ddc-manager.hpp>
 #include <asset/asset-manager.hpp>
@@ -838,5 +839,166 @@ TEST_SUITE("Asset System - Stage 3 & 4")
             CHECK(submesh.indexCount == 36);
             CHECK(submesh.materialIndex == 1);
         }
+    }
+
+    TEST_CASE("MaterialAsset - JSON Serialization")
+    {
+        using namespace april::asset;
+
+        SUBCASE("Default material parameters")
+        {
+            auto material = MaterialAsset{};
+
+            CHECK(material.parameters.baseColorFactor.x == doctest::Approx(1.0f));
+            CHECK(material.parameters.baseColorFactor.y == doctest::Approx(1.0f));
+            CHECK(material.parameters.baseColorFactor.z == doctest::Approx(1.0f));
+            CHECK(material.parameters.baseColorFactor.w == doctest::Approx(1.0f));
+            CHECK(material.parameters.metallicFactor == doctest::Approx(1.0f));
+            CHECK(material.parameters.roughnessFactor == doctest::Approx(1.0f));
+            CHECK(material.parameters.alphaMode == "OPAQUE");
+            CHECK(material.parameters.doubleSided == false);
+        }
+
+        SUBCASE("Serialize and deserialize preserves data")
+        {
+            auto material = MaterialAsset{};
+            material.parameters.baseColorFactor = {0.8f, 0.2f, 0.2f, 1.0f};
+            material.parameters.metallicFactor = 0.0f;
+            material.parameters.roughnessFactor = 0.5f;
+            material.parameters.emissiveFactor = {0.1f, 0.0f, 0.0f};
+            material.parameters.alphaMode = "MASK";
+            material.parameters.alphaCutoff = 0.3f;
+            material.parameters.doubleSided = true;
+
+            auto json = nlohmann::json{};
+            material.serializeJson(json);
+
+            CHECK(json["type"] == "Material");
+            CHECK(json["parameters"]["metallicFactor"] == doctest::Approx(0.0f));
+            CHECK(json["parameters"]["roughnessFactor"] == doctest::Approx(0.5f));
+            CHECK(json["parameters"]["alphaMode"] == "MASK");
+            CHECK(json["parameters"]["alphaCutoff"] == doctest::Approx(0.3f));
+            CHECK(json["parameters"]["doubleSided"] == true);
+
+            auto material2 = MaterialAsset{};
+            CHECK(material2.deserializeJson(json));
+            CHECK(material2.parameters.baseColorFactor.x == doctest::Approx(0.8f));
+            CHECK(material2.parameters.baseColorFactor.y == doctest::Approx(0.2f));
+            CHECK(material2.parameters.baseColorFactor.z == doctest::Approx(0.2f));
+            CHECK(material2.parameters.metallicFactor == doctest::Approx(0.0f));
+            CHECK(material2.parameters.roughnessFactor == doctest::Approx(0.5f));
+            CHECK(material2.parameters.emissiveFactor.x == doctest::Approx(0.1f));
+            CHECK(material2.parameters.alphaMode == "MASK");
+            CHECK(material2.parameters.alphaCutoff == doctest::Approx(0.3f));
+            CHECK(material2.parameters.doubleSided == true);
+        }
+
+        SUBCASE("Texture references are serialized")
+        {
+            auto material = MaterialAsset{};
+            material.textures.baseColorTexture = TextureReference{"texture-uuid-123", 0};
+            material.textures.normalTexture = TextureReference{"normal-uuid-456", 1};
+
+            auto json = nlohmann::json{};
+            material.serializeJson(json);
+
+            CHECK(json["textures"].contains("baseColorTexture"));
+            CHECK(json["textures"]["baseColorTexture"]["assetId"] == "texture-uuid-123");
+            CHECK(json["textures"]["baseColorTexture"]["texCoord"] == 0);
+            CHECK(json["textures"].contains("normalTexture"));
+            CHECK(json["textures"]["normalTexture"]["assetId"] == "normal-uuid-456");
+            CHECK(json["textures"]["normalTexture"]["texCoord"] == 1);
+
+            auto material2 = MaterialAsset{};
+            CHECK(material2.deserializeJson(json));
+            REQUIRE(material2.textures.baseColorTexture.has_value());
+            CHECK(material2.textures.baseColorTexture->assetId == "texture-uuid-123");
+            CHECK(material2.textures.baseColorTexture->texCoord == 0);
+            REQUIRE(material2.textures.normalTexture.has_value());
+            CHECK(material2.textures.normalTexture->assetId == "normal-uuid-456");
+            CHECK(material2.textures.normalTexture->texCoord == 1);
+        }
+
+        SUBCASE("DDC key computation")
+        {
+            auto material1 = MaterialAsset{};
+            material1.parameters.baseColorFactor = {1.0f, 0.0f, 0.0f, 1.0f};
+
+            auto material2 = MaterialAsset{};
+            material2.parameters.baseColorFactor = {0.0f, 1.0f, 0.0f, 1.0f};
+
+            auto key1 = material1.computeDDCKey();
+            auto key2 = material2.computeDDCKey();
+
+            CHECK(key1.length() == 40); // SHA1 hex
+            CHECK(key2.length() == 40);
+            CHECK(key1 != key2); // Different colors produce different keys
+        }
+    }
+
+    TEST_CASE("AssetManager - Material Loading")
+    {
+        using namespace april::asset;
+
+        auto const testDir = std::string{"TestAssets_Material"};
+        auto const materialFile = testDir + "/red_metal.material.asset";
+
+        fs::remove_all(testDir);
+        fs::create_directories(testDir);
+
+        // Create material asset file
+        {
+            auto material = MaterialAsset{};
+            material.parameters.baseColorFactor = {0.8f, 0.2f, 0.2f, 1.0f};
+            material.parameters.metallicFactor = 1.0f;
+            material.parameters.roughnessFactor = 0.3f;
+
+            auto json = nlohmann::json{};
+            material.serializeJson(json);
+
+            std::ofstream file(materialFile);
+            file << json.dump(2);
+        }
+
+        SUBCASE("Load material from file")
+        {
+            auto manager = AssetManager{testDir, "TestCache_Material"};
+            auto material = manager.loadAsset<MaterialAsset>(materialFile);
+
+            REQUIRE(material != nullptr);
+            CHECK(material->getType() == AssetType::Material);
+            CHECK(material->parameters.baseColorFactor.x == doctest::Approx(0.8f));
+            CHECK(material->parameters.baseColorFactor.y == doctest::Approx(0.2f));
+            CHECK(material->parameters.metallicFactor == doctest::Approx(1.0f));
+            CHECK(material->parameters.roughnessFactor == doctest::Approx(0.3f));
+        }
+
+        SUBCASE("Save and load material roundtrip")
+        {
+            auto const saveFile = testDir + "/test_save.material.asset";
+
+            auto originalMaterial = std::make_shared<MaterialAsset>();
+            originalMaterial->parameters.baseColorFactor = {0.5f, 0.5f, 0.9f, 1.0f};
+            originalMaterial->parameters.metallicFactor = 0.2f;
+            originalMaterial->parameters.roughnessFactor = 0.8f;
+            originalMaterial->textures.baseColorTexture = TextureReference{"test-uuid", 0};
+
+            auto manager = AssetManager{testDir, "TestCache_Material"};
+            CHECK(manager.saveMaterialAsset(originalMaterial, saveFile));
+            CHECK(fs::exists(saveFile));
+
+            auto loadedMaterial = manager.loadAsset<MaterialAsset>(saveFile);
+            REQUIRE(loadedMaterial != nullptr);
+            CHECK(loadedMaterial->parameters.baseColorFactor.x == doctest::Approx(0.5f));
+            CHECK(loadedMaterial->parameters.baseColorFactor.y == doctest::Approx(0.5f));
+            CHECK(loadedMaterial->parameters.baseColorFactor.z == doctest::Approx(0.9f));
+            CHECK(loadedMaterial->parameters.metallicFactor == doctest::Approx(0.2f));
+            CHECK(loadedMaterial->parameters.roughnessFactor == doctest::Approx(0.8f));
+            REQUIRE(loadedMaterial->textures.baseColorTexture.has_value());
+            CHECK(loadedMaterial->textures.baseColorTexture->assetId == "test-uuid");
+        }
+
+        fs::remove_all(testDir);
+        fs::remove_all("TestCache_Material");
     }
 }

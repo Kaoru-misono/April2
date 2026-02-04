@@ -11,7 +11,8 @@
       "Bash(./editor.exe)",
       "Bash(grep:*)",
       "Bash(ls:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "WebSearch"
     ]
   }
 }

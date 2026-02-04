@@ -498,7 +498,8 @@ float4 fragmentMain(VertexOut pin) : SV_Target {
 ```
 
 **External Camera Support**:
-- Removed; editor viewport currently does not drive the scene renderer camera.
+- Editor viewport `SimpleCamera` is synchronized into a scene `CameraComponent` entity (`MainCamera`).
+- `SceneRenderer` consumes camera matrices from `SceneGraph::getActiveCamera()`.
 
 ---
 
@@ -520,56 +521,71 @@ float4 fragmentMain(VertexOut pin) : SV_Target {
 struct EditorContext
 {
     float2 viewportSize;
-    EditorSceneRef scene;           // Currently just a stub
-    EditorSelection selection;      // Selected entity name
+    std::string projectName{"April"};
+    EditorSceneRef scene;
+    EditorSelection selection;      // Selected entity
     EditorToolState tools;          // Select/Move/Rotate/Scale
 };
 ```
 
 ### EditorViewportElement
 
-**Location**: `engine/editor/source/editor/editor-viewport.hpp/cpp`
+**Location**: `engine/editor/source/editor/element/editor-viewport.hpp/cpp`
 
 **Functionality**:
 - Contains `SimpleCamera` for navigation
+- Creates a `MainCamera` entity with `CameraComponent` on attach
+- Syncs `SimpleCamera` transform to `TransformComponent` each frame
 - Captures mouse/keyboard input when hovered
 - Sets viewport size for scene rendering
 - Displays scene color texture as ImGui image
+- Seeds example mesh entities if scene has no `MeshRendererComponent`
 
 **Render Flow**:
 ```cpp
-auto EditorViewportElement::render(EditorContext& ctx) -> void
+auto EditorViewportElement::onUIRender() -> void
 {
-    // Update camera if viewport focused
-    if (ImGui::IsItemHovered() || ImGui::IsItemFocused())
+    auto hovered = ImGui::IsWindowHovered(...);
+    auto focused = ImGui::IsWindowFocused(...);
+    m_camera->setInputEnabled(hovered || focused);
+    m_camera->onUpdate(ImGui::GetIO().DeltaTime);
+
+    // Sync editor camera to scene camera entity
+    if (m_cameraEntity != scene::NullEntity)
     {
-        m_camera->onUpdate(deltaTime);
+        auto* scene = Engine::get().getSceneGraph();
+        auto& registry = scene->getRegistry();
+        auto& transform = registry.get<scene::TransformComponent>(m_cameraEntity);
+        transform.localPosition = m_camera->getPosition();
+        transform.localRotation = {pitch, yaw, 0.0f};
+        transform.isDirty = true;
     }
 
-    // Set viewport size and camera
-    engine->setSceneViewportSize(width, height);
-
-    // Display scene texture
-    auto srv = engine->getSceneColorSrv();
-    ImGui::Image(srv, ImVec2(width, height));
+    ImGui::Image(Engine::get().getSceneColorSrv(), size);
 }
 ```
 
 ### EditorHierarchyElement
 
-**Location**: `engine/editor/source/editor/editor-hierarchy.hpp`
+**Location**: `engine/editor/source/editor/element/editor-hierarchy.hpp/cpp`
 
-**Current State**: Stub implementation (no entity tree display)
-
-**Future**: Display entity tree, allow selection, drag-and-drop parenting
+**Current State**:
+- Draws scene tree from `RelationshipComponent` roots
+- Recursively renders child entities via sibling links
+- Uses `TagComponent` as label (fallback: `Entity <id>`)
+- Updates `EditorContext::selection.entity` on click
 
 ### EditorInspectorElement
 
-**Location**: `engine/editor/source/editor/editor-inspector.hpp`
+**Location**: `engine/editor/source/editor/element/editor-inspector.hpp/cpp`
 
-**Current State**: Stub implementation (no component editing)
-
-**Future**: Display selected entity components, editable properties
+**Current State**:
+- Edits `TagComponent` name
+- Shows `IDComponent` UUID
+- Edits `TransformComponent` position/rotation/scale (marks dirty)
+- Edits `MeshRendererComponent` mesh path and toggles
+- Edits `CameraComponent` projection parameters (marks dirty)
+- Shows `RelationshipComponent` parent/child info
 
 ---
 
@@ -653,11 +669,13 @@ auto mat = glm::translate(identity, position);
 1. **Scene ECS is rendered**: Entities with `MeshRendererComponent` are drawn by SceneRenderer
 2. **Camera is component-based**: Active camera comes from `SceneGraph::getActiveCamera()`
 3. **Transforms updated per frame**: Engine calls `updateTransforms()` and `updateCameras()`
-4. **Editor camera is not wired**: Editor viewport uses `SimpleCamera` but does not drive scene cameras yet
+4. **Editor camera is wired**: Viewport `SimpleCamera` drives `MainCamera` entity transform
+5. **Editor scene tools are active**: Hierarchy/Inspector operate on live SceneGraph data
 
 ### Remaining Connections
 
-1. **Editor viewport camera** → Sync `SimpleCamera` output into a SceneGraph camera entity
+1. **Asset reference model** → Move `MeshRendererComponent` from absolute asset paths to stable handles/UUIDs
+2. **Sample scene bootstrap** → Move cube seeding out of `EditorViewportElement::onAttach()` into explicit scene setup
 
 ---
 
@@ -742,9 +760,10 @@ auto mat = glm::translate(identity, position);
 
 **Editor**:
 - `engine/editor/source/editor/editor-app.hpp`
-- `engine/editor/source/editor/editor-viewport.hpp`
-- `engine/editor/source/editor/editor-hierarchy.hpp`
-- `engine/editor/source/editor/editor-inspector.hpp`
+- `engine/editor/source/editor/editor-context.hpp`
+- `engine/editor/source/editor/element/editor-viewport.hpp`
+- `engine/editor/source/editor/element/editor-hierarchy.hpp`
+- `engine/editor/source/editor/element/editor-inspector.hpp`
 
 ---
 
