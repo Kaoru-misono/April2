@@ -10,6 +10,8 @@
 #include <stb/stb_image.h>
 
 #include <cstring>
+#include <algorithm>
+#include <span>
 #include <nlohmann/json.hpp>
 #include <vector>
 
@@ -18,6 +20,65 @@ namespace april::asset
     namespace
     {
         constexpr auto kTextureToolchainTag = "stb_image@unknown|texblob@1";
+
+        auto calculateMipLevels(int width, int height) -> uint32_t
+        {
+            auto levels = uint32_t{1};
+            while (width > 1 || height > 1)
+            {
+                width = std::max(1, width / 2);
+                height = std::max(1, height / 2);
+                ++levels;
+            }
+            return levels;
+        }
+
+        auto downsampleRgba8(std::span<uint8_t const> src, int width, int height) -> std::vector<uint8_t>
+        {
+            auto const nextWidth = std::max(1, width / 2);
+            auto const nextHeight = std::max(1, height / 2);
+            auto result = std::vector<uint8_t>(static_cast<size_t>(nextWidth * nextHeight * 4));
+
+            for (auto y = 0; y < nextHeight; ++y)
+            {
+                for (auto x = 0; x < nextWidth; ++x)
+                {
+                    auto const srcX = x * 2;
+                    auto const srcY = y * 2;
+
+                    auto const x1 = std::min(srcX + 1, width - 1);
+                    auto const y1 = std::min(srcY + 1, height - 1);
+
+                    auto const idx00 = (srcY * width + srcX) * 4;
+                    auto const idx10 = (srcY * width + x1) * 4;
+                    auto const idx01 = (y1 * width + srcX) * 4;
+                    auto const idx11 = (y1 * width + x1) * 4;
+
+                    auto const dstIndex = (y * nextWidth + x) * 4;
+
+                    for (auto c = 0; c < 4; ++c)
+                    {
+                        auto sum = static_cast<uint32_t>(src[idx00 + c]) +
+                                   static_cast<uint32_t>(src[idx10 + c]) +
+                                   static_cast<uint32_t>(src[idx01 + c]) +
+                                   static_cast<uint32_t>(src[idx11 + c]);
+                        result[static_cast<size_t>(dstIndex + c)] = static_cast<uint8_t>(sum / 4);
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        auto appendBytes(std::vector<std::byte>& dst, std::span<uint8_t const> src) -> void
+        {
+            auto const offset = dst.size();
+            dst.resize(offset + src.size());
+            if (!src.empty())
+            {
+                std::memcpy(dst.data() + offset, src.data(), src.size());
+            }
+        }
 
         auto compileTexture(std::string const& sourcePath, TextureImportSettings const& settings) -> std::vector<std::byte>
         {
@@ -33,22 +94,45 @@ namespace april::asset
                 return {};
             }
 
-            auto const dataSize = static_cast<uint64_t>(width) * height * desiredChannels;
+            auto const dataSize = static_cast<size_t>(width) * height * desiredChannels;
+            auto const mipLevels = settings.generateMips ? calculateMipLevels(width, height) : 1u;
+            auto mipBytes = std::vector<std::byte>{};
+            mipBytes.reserve(dataSize);
+
+            auto levelPixels = std::vector<uint8_t>(pixels, pixels + dataSize);
+            appendBytes(mipBytes, levelPixels);
+
+            stbi_image_free(pixels);
+
+            if (settings.generateMips)
+            {
+                auto currentWidth = width;
+                auto currentHeight = height;
+                while (currentWidth > 1 || currentHeight > 1)
+                {
+                    auto nextPixels = downsampleRgba8(levelPixels, currentWidth, currentHeight);
+                    appendBytes(mipBytes, nextPixels);
+                    levelPixels = std::move(nextPixels);
+                    currentWidth = std::max(1, currentWidth / 2);
+                    currentHeight = std::max(1, currentHeight / 2);
+                }
+            }
 
             auto header = TextureHeader{};
             header.width = static_cast<uint32_t>(width);
             header.height = static_cast<uint32_t>(height);
             header.channels = desiredChannels;
             header.format = settings.sRGB ? PixelFormat::RGBA8UnormSrgb : PixelFormat::RGBA8Unorm;
-            header.mipLevels = 1;
+            header.mipLevels = mipLevels;
             header.flags = settings.sRGB ? 1 : 0;
-            header.dataSize = dataSize;
+            header.dataSize = mipBytes.size();
 
-            auto blob = std::vector<std::byte>(sizeof(TextureHeader) + dataSize);
+            auto blob = std::vector<std::byte>(sizeof(TextureHeader) + header.dataSize);
             std::memcpy(blob.data(), &header, sizeof(TextureHeader));
-            std::memcpy(blob.data() + sizeof(TextureHeader), pixels, dataSize);
-
-            stbi_image_free(pixels);
+            if (!mipBytes.empty())
+            {
+                std::memcpy(blob.data() + sizeof(TextureHeader), mipBytes.data(), mipBytes.size());
+            }
 
             AP_INFO("[TextureImporter] Compiled texture: {}x{} {} channels, {} mips, {} bytes",
                     header.width, header.height, header.channels, header.mipLevels, blob.size());
@@ -84,12 +168,6 @@ namespace april::asset
         });
 
         auto result = ImportResult{};
-
-        if (asset.m_settings.generateMips)
-        {
-            result.warnings.push_back("generateMips requested but mip generation is not implemented");
-            AP_WARN("[TextureImporter] generateMips requested but not implemented");
-        }
 
         if (!asset.m_settings.compression.empty() && asset.m_settings.compression != "RGBA8")
         {

@@ -1,5 +1,4 @@
 #pragma once
-#pragma once
 
 #include "asset.hpp"
 #include "texture-asset.hpp"
@@ -9,7 +8,6 @@
 #include "ddc/local-ddc.hpp"
 #include "asset-registry.hpp"
 #include "importer/importer-registry.hpp"
-#include "importer/gltf-importer.hpp"
 
 #include <core/log/logger.hpp>
 #include <core/tools/uuid.hpp>
@@ -21,6 +19,7 @@
 #include <fstream>
 #include <optional>
 #include <format>
+#include <mutex>
 #include <cstdint>
 
 namespace april::asset
@@ -61,17 +60,18 @@ namespace april::asset
         template <typename T>
         [[nodiscard]] auto getAsset(core::UUID handle) -> std::shared_ptr<T>
         {
-            // Check memory cache
-            if (m_loadedAssets.contains(handle))
+            auto assetPath = std::optional<std::filesystem::path>{};
             {
-                return std::static_pointer_cast<T>(m_loadedAssets.at(handle));
+                auto lock = std::scoped_lock{m_mutex};
+                if (m_loadedAssets.contains(handle))
+                {
+                    return std::static_pointer_cast<T>(m_loadedAssets.at(handle));
+                }
             }
 
-            // Not in memory? Check registry for file path
-            if (m_assetRegistry.contains(handle))
+            if (auto recordOpt = m_registry.findRecord(handle); recordOpt.has_value())
             {
-                auto const& path = m_assetRegistry.at(handle);
-                return loadAssetFromFile<T>(path);
+                return loadAssetFromFile<T>(recordOpt->assetPath);
             }
 
             AP_ERROR("[AssetManager] Asset UUID not found in registry: {}", handle.toString());
@@ -118,6 +118,14 @@ namespace april::asset
 
         [[nodiscard]] auto getDdc() -> LocalDdc&;
 
+        /**
+         * Find an asset by its source path and type (for deduplication).
+         */
+        [[nodiscard]] auto findAssetBySourcePath(
+            std::filesystem::path const& sourcePath,
+            AssetType type
+        ) -> std::shared_ptr<Asset>;
+
     private:
         std::filesystem::path m_assetRoot;
         LocalDdc m_ddc;
@@ -128,9 +136,10 @@ namespace april::asset
         // Cache: Assets currently in memory
         std::unordered_map<core::UUID, std::shared_ptr<Asset>> m_loadedAssets{};
 
-        // Registry: Maps UUID -> Path to .asset file on disk
-        std::unordered_map<core::UUID, std::filesystem::path> m_assetRegistry{};
+        // Registry: Persistent metadata in AssetRegistry
+        std::unordered_map<std::string, core::UUID> m_sourcePathIndex{};
         std::unordered_set<core::UUID> m_dirtyAssets{};
+        mutable std::mutex m_mutex{};
 
         /**
          * Load asset metadata from a .asset JSON file.
@@ -177,11 +186,13 @@ namespace april::asset
             return asset;
         }
 
-        auto importGltfMaterials(StaticMeshAsset& meshAsset, std::filesystem::path const& sourcePath) -> void;
-
-        auto importMaterialTexture(
-            std::optional<GltfTextureSource> const& source
-        ) -> std::optional<TextureReference>;
+        /**
+         * Import a GLTF/GLB file, producing mesh, material, and texture assets.
+         */
+        [[nodiscard]] auto importGltfFile(
+            std::filesystem::path const& sourcePath,
+            ImportPolicy policy
+        ) -> std::shared_ptr<Asset>;
 
         auto registerAssetInternal(
             std::shared_ptr<Asset> const& asset,
@@ -192,6 +203,9 @@ namespace april::asset
         auto markDependentsDirty(core::UUID const& guid) -> void;
 
         auto sanitizeAssetName(std::string name) const -> std::string;
+
+        auto normalizePath(std::filesystem::path const& path) const -> std::string;
+        auto buildSourceKey(AssetType type, std::filesystem::path const& path) const -> std::string;
 
         auto ensureImported(Asset const& asset) -> std::optional<std::string>;
     };

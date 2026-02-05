@@ -1,8 +1,10 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
+#include <stb_image_write.h>
 #include <filesystem>
 #include <fstream>
 #include <cstring>
+#include <cmath>
 
 #include <core/tools/uuid.hpp>
 #include <asset/asset.hpp>
@@ -51,6 +53,26 @@ auto create2x2PNG(std::string const& path) -> void
     file.write(reinterpret_cast<char const*>(pngData), sizeof(pngData));
 }
 
+// Helper: Create a 4x4 RGBA PNG via stb_image_write
+auto create4x4PNG(std::string const& path) -> void
+{
+    auto pixels = std::vector<unsigned char>{};
+    pixels.resize(4 * 4 * 4);
+    for (auto y = 0; y < 4; ++y)
+    {
+        for (auto x = 0; x < 4; ++x)
+        {
+            auto const index = (y * 4 + x) * 4;
+            pixels[index + 0] = static_cast<unsigned char>(x * 64);
+            pixels[index + 1] = static_cast<unsigned char>(y * 64);
+            pixels[index + 2] = static_cast<unsigned char>(255 - x * 64);
+            pixels[index + 3] = 255;
+        }
+    }
+
+    stbi_write_png(path.c_str(), 4, 4, 4, pixels.data(), 4 * 4);
+}
+
 // Helper: Create a minimal valid glTF file (single triangle)
 auto createMinimalGLTF(std::string const& path) -> void
 {
@@ -95,6 +117,74 @@ auto createMinimalGLTF(std::string const& path) -> void
     json += "        {\n";
     json += "          \"attributes\": { \"POSITION\": 0 },\n";
     json += "          \"indices\": 1\n";
+    json += "        }\n";
+    json += "      ]\n";
+    json += "    }\n";
+    json += "  ],\n";
+    json += "  \"nodes\": [ { \"mesh\": 0 } ],\n";
+    json += "  \"scenes\": [ { \"nodes\": [0] } ],\n";
+    json += "  \"scene\": 0\n";
+    json += "}\n";
+
+    std::ofstream file(path, std::ios::binary);
+    file.write(json.data(), static_cast<std::streamsize>(json.size()));
+}
+
+// Helper: Create a minimal valid glTF file with UVs and normals for tangent testing
+auto createTangentGLTF(std::string const& path) -> void
+{
+    auto const baseDir = fs::path{path}.parent_path();
+    auto const binPath = (baseDir / "triangle.bin").string();
+
+    auto positions = std::array<float, 9>{
+        0.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f
+    };
+    auto normals = std::array<float, 9>{
+        0.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 1.0f
+    };
+    auto uvs = std::array<float, 6>{
+        0.0f, 0.0f,
+        0.0f, 1.0f,
+        1.0f, 0.0f
+    };
+    auto indices = std::array<uint16_t, 3>{0, 1, 2};
+
+    {
+        auto binFile = std::ofstream{binPath, std::ios::binary};
+        binFile.write(reinterpret_cast<char const*>(positions.data()), static_cast<std::streamsize>(positions.size() * sizeof(float)));
+        binFile.write(reinterpret_cast<char const*>(normals.data()), static_cast<std::streamsize>(normals.size() * sizeof(float)));
+        binFile.write(reinterpret_cast<char const*>(uvs.data()), static_cast<std::streamsize>(uvs.size() * sizeof(float)));
+        binFile.write(reinterpret_cast<char const*>(indices.data()), static_cast<std::streamsize>(indices.size() * sizeof(uint16_t)));
+    }
+
+    auto json = std::string{};
+    json += "{\n";
+    json += "  \"asset\": { \"version\": \"2.0\" },\n";
+    json += "  \"buffers\": [\n";
+    json += "    { \"uri\": \"triangle.bin\", \"byteLength\": 102 }\n";
+    json += "  ],\n";
+    json += "  \"bufferViews\": [\n";
+    json += "    { \"buffer\": 0, \"byteOffset\": 0, \"byteLength\": 36 },\n";
+    json += "    { \"buffer\": 0, \"byteOffset\": 36, \"byteLength\": 36 },\n";
+    json += "    { \"buffer\": 0, \"byteOffset\": 72, \"byteLength\": 24 },\n";
+    json += "    { \"buffer\": 0, \"byteOffset\": 96, \"byteLength\": 6 }\n";
+    json += "  ],\n";
+    json += "  \"accessors\": [\n";
+    json += "    { \"bufferView\": 0, \"byteOffset\": 0, \"componentType\": 5126, \"count\": 3, \"type\": \"VEC3\" },\n";
+    json += "    { \"bufferView\": 1, \"byteOffset\": 0, \"componentType\": 5126, \"count\": 3, \"type\": \"VEC3\" },\n";
+    json += "    { \"bufferView\": 2, \"byteOffset\": 0, \"componentType\": 5126, \"count\": 3, \"type\": \"VEC2\" },\n";
+    json += "    { \"bufferView\": 3, \"byteOffset\": 0, \"componentType\": 5123, \"count\": 3, \"type\": \"SCALAR\" }\n";
+    json += "  ],\n";
+    json += "  \"meshes\": [\n";
+    json += "    {\n";
+    json += "      \"primitives\": [\n";
+    json += "        {\n";
+    json += "          \"attributes\": { \"POSITION\": 0, \"NORMAL\": 1, \"TEXCOORD_0\": 2 },\n";
+    json += "          \"indices\": 3\n";
     json += "        }\n";
     json += "      ]\n";
     json += "    }\n";
@@ -484,6 +574,63 @@ TEST_SUITE("Asset System - Stage 3 & 4")
             auto payload = manager.getTextureData(*loaded, blob);
 
             CHECK(payload.header.mipLevels == 1);
+            CHECK(payload.header.dataSize == 4);
+        }
+
+        SUBCASE("2x2 texture generates 2 mip levels when enabled")
+        {
+            auto srcFile = testDir + "/2x2.png";
+            create2x2PNG(srcFile);
+
+            auto assetFile = testDir + "/2x2.asset";
+            auto asset = TextureAsset{};
+            asset.setSourcePath(srcFile);
+            asset.m_settings.generateMips = true;
+
+            {
+                auto json = nlohmann::json{};
+                asset.serializeJson(json);
+                std::ofstream file(assetFile);
+                file << json.dump(2);
+            }
+
+            auto manager = AssetManager{testDir, cacheDir};
+            auto loaded = manager.loadAsset<TextureAsset>(assetFile);
+            REQUIRE(loaded != nullptr);
+
+            auto blob = std::vector<std::byte>{};
+            auto payload = manager.getTextureData(*loaded, blob);
+
+            CHECK(payload.header.mipLevels == 2);
+            CHECK(payload.header.dataSize == 20);
+        }
+
+        SUBCASE("4x4 texture generates 3 mip levels when enabled")
+        {
+            auto srcFile = testDir + "/4x4.png";
+            create4x4PNG(srcFile);
+
+            auto assetFile = testDir + "/4x4.asset";
+            auto asset = TextureAsset{};
+            asset.setSourcePath(srcFile);
+            asset.m_settings.generateMips = true;
+
+            {
+                auto json = nlohmann::json{};
+                asset.serializeJson(json);
+                std::ofstream file(assetFile);
+                file << json.dump(2);
+            }
+
+            auto manager = AssetManager{testDir, cacheDir};
+            auto loaded = manager.loadAsset<TextureAsset>(assetFile);
+            REQUIRE(loaded != nullptr);
+
+            auto blob = std::vector<std::byte>{};
+            auto payload = manager.getTextureData(*loaded, blob);
+
+            CHECK(payload.header.mipLevels == 3);
+            CHECK(payload.header.dataSize == 84);
         }
 
         SUBCASE("generateMips=false forces 1 mip level")
@@ -511,6 +658,7 @@ TEST_SUITE("Asset System - Stage 3 & 4")
             auto payload = manager.getTextureData(*loaded, blob);
 
             CHECK(payload.header.mipLevels == 1);
+            CHECK(payload.header.dataSize == 16);
         }
 
         fs::remove_all(testDir);
@@ -776,7 +924,7 @@ TEST_SUITE("Asset System - Stage 3 & 4")
             auto key = buildDdcKey(FingerprintInput{
                 "MS",
                 asset->getHandle().toString(),
-                "MeshImporter",
+                "GltfImporter",
                 1,
                 "tinygltf@unknown|meshopt@unknown|meshblob@1",
                 hashFileContents(asset->getSourcePath()),
@@ -787,6 +935,60 @@ TEST_SUITE("Asset System - Stage 3 & 4")
 
             CHECK(manager.getDdc().exists(key));
         }
+
+        fs::remove_all(testDir);
+        fs::remove_all(cacheDir);
+    }
+
+    TEST_CASE("MeshImporter - Tangent Generation")
+    {
+        using namespace april::asset;
+
+        auto const testDir = std::string{"TestAssets_Tangents"};
+        auto const cacheDir = std::string{"TestCache_Tangents"};
+        auto const srcFile = testDir + "/triangle.gltf";
+        auto const assetFile = testDir + "/triangle.gltf.asset";
+
+        fs::remove_all(testDir);
+        fs::remove_all(cacheDir);
+        fs::create_directories(testDir);
+
+        createTangentGLTF(srcFile);
+
+        {
+            auto asset = StaticMeshAsset{};
+            asset.setSourcePath(srcFile);
+            asset.m_settings.generateTangents = true;
+            auto json = nlohmann::json{};
+            asset.serializeJson(json);
+            std::ofstream file(assetFile);
+            file << json.dump(2);
+        }
+
+        auto manager = AssetManager{testDir, cacheDir};
+        auto asset = manager.loadAsset<StaticMeshAsset>(assetFile);
+        REQUIRE(asset != nullptr);
+
+        auto blob = std::vector<std::byte>{};
+        auto payload = manager.getMeshData(*asset, blob);
+        REQUIRE(payload.isValid());
+
+        auto const* vertexFloats = reinterpret_cast<float const*>(payload.vertexData.data());
+        auto const tangentOffset = 6;
+        auto const tangentX = vertexFloats[tangentOffset + 0];
+        auto const tangentY = vertexFloats[tangentOffset + 1];
+        auto const tangentZ = vertexFloats[tangentOffset + 2];
+        auto const tangentW = vertexFloats[tangentOffset + 3];
+        auto const tangentLength = std::sqrt(
+            tangentX * tangentX +
+            tangentY * tangentY +
+            tangentZ * tangentZ);
+
+        CHECK(tangentX == doctest::Approx(0.0f).epsilon(0.01f));
+        CHECK(tangentY == doctest::Approx(1.0f).epsilon(0.01f));
+        CHECK(tangentZ == doctest::Approx(0.0f).epsilon(0.01f));
+        CHECK(std::abs(tangentW) == doctest::Approx(1.0f).epsilon(0.01f));
+        CHECK(tangentLength == doctest::Approx(1.0f).epsilon(0.01f));
 
         fs::remove_all(testDir);
         fs::remove_all(cacheDir);

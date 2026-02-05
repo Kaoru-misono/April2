@@ -1,5 +1,6 @@
 #pragma once
 
+#include "importer.hpp"
 #include "../blob-header.hpp"
 #include "../material-asset.hpp"
 #include "../static-mesh-asset.hpp"
@@ -8,7 +9,13 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
+
+namespace tinygltf
+{
+    class Model;
+}
 
 namespace april::asset
 {
@@ -39,9 +46,15 @@ namespace april::asset
         std::array<float, 3> boundsMax{};
     };
 
-    class GltfImporter
+    class GltfImporter final : public IImporter
     {
     public:
+        auto id() const -> std::string_view override { return "GltfImporter"; }
+        auto version() const -> int override { return 1; }
+        auto supports(AssetType type) const -> bool override;
+        auto import(ImportContext const& context) -> ImportResult override;
+
+        // Legacy API for direct mesh/material extraction (used internally)
         [[nodiscard]] auto importMesh(
             std::filesystem::path const& sourcePath,
             MeshImportSettings const& settings
@@ -50,5 +63,26 @@ namespace april::asset
         [[nodiscard]] auto importMaterials(
             std::filesystem::path const& sourcePath
         ) const -> std::optional<std::vector<GltfMaterialData>>;
+
+    private:
+        // Import textures from material data, with deduplication
+        auto importTextures(
+            std::vector<GltfMaterialData> const& materials,
+            ImportContext const& context
+        ) const -> std::unordered_map<std::string, AssetRef>;
+
+        // Import materials with texture references
+        auto importMaterialAssets(
+            std::vector<GltfMaterialData> const& materials,
+            std::unordered_map<std::string, AssetRef> const& textureRefs,
+            std::filesystem::path const& baseDir,
+            ImportContext const& context
+        ) const -> std::vector<MaterialSlot>;
+
+        // Compile mesh data to DDC
+        auto compileMesh(
+            GltfMeshData const& meshData,
+            ImportContext const& context
+        ) const -> std::string;
     };
 } // namespace april::asset

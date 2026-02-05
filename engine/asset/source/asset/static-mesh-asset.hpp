@@ -40,6 +40,5 @@ namespace april::asset
 
     private:
         auto rebuildReferences() -> void;
-
     };
 }

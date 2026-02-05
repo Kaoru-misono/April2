@@ -10,6 +10,7 @@
 #include <format>
 #include <fstream>
 #include <string>
+#include <system_error>
 #include <thread>
 
 namespace april::asset
@@ -67,6 +68,7 @@ namespace april::asset
 
     auto LocalDdc::put(std::string const& key, DdcValue const& value) -> void
     {
+        auto lock = std::scoped_lock{m_writeMutex};
         auto path = makePathForKey(key);
         auto directory = path.parent_path();
         if (!std::filesystem::exists(directory))
@@ -148,6 +150,18 @@ namespace april::asset
         file.flush();
         file.close();
 
-        std::filesystem::rename(tempPath, path);
+        auto ec = std::error_code{};
+        if (std::filesystem::exists(path, ec))
+        {
+            std::filesystem::remove(path, ec);
+        }
+
+        ec = {};
+        std::filesystem::rename(tempPath, path, ec);
+        if (ec)
+        {
+            AP_ERROR("[DDC] Failed to finalize file: {} -> {} ({})", tempPath.string(), path.string(), ec.message());
+            std::filesystem::remove(tempPath, ec);
+        }
     }
 } // namespace april::asset

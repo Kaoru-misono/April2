@@ -8,8 +8,10 @@
 
 #include <filesystem>
 #include <optional>
+#include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace april::asset
@@ -42,7 +44,13 @@ namespace april::asset
         auto save(std::filesystem::path const& path) const -> bool;
 
     private:
+        auto updateRecordLocked(AssetRecord record) -> void;
+        auto addDependentsLocked(AssetRecord const& record) -> void;
+        auto removeDependentsLocked(AssetRecord const& record) -> void;
+
+        mutable std::mutex m_mutex{};
         std::unordered_map<core::UUID, AssetRecord> m_records{};
+        std::unordered_map<core::UUID, std::unordered_set<core::UUID>> m_dependents{};
     };
 
     auto to_json(nlohmann::json& j, AssetRecord const& record) -> void;

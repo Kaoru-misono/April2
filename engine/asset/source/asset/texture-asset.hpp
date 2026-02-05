@@ -24,6 +24,5 @@ namespace april::asset
 
         auto serializeJson(nlohmann::json& outJson) -> void override;
         auto deserializeJson(nlohmann::json const& inJson) -> bool override;
-
     };
 }

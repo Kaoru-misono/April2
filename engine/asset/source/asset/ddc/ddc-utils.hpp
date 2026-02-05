@@ -3,11 +3,13 @@
 #include "../dependency.hpp"
 
 #include <core/tools/hash.hpp>
+#include <core/tools/sha1.hpp>
 
 #include <fstream>
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <array>
 #include <string>
 #include <vector>
 
@@ -20,20 +22,26 @@ namespace april::asset
 
     inline auto hashFileContents(std::string const& path) -> std::string
     {
-        auto file = std::ifstream{path, std::ios::binary | std::ios::ate};
+        auto file = std::ifstream{path, std::ios::binary};
         if (!file.is_open())
         {
             return core::computeStringHash("missing");
         }
 
-        auto size = static_cast<size_t>(file.tellg());
-        file.seekg(0, std::ios::beg);
+        auto hash = core::Sha1{};
+        auto buffer = std::array<char, 64 * 1024>{};
 
-        auto data = std::string{};
-        data.resize(size);
-        file.read(data.data(), static_cast<std::streamsize>(size));
+        while (file.good())
+        {
+            file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+            auto const readCount = file.gcount();
+            if (readCount > 0)
+            {
+                hash.update(buffer.data(), static_cast<size_t>(readCount));
+            }
+        }
 
-        return core::computeStringHash(data);
+        return hash.getHexDigest();
     }
 
     inline auto hashDependencies(std::vector<Dependency> const& deps) -> std::string

@@ -1,5 +1,24 @@
 {
-    "guid": "a37f91a2-4ebe-4c31-8a77-45c2e30a4cc2",
+    "guid": "a870fcb9-4fe7-47a5-ac6b-7fdeb2f14ff8",
+    "importer": {
+        "id": "GltfImporter",
+        "version": 1
+    },
+    "materialSlots": [
+        {
+            "materialRef": {
+                "guid": "3cbd04c2-66ac-426b-a4bd-9849c1266b3e",
+                "subId": 0
+            },
+            "name": "Material"
+        }
+    ],
+    "refs": [
+        {
+            "guid": "3cbd04c2-66ac-426b-a4bd-9849c1266b3e",
+            "subId": 0
+        }
+    ],
     "settings": {
         "flipWindingOrder": false,
         "generateTangents": true,

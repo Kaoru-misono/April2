@@ -9,43 +9,56 @@ namespace april::asset
 {
     auto AssetRegistry::registerAsset(Asset const& asset, std::string assetPath) -> void
     {
-        auto recordOpt = findRecord(asset.getHandle());
-        auto record = recordOpt.value_or(AssetRecord{});
+        auto resolvedPath = std::move(assetPath);
+        auto record = AssetRecord{};
         record.guid = asset.getHandle();
-        record.assetPath = std::move(assetPath);
+        record.assetPath = resolvedPath;
         record.type = asset.getType();
-        updateRecord(std::move(record));
+
+        auto lock = std::scoped_lock{m_mutex};
+        if (auto it = m_records.find(record.guid); it != m_records.end())
+        {
+            record = it->second;
+            record.guid = asset.getHandle();
+            record.assetPath = std::move(resolvedPath);
+            record.type = asset.getType();
+        }
+
+        updateRecordLocked(std::move(record));
     }
 
     auto AssetRegistry::updateRecord(AssetRecord record) -> void
     {
-        m_records[record.guid] = std::move(record);
+        auto lock = std::scoped_lock{m_mutex};
+        updateRecordLocked(std::move(record));
     }
 
     auto AssetRegistry::findRecord(core::UUID const& guid) const -> std::optional<AssetRecord>
     {
-        if (m_records.contains(guid))
+        auto lock = std::scoped_lock{m_mutex};
+        auto it = m_records.find(guid);
+        if (it == m_records.end())
         {
-            return m_records.at(guid);
+            return std::nullopt;
         }
 
-        return std::nullopt;
+        return it->second;
     }
 
     auto AssetRegistry::getDependents(core::UUID const& guid) const -> std::vector<core::UUID>
     {
-        auto dependents = std::vector<core::UUID>{};
-
-        for (auto const& [recordGuid, record] : m_records)
+        auto lock = std::scoped_lock{m_mutex};
+        auto it = m_dependents.find(guid);
+        if (it == m_dependents.end())
         {
-            for (auto const& dep : record.deps)
-            {
-                if (dep.kind == DepKind::Strong && dep.asset.guid == guid)
-                {
-                    dependents.push_back(recordGuid);
-                    break;
-                }
-            }
+            return {};
+        }
+
+        auto dependents = std::vector<core::UUID>{};
+        dependents.reserve(it->second.size());
+        for (auto const& dependent : it->second)
+        {
+            dependents.push_back(dependent);
         }
 
         return dependents;
@@ -68,11 +81,14 @@ namespace april::asset
         auto json = nlohmann::json{};
         file >> json;
 
+        auto lock = std::scoped_lock{m_mutex};
         m_records.clear();
+        m_dependents.clear();
         for (auto const& entry : json)
         {
             auto record = entry.get<AssetRecord>();
             m_records[record.guid] = std::move(record);
+            addDependentsLocked(m_records.at(record.guid));
         }
 
         return true;
@@ -87,6 +103,7 @@ namespace april::asset
             return false;
         }
 
+        auto lock = std::scoped_lock{m_mutex};
         auto json = nlohmann::json::array();
         for (auto const& [guid, record] : m_records)
         {
@@ -147,6 +164,57 @@ namespace april::asset
         if (j.contains("lastErrorSummary"))
         {
             record.lastErrorSummary = j.at("lastErrorSummary").get<std::string>();
+        }
+    }
+
+    auto AssetRegistry::updateRecordLocked(AssetRecord record) -> void
+    {
+        auto const guid = record.guid;
+        if (auto it = m_records.find(guid); it != m_records.end())
+        {
+            removeDependentsLocked(it->second);
+            it->second = std::move(record);
+            addDependentsLocked(it->second);
+            return;
+        }
+
+        m_records.emplace(guid, std::move(record));
+        addDependentsLocked(m_records.at(guid));
+    }
+
+    auto AssetRegistry::addDependentsLocked(AssetRecord const& record) -> void
+    {
+        for (auto const& dep : record.deps)
+        {
+            if (dep.kind != DepKind::Strong)
+            {
+                continue;
+            }
+
+            m_dependents[dep.asset.guid].insert(record.guid);
+        }
+    }
+
+    auto AssetRegistry::removeDependentsLocked(AssetRecord const& record) -> void
+    {
+        for (auto const& dep : record.deps)
+        {
+            if (dep.kind != DepKind::Strong)
+            {
+                continue;
+            }
+
+            auto it = m_dependents.find(dep.asset.guid);
+            if (it == m_dependents.end())
+            {
+                continue;
+            }
+
+            it->second.erase(record.guid);
+            if (it->second.empty())
+            {
+                m_dependents.erase(it);
+            }
         }
     }
 } // namespace april::asset

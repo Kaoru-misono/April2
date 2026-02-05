@@ -1,5 +1,8 @@
 #include "gltf-importer.hpp"
 
+#include "../ddc/ddc-key.hpp"
+#include "../ddc/ddc-utils.hpp"
+
 #include <core/log/logger.hpp>
 
 #define TINYGLTF_IMPLEMENTATION
@@ -11,7 +14,10 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cstring>
+#include <cmath>
 #include <format>
+#include <fstream>
 #include <limits>
 
 namespace april::asset
@@ -25,7 +31,8 @@ namespace april::asset
             auto warn = std::string{};
 
             auto extension = sourcePath.extension().string();
-            std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+            std::transform(extension.begin(), extension.end(), extension.begin(),
+                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
             auto success = false;
             if (extension == ".gltf")
@@ -103,6 +110,257 @@ namespace april::asset
 
             return GltfTextureSource{texturePath, textureInfo.texCoord};
         }
+
+        auto sanitizeAssetName(std::string name) -> std::string
+        {
+            if (name.empty())
+            {
+                return "material";
+            }
+
+            for (auto& ch : name)
+            {
+                if (ch == '\\' || ch == '/' || ch == ':' || ch == '*' || ch == '?' ||
+                    ch == '"' || ch == '<' || ch == '>' || ch == '|')
+                {
+                    ch = '_';
+                }
+            }
+
+            return name;
+        }
+
+        auto normalizeVec3(std::array<float, 3> const& value) -> std::array<float, 3>
+        {
+            auto const lengthSq = value[0] * value[0] + value[1] * value[1] + value[2] * value[2];
+            if (lengthSq <= 0.0f)
+            {
+                return {0.0f, 0.0f, 0.0f};
+            }
+
+            auto const invLen = 1.0f / std::sqrt(lengthSq);
+            return {value[0] * invLen, value[1] * invLen, value[2] * invLen};
+        }
+
+        auto crossVec3(std::array<float, 3> const& a, std::array<float, 3> const& b) -> std::array<float, 3>
+        {
+            return {
+                a[1] * b[2] - a[2] * b[1],
+                a[2] * b[0] - a[0] * b[2],
+                a[0] * b[1] - a[1] * b[0]
+            };
+        }
+
+        auto dotVec3(std::array<float, 3> const& a, std::array<float, 3> const& b) -> float
+        {
+            return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        }
+
+        auto generateTangents(std::vector<float>& vertices, std::vector<uint32_t> const& indices, size_t vertexStrideFloats) -> bool
+        {
+            if (vertexStrideFloats < 12 || indices.size() < 3)
+            {
+                return false;
+            }
+
+            auto const vertexCount = vertices.size() / vertexStrideFloats;
+            if (vertexCount == 0)
+            {
+                return false;
+            }
+
+            auto tan1 = std::vector<std::array<float, 3>>(vertexCount, {0.0f, 0.0f, 0.0f});
+            auto tan2 = std::vector<std::array<float, 3>>(vertexCount, {0.0f, 0.0f, 0.0f});
+
+            auto fetchVec3 = [&](size_t vertexIndex, size_t offset) -> std::array<float, 3>
+            {
+                auto const base = vertexIndex * vertexStrideFloats + offset;
+                return {vertices[base + 0], vertices[base + 1], vertices[base + 2]};
+            };
+
+            auto fetchVec2 = [&](size_t vertexIndex, size_t offset) -> std::array<float, 2>
+            {
+                auto const base = vertexIndex * vertexStrideFloats + offset;
+                return {vertices[base + 0], vertices[base + 1]};
+            };
+
+            for (size_t i = 0; i + 2 < indices.size(); i += 3)
+            {
+                auto const i0 = static_cast<size_t>(indices[i + 0]);
+                auto const i1 = static_cast<size_t>(indices[i + 1]);
+                auto const i2 = static_cast<size_t>(indices[i + 2]);
+                if (i0 >= vertexCount || i1 >= vertexCount || i2 >= vertexCount)
+                {
+                    continue;
+                }
+
+                auto const p0 = fetchVec3(i0, 0);
+                auto const p1 = fetchVec3(i1, 0);
+                auto const p2 = fetchVec3(i2, 0);
+
+                auto const uv0 = fetchVec2(i0, 10);
+                auto const uv1 = fetchVec2(i1, 10);
+                auto const uv2 = fetchVec2(i2, 10);
+
+                auto const x1 = p1[0] - p0[0];
+                auto const y1 = p1[1] - p0[1];
+                auto const z1 = p1[2] - p0[2];
+                auto const x2 = p2[0] - p0[0];
+                auto const y2 = p2[1] - p0[1];
+                auto const z2 = p2[2] - p0[2];
+
+                auto const s1 = uv1[0] - uv0[0];
+                auto const t1 = uv1[1] - uv0[1];
+                auto const s2 = uv2[0] - uv0[0];
+                auto const t2 = uv2[1] - uv0[1];
+
+                auto const denom = (s1 * t2 - s2 * t1);
+                if (std::abs(denom) < 1e-8f)
+                {
+                    continue;
+                }
+
+                auto const r = 1.0f / denom;
+                auto const sdir = std::array<float, 3>{
+                    (x1 * t2 - x2 * t1) * r,
+                    (y1 * t2 - y2 * t1) * r,
+                    (z1 * t2 - z2 * t1) * r
+                };
+                auto const tdir = std::array<float, 3>{
+                    (x2 * s1 - x1 * s2) * r,
+                    (y2 * s1 - y1 * s2) * r,
+                    (z2 * s1 - z1 * s2) * r
+                };
+
+                for (auto const idx : {i0, i1, i2})
+                {
+                    tan1[idx][0] += sdir[0];
+                    tan1[idx][1] += sdir[1];
+                    tan1[idx][2] += sdir[2];
+                    tan2[idx][0] += tdir[0];
+                    tan2[idx][1] += tdir[1];
+                    tan2[idx][2] += tdir[2];
+                }
+            }
+
+            for (size_t i = 0; i < vertexCount; ++i)
+            {
+                auto const normal = normalizeVec3(fetchVec3(i, 3));
+                auto tangent = tan1[i];
+
+                auto const nDotT = dotVec3(normal, tangent);
+                tangent = {
+                    tangent[0] - normal[0] * nDotT,
+                    tangent[1] - normal[1] * nDotT,
+                    tangent[2] - normal[2] * nDotT
+                };
+                tangent = normalizeVec3(tangent);
+
+                auto w = 1.0f;
+                auto const bitangent = tan2[i];
+                if (dotVec3(crossVec3(normal, tangent), bitangent) < 0.0f)
+                {
+                    w = -1.0f;
+                }
+
+                if (tangent[0] == 0.0f && tangent[1] == 0.0f && tangent[2] == 0.0f)
+                {
+                    tangent = {1.0f, 0.0f, 0.0f};
+                    w = 1.0f;
+                }
+
+                auto const base = i * vertexStrideFloats + 6;
+                vertices[base + 0] = tangent[0];
+                vertices[base + 1] = tangent[1];
+                vertices[base + 2] = tangent[2];
+                vertices[base + 3] = w;
+            }
+
+            return true;
+        }
+    }
+
+    auto GltfImporter::supports(AssetType type) const -> bool
+    {
+        return type == AssetType::Mesh;
+    }
+
+    auto GltfImporter::import(ImportContext const& context) -> ImportResult
+    {
+        context.deps.deps.clear();
+
+        auto const& asset = static_cast<StaticMeshAsset const&>(context.asset);
+        auto sourcePath = std::filesystem::path{
+            context.sourcePath.empty() ? asset.getSourcePath() : context.sourcePath
+        };
+
+        auto result = ImportResult{};
+
+        // Load GLTF model once
+        auto model = tinygltf::Model{};
+        if (!loadModel(sourcePath, model))
+        {
+            result.errors.push_back("Failed to load GLTF model");
+            return result;
+        }
+
+        // Extract mesh data
+        auto meshData = importMesh(sourcePath, asset.m_settings);
+        if (!meshData)
+        {
+            result.errors.push_back("Mesh import failed");
+            return result;
+        }
+
+        // Extract materials
+        auto materialsData = importMaterials(sourcePath);
+
+        // If we have material extraction support and callbacks are present, handle sub-assets
+        auto materialSlots = std::vector<MaterialSlot>{};
+        if (materialsData && context.importSubAsset && context.registerSubAsset)
+        {
+            // Import textures with deduplication
+            auto textureRefs = importTextures(*materialsData, context);
+
+            // Import materials with texture references
+            materialSlots = importMaterialAssets(
+                *materialsData,
+                textureRefs,
+                sourcePath.parent_path(),
+                context
+            );
+
+            // Update mesh asset with material slots
+            auto& mutableAsset = const_cast<StaticMeshAsset&>(asset);
+            mutableAsset.m_materialSlots = materialSlots;
+
+            // Update mesh asset references to include materials
+            auto meshRefs = std::vector<AssetRef>{};
+            meshRefs.reserve(materialSlots.size());
+            for (auto const& slot : materialSlots)
+            {
+                meshRefs.push_back(slot.materialRef);
+                context.deps.addStrong(slot.materialRef);
+            }
+            mutableAsset.setReferences(std::move(meshRefs));
+        }
+
+        // Compile mesh to DDC
+        auto key = compileMesh(*meshData, context);
+        if (key.empty())
+        {
+            result.errors.push_back("Failed to compile mesh");
+            return result;
+        }
+
+        result.producedKeys.push_back(key);
+        result.producedAssets.push_back(ProducedAsset{
+            AssetType::Mesh,
+            asset.getHandle(),
+            asset.getAssetPath()
+        });
+
+        return result;
     }
 
     auto GltfImporter::importMesh(
@@ -139,6 +397,7 @@ namespace april::asset
         };
 
         auto constexpr vertexStrideFloats = 12; // pos(3) + norm(3) + tan(4) + uv(2)
+        auto canGenerateTangents = settings.generateTangents;
 
         auto getBufferData = [&](int accessorIdx) -> std::pair<uint8_t const*, int>
         {
@@ -182,6 +441,11 @@ namespace april::asset
                 primitive.attributes.count("NORMAL") ? primitive.attributes.at("NORMAL") : -1);
             auto [uvData, uvStride] = getBufferData(
                 primitive.attributes.count("TEXCOORD_0") ? primitive.attributes.at("TEXCOORD_0") : -1);
+            auto const hasTangentInputs = normData && uvData;
+            if (!hasTangentInputs)
+            {
+                canGenerateTangents = false;
+            }
 
             if (!posData)
             {
@@ -225,9 +489,9 @@ namespace april::asset
                     vertices.push_back(0.0f);
                 }
 
-                if (settings.generateTangents)
+                if (settings.generateTangents && hasTangentInputs)
                 {
-                    vertices.push_back(1.0f);
+                    vertices.push_back(0.0f);
                     vertices.push_back(0.0f);
                     vertices.push_back(0.0f);
                     vertices.push_back(1.0f);
@@ -284,6 +548,23 @@ namespace april::asset
             submeshes.push_back(submesh);
 
             baseVertexOffset += static_cast<uint32_t>(vertexCount);
+        }
+
+        if (canGenerateTangents)
+        {
+            generateTangents(vertices, indices, vertexStrideFloats);
+        }
+        else if (settings.generateTangents)
+        {
+            auto const vertexCount = vertices.size() / vertexStrideFloats;
+            for (size_t i = 0; i < vertexCount; ++i)
+            {
+                auto const base = i * vertexStrideFloats + 6;
+                vertices[base + 0] = 1.0f;
+                vertices[base + 1] = 0.0f;
+                vertices[base + 2] = 0.0f;
+                vertices[base + 3] = 1.0f;
+            }
         }
 
         if (settings.optimize && !indices.empty() && !vertices.empty())
@@ -487,5 +768,255 @@ namespace april::asset
         }
 
         return materials;
+    }
+
+    auto GltfImporter::importTextures(
+        std::vector<GltfMaterialData> const& materials,
+        ImportContext const& context
+    ) const -> std::unordered_map<std::string, AssetRef>
+    {
+        auto textureRefs = std::unordered_map<std::string, AssetRef>{};
+
+        auto collectTexture = [&](std::optional<GltfTextureSource> const& source)
+        {
+            if (!source)
+            {
+                return;
+            }
+
+            auto pathKey = source->path.string();
+            if (textureRefs.contains(pathKey))
+            {
+                return; // Already processed
+            }
+
+            // Check for deduplication - see if texture already exists
+            if (context.findAssetBySource)
+            {
+                auto existing = context.findAssetBySource(source->path, AssetType::Texture);
+                if (existing)
+                {
+                    textureRefs[pathKey] = AssetRef{existing->getHandle(), 0};
+                    AP_INFO("[GltfImporter] Reusing existing texture: {}", pathKey);
+                    return;
+                }
+            }
+
+            // Import the texture
+            if (context.importSubAsset)
+            {
+                auto textureAsset = context.importSubAsset(source->path);
+                if (textureAsset && textureAsset->getType() == AssetType::Texture)
+                {
+                    textureRefs[pathKey] = AssetRef{textureAsset->getHandle(), 0};
+                    AP_INFO("[GltfImporter] Imported texture: {}", pathKey);
+                }
+                else
+                {
+                    AP_WARN("[GltfImporter] Failed to import texture: {}", pathKey);
+                }
+            }
+        };
+
+        for (auto const& material : materials)
+        {
+            collectTexture(material.baseColorTexture);
+            collectTexture(material.metallicRoughnessTexture);
+            collectTexture(material.normalTexture);
+            collectTexture(material.occlusionTexture);
+            collectTexture(material.emissiveTexture);
+        }
+
+        return textureRefs;
+    }
+
+    auto GltfImporter::importMaterialAssets(
+        std::vector<GltfMaterialData> const& materials,
+        std::unordered_map<std::string, AssetRef> const& textureRefs,
+        std::filesystem::path const& baseDir,
+        ImportContext const& context
+    ) const -> std::vector<MaterialSlot>
+    {
+        auto slots = std::vector<MaterialSlot>{};
+        slots.reserve(materials.size());
+
+        auto getTextureRef = [&](std::optional<GltfTextureSource> const& source) -> std::optional<TextureReference>
+        {
+            if (!source)
+            {
+                return std::nullopt;
+            }
+
+            auto it = textureRefs.find(source->path.string());
+            if (it == textureRefs.end())
+            {
+                return std::nullopt;
+            }
+
+            return TextureReference{it->second, source->texCoord};
+        };
+
+        for (auto const& materialData : materials)
+        {
+            auto materialName = materialData.name;
+            auto sanitizedName = sanitizeAssetName(materialName);
+            auto materialPath = baseDir / (sanitizedName + ".material.asset");
+
+            // Check if material already exists
+            auto materialAsset = std::shared_ptr<MaterialAsset>{};
+            if (context.findAssetBySource)
+            {
+                // For materials, we use the source path (the gltf file) + name as key
+                auto existing = context.findAssetBySource(materialPath, AssetType::Material);
+                if (existing)
+                {
+                    materialAsset = std::static_pointer_cast<MaterialAsset>(existing);
+                }
+            }
+
+            if (!materialAsset)
+            {
+                materialAsset = std::make_shared<MaterialAsset>();
+            }
+
+            materialAsset->setSourcePath(context.sourcePath);
+            materialAsset->setAssetPath(materialPath.string());
+            materialAsset->setImporter("MaterialImporter", 1);
+            materialAsset->parameters = materialData.parameters;
+
+            auto textures = MaterialTextures{};
+            textures.baseColorTexture = getTextureRef(materialData.baseColorTexture);
+            textures.metallicRoughnessTexture = getTextureRef(materialData.metallicRoughnessTexture);
+            textures.normalTexture = getTextureRef(materialData.normalTexture);
+            textures.occlusionTexture = getTextureRef(materialData.occlusionTexture);
+            textures.emissiveTexture = getTextureRef(materialData.emissiveTexture);
+            materialAsset->textures = textures;
+
+            // Build references list
+            auto references = std::vector<AssetRef>{};
+            if (textures.baseColorTexture) references.push_back(textures.baseColorTexture->asset);
+            if (textures.metallicRoughnessTexture) references.push_back(textures.metallicRoughnessTexture->asset);
+            if (textures.normalTexture) references.push_back(textures.normalTexture->asset);
+            if (textures.occlusionTexture) references.push_back(textures.occlusionTexture->asset);
+            if (textures.emissiveTexture) references.push_back(textures.emissiveTexture->asset);
+            materialAsset->setReferences(std::move(references));
+
+            // Save material asset file
+            auto json = nlohmann::json{};
+            materialAsset->serializeJson(json);
+
+            auto file = std::ofstream{materialPath};
+            if (file.is_open())
+            {
+                file << json.dump(4);
+                file.close();
+                AP_INFO("[GltfImporter] Saved material asset: {}", materialPath.string());
+            }
+            else
+            {
+                AP_WARN("[GltfImporter] Failed to write material asset: {}", materialPath.string());
+            }
+
+            // Register sub-asset
+            if (context.registerSubAsset)
+            {
+                context.registerSubAsset(materialAsset);
+            }
+
+            slots.push_back(MaterialSlot{
+                materialName,
+                AssetRef{materialAsset->getHandle(), 0}
+            });
+        }
+
+        return slots;
+    }
+
+    auto GltfImporter::compileMesh(
+        GltfMeshData const& meshData,
+        ImportContext const& context
+    ) const -> std::string
+    {
+        auto const& asset = static_cast<StaticMeshAsset const&>(context.asset);
+
+        auto settingsJson = nlohmann::json{};
+        settingsJson["settings"] = asset.m_settings;
+        auto settingsHash = hashJson(settingsJson);
+
+        auto sourceHash = hashFileContents(context.sourcePath.empty() ? asset.getSourcePath() : context.sourcePath);
+        auto depsHash = hashDependencies(context.deps.deps);
+
+        constexpr auto kMeshToolchainTag = "tinygltf@unknown|meshopt@unknown|meshblob@1";
+        auto key = buildDdcKey(FingerprintInput{
+            "MS",
+            asset.getHandle().toString(),
+            std::string{id()},
+            version(),
+            kMeshToolchainTag,
+            sourceHash,
+            settingsHash,
+            depsHash,
+            context.target
+        });
+
+        if (!context.forceReimport && context.ddc.exists(key))
+        {
+            return key;
+        }
+
+        auto constexpr vertexStrideFloats = 12;
+        auto const& vertices = meshData.vertices;
+        auto const& indices = meshData.indices;
+        auto const& submeshes = meshData.submeshes;
+
+        if (vertices.empty() || indices.empty())
+        {
+            AP_ERROR("[GltfImporter] Mesh data is empty");
+            return {};
+        }
+
+        auto header = MeshHeader{};
+        header.vertexCount = static_cast<uint32_t>(vertices.size() / vertexStrideFloats);
+        header.indexCount = static_cast<uint32_t>(indices.size());
+        header.vertexStride = vertexStrideFloats * sizeof(float);
+        header.indexFormat = 1;
+        header.submeshCount = static_cast<uint32_t>(submeshes.size());
+        header.flags = 0;
+        header.boundsMin[0] = meshData.boundsMin[0];
+        header.boundsMin[1] = meshData.boundsMin[1];
+        header.boundsMin[2] = meshData.boundsMin[2];
+        header.boundsMax[0] = meshData.boundsMax[0];
+        header.boundsMax[1] = meshData.boundsMax[1];
+        header.boundsMax[2] = meshData.boundsMax[2];
+        header.vertexDataSize = vertices.size() * sizeof(float);
+        header.indexDataSize = indices.size() * sizeof(uint32_t);
+
+        auto totalSize = sizeof(MeshHeader) +
+                         submeshes.size() * sizeof(Submesh) +
+                         header.vertexDataSize +
+                         header.indexDataSize;
+
+        auto blob = std::vector<std::byte>(totalSize);
+        auto offset = size_t{0};
+
+        std::memcpy(blob.data() + offset, &header, sizeof(MeshHeader));
+        offset += sizeof(MeshHeader);
+
+        std::memcpy(blob.data() + offset, submeshes.data(), submeshes.size() * sizeof(Submesh));
+        offset += submeshes.size() * sizeof(Submesh);
+
+        std::memcpy(blob.data() + offset, vertices.data(), header.vertexDataSize);
+        offset += header.vertexDataSize;
+
+        std::memcpy(blob.data() + offset, indices.data(), header.indexDataSize);
+
+        AP_INFO("[GltfImporter] Compiled mesh: {} vertices, {} indices, {} submeshes, {} bytes",
+                header.vertexCount, header.indexCount, header.submeshCount, blob.size());
+
+        auto value = DdcValue{};
+        value.bytes = std::move(blob);
+        context.ddc.put(key, value);
+
+        return key;
     }
 } // namespace april::asset

@@ -1,0 +1,30 @@
+{
+    "guid": "3cbd04c2-66ac-426b-a4bd-9849c1266b3e",
+    "importer": {
+        "id": "MaterialImporter",
+        "version": 1
+    },
+    "parameters": {
+        "alphaCutoff": 0.5,
+        "alphaMode": "OPAQUE",
+        "baseColorFactor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+        ],
+        "doubleSided": false,
+        "emissiveFactor": [
+            0.0,
+            0.0,
+            0.0
+        ],
+        "metallicFactor": 1.0,
+        "normalScale": 1.0,
+        "occlusionStrength": 1.0,
+        "roughnessFactor": 1.0
+    },
+    "source_path": "E:/github/April2/content/model/cube.gltf",
+    "textures": {},
+    "type": "Material"
+}

@@ -4,6 +4,7 @@
 
 #include <array>
 #include <filesystem>
+#include <mutex>
 
 namespace april::asset
 {
@@ -29,6 +30,7 @@ namespace april::asset
         };
 
         std::filesystem::path m_rootPath;
+        mutable std::mutex m_writeMutex{};
 
         [[nodiscard]] auto makePathForKey(std::string const& key) const -> std::filesystem::path;
         [[nodiscard]] auto readFile(std::filesystem::path const& path) const -> std::vector<std::byte>;
