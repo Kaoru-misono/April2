@@ -1,54 +1,38 @@
 #include "texture-asset.hpp"
 
-#include <core/tools/hash.hpp>
-#include <filesystem>
-
 namespace april::asset
 {
-    static constexpr std::string_view TEXTURE_COMPILER_VERSION = "v1.0.0";
-
-    auto TextureAsset::computeDDCKey() const -> std::string
+    auto to_json(nlohmann::json& j, TextureImportSettings const& settings) -> void
     {
-        std::string rawKeyData;
+        j["sRGB"] = settings.sRGB;
+        j["generateMips"] = settings.generateMips;
+        j["compression"] = settings.compression;
+        j["brightness"] = settings.brightness;
+    }
 
-        rawKeyData += TEXTURE_COMPILER_VERSION;
-        rawKeyData += "|";
+    auto from_json(nlohmann::json const& j, TextureImportSettings& settings) -> void
+    {
+        if (j.contains("sRGB")) settings.sRGB = j.at("sRGB").get<bool>();
+        if (j.contains("generateMips")) settings.generateMips = j.at("generateMips").get<bool>();
+        if (j.contains("compression")) settings.compression = j.at("compression").get<std::string>();
+        if (j.contains("brightness")) settings.brightness = j.at("brightness").get<float>();
+    }
 
-        rawKeyData += m_settings.compression + "|";
-        rawKeyData += (m_settings.sRGB ? "sRGB_ON" : "sRGB_OFF");
-        rawKeyData += "|";
-        rawKeyData += (m_settings.generateMips ? "Mips_ON" : "Mips_OFF");
-        rawKeyData += "|";
+    auto TextureAsset::serializeJson(nlohmann::json& outJson) -> void
+    {
+        Asset::serializeJson(outJson);
 
-        auto appendTimestamp = [&](std::string_view label, std::string const& path) -> void
+        outJson["settings"] = m_settings;
+    }
+
+    auto TextureAsset::deserializeJson(nlohmann::json const& inJson) -> bool
+    {
+        if (!Asset::deserializeJson(inJson)) return false;
+
+        if (inJson.contains("settings"))
         {
-            rawKeyData += std::string{label};
-            rawKeyData += "=";
-
-            try
-            {
-                if (!path.empty() && std::filesystem::exists(path))
-                {
-                    auto ftime = std::filesystem::last_write_time(path);
-                    auto timestamp = ftime.time_since_epoch().count();
-                    rawKeyData += std::to_string(timestamp);
-                }
-                else
-                {
-                    rawKeyData += "MISSING_FILE";
-                }
-            }
-            catch (...)
-            {
-                rawKeyData += "ERROR_TIME";
-            }
-
-            rawKeyData += "|";
-        };
-
-        appendTimestamp("source", m_sourcePath);
-        appendTimestamp("asset", m_assetPath);
-
-        return core::computeStringHash(rawKeyData);
+            m_settings = inJson["settings"].get<TextureImportSettings>();
+        }
+        return true;
     }
 }

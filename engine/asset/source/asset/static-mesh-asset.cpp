@@ -1,58 +1,93 @@
 #include "static-mesh-asset.hpp"
 
-#include <core/tools/hash.hpp>
-#include <filesystem>
-#include <format>
+#include <algorithm>
 
 namespace april::asset
 {
-    static constexpr std::string_view MESH_COMPILER_VERSION = "v1.0.0";
-
-    auto StaticMeshAsset::computeDDCKey() const -> std::string
+    auto to_json(nlohmann::json& j, MaterialSlot const& slot) -> void
     {
-        auto rawKeyData = std::string{};
-
-        rawKeyData += MESH_COMPILER_VERSION;
-        rawKeyData += "|";
-
-        rawKeyData += (m_settings.optimize ? "OPT_ON" : "OPT_OFF");
-        rawKeyData += "|";
-        rawKeyData += (m_settings.generateTangents ? "TANGENTS_ON" : "TANGENTS_OFF");
-        rawKeyData += "|";
-        rawKeyData += (m_settings.flipWindingOrder ? "FLIP_ON" : "FLIP_OFF");
-        rawKeyData += "|";
-        rawKeyData += std::format("{:.6f}", m_settings.scale);
-        rawKeyData += "|";
-
-        auto appendTimestamp = [&](std::string_view label, std::string const& path) -> void
-        {
-            rawKeyData += std::string{label};
-            rawKeyData += "=";
-
-            try
-            {
-                if (!path.empty() && std::filesystem::exists(path))
-                {
-                    auto ftime = std::filesystem::last_write_time(path);
-                    auto timestamp = ftime.time_since_epoch().count();
-                    rawKeyData += std::to_string(timestamp);
-                }
-                else
-                {
-                    rawKeyData += "MISSING_FILE";
-                }
-            }
-            catch (...)
-            {
-                rawKeyData += "ERROR_TIME";
-            }
-
-            rawKeyData += "|";
-        };
-
-        appendTimestamp("source", m_sourcePath);
-        appendTimestamp("asset", m_assetPath);
-
-        return core::computeStringHash(rawKeyData);
+        j["name"] = slot.name;
+        j["materialRef"] = slot.materialRef;
     }
-}
+
+    auto from_json(nlohmann::json const& j, MaterialSlot& slot) -> void
+    {
+        if (j.contains("name")) slot.name = j.at("name").get<std::string>();
+        if (j.contains("materialRef")) slot.materialRef = j.at("materialRef").get<AssetRef>();
+    }
+
+    auto to_json(nlohmann::json& j, MeshImportSettings const& settings) -> void
+    {
+        j["optimize"] = settings.optimize;
+        j["generateTangents"] = settings.generateTangents;
+        j["flipWindingOrder"] = settings.flipWindingOrder;
+        j["scale"] = settings.scale;
+    }
+
+    auto from_json(nlohmann::json const& j, MeshImportSettings& settings) -> void
+    {
+        if (j.contains("optimize")) settings.optimize = j.at("optimize").get<bool>();
+        if (j.contains("generateTangents")) settings.generateTangents = j.at("generateTangents").get<bool>();
+        if (j.contains("flipWindingOrder")) settings.flipWindingOrder = j.at("flipWindingOrder").get<bool>();
+        if (j.contains("scale")) settings.scale = j.at("scale").get<float>();
+    }
+
+    auto StaticMeshAsset::serializeJson(nlohmann::json& outJson) -> void
+    {
+        rebuildReferences();
+        Asset::serializeJson(outJson);
+
+        outJson["settings"] = m_settings;
+        outJson["materialSlots"] = m_materialSlots;
+    }
+
+    auto StaticMeshAsset::deserializeJson(nlohmann::json const& inJson) -> bool
+    {
+        if (!Asset::deserializeJson(inJson)) return false;
+
+        if (inJson.contains("settings"))
+        {
+            m_settings = inJson["settings"].get<MeshImportSettings>();
+        }
+
+        if (inJson.contains("materialSlots"))
+        {
+            m_materialSlots = inJson["materialSlots"].get<std::vector<MaterialSlot>>();
+        }
+
+        rebuildReferences();
+        return true;
+    }
+
+    auto StaticMeshAsset::rebuildReferences() -> void
+    {
+        auto refs = std::vector<AssetRef>{};
+        refs.reserve(m_materialSlots.size());
+
+        for (auto const& slot : m_materialSlots)
+        {
+            refs.push_back(slot.materialRef);
+        }
+
+        std::sort(refs.begin(), refs.end(),
+            [](AssetRef const& lhs, AssetRef const& rhs) {
+                auto lhsGuid = lhs.guid.toString();
+                auto rhsGuid = rhs.guid.toString();
+                if (lhsGuid != rhsGuid)
+                {
+                    return lhsGuid < rhsGuid;
+                }
+                return lhs.subId < rhs.subId;
+            }
+        );
+
+        refs.erase(std::unique(refs.begin(), refs.end(),
+            [](AssetRef const& lhs, AssetRef const& rhs) {
+                return lhs.guid == rhs.guid && lhs.subId == rhs.subId;
+            }),
+            refs.end()
+        );
+
+        setReferences(std::move(refs));
+    }
+} // namespace april::asset

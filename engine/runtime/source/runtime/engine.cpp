@@ -269,7 +269,7 @@ namespace april
         m_context = m_device->getCommandContext();
 
         // Create asset manager (path relative to executable directory)
-        m_assetManager = std::make_unique<asset::AssetManager>("E:/github/April2/content", "E:/github/April2/Cache/DDC");
+        m_assetManager = std::make_unique<asset::AssetManager>("E:/github/April2/content", "E:/github/April2/build/cache/DDC");
 
         // Create scene graph
         m_sceneGraph = std::make_unique<scene::SceneGraph>();

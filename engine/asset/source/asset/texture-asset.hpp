@@ -10,9 +10,10 @@ namespace april::asset
         bool generateMips = true;
         std::string compression = "BC7";
         float brightness = 1.0f;
-
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE(TextureImportSettings, sRGB, generateMips, compression, brightness)
     };
+
+    auto to_json(nlohmann::json& j, TextureImportSettings const& settings) -> void;
+    auto from_json(nlohmann::json const& j, TextureImportSettings& settings) -> void;
 
     class TextureAsset : public Asset
     {
@@ -21,24 +22,8 @@ namespace april::asset
 
         TextureImportSettings m_settings;
 
-        auto serializeJson(nlohmann::json& outJson) -> void override
-        {
-            Asset::serializeJson(outJson);
+        auto serializeJson(nlohmann::json& outJson) -> void override;
+        auto deserializeJson(nlohmann::json const& inJson) -> bool override;
 
-            outJson["settings"] = m_settings;
-        }
-
-        auto deserializeJson(nlohmann::json const& inJson) -> bool override
-        {
-            if (!Asset::deserializeJson(inJson)) return false;
-
-            if (inJson.contains("settings"))
-            {
-                m_settings = inJson["settings"].get<TextureImportSettings>();
-            }
-            return true;
-        }
-
-        [[nodiscard]] auto computeDDCKey() const -> std::string;
     };
 }

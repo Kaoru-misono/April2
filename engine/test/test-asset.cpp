@@ -2,16 +2,16 @@
 #include <doctest/doctest.h>
 #include <filesystem>
 #include <fstream>
-#include <thread>
 #include <cstring>
-#include <chrono>
 
+#include <core/tools/uuid.hpp>
 #include <asset/asset.hpp>
 #include <asset/texture-asset.hpp>
 #include <asset/static-mesh-asset.hpp>
 #include <asset/material-asset.hpp>
 #include <asset/blob-header.hpp>
-#include <asset/ddc/ddc-manager.hpp>
+#include <asset/ddc/ddc-key.hpp>
+#include <asset/ddc/ddc-utils.hpp>
 #include <asset/asset-manager.hpp>
 
 namespace fs = std::filesystem;
@@ -238,34 +238,17 @@ TEST_SUITE("Asset System - Stage 3 & 4")
             CHECK(asset2.m_settings.brightness == doctest::Approx(1.5f));
         }
 
-        SUBCASE("Different settings produce different DDC keys")
-        {
-            auto asset1 = TextureAsset{};
-            asset1.setSourcePath(srcFile);
-            asset1.m_settings.sRGB = true;
-
-            auto asset2 = TextureAsset{};
-            asset2.setSourcePath(srcFile);
-            asset2.m_settings.sRGB = false;
-
-            auto key1 = asset1.computeDDCKey();
-            auto key2 = asset2.computeDDCKey();
-
-            CHECK(key1.length() == 40); // SHA1 hex
-            CHECK(key2.length() == 40);
-            CHECK(key1 != key2);
-        }
-
         fs::remove_all(testDir);
     }
 
-    TEST_CASE("DDCManager - Texture Compilation")
+    TEST_CASE("TextureImporter - Texture Compilation")
     {
         using namespace april::asset;
 
         auto const testDir = std::string{"TestAssets_DDC"};
         auto const cacheDir = std::string{"TestCache_DDC"};
         auto const srcFile = testDir + "/texture.png";
+        auto const assetFile = testDir + "/texture.asset";
 
         fs::remove_all(testDir);
         fs::remove_all(cacheDir);
@@ -273,90 +256,118 @@ TEST_SUITE("Asset System - Stage 3 & 4")
 
         createMinimalPNG(srcFile);
 
-        SUBCASE("Compiles valid PNG to binary blob")
+        auto writeTextureAsset = [&](std::string const& path, bool sRgb) -> void
         {
-            auto manager = DDCManager{cacheDir};
             auto asset = TextureAsset{};
             asset.setSourcePath(srcFile);
-            asset.m_settings.sRGB = false;
+            asset.m_settings.sRGB = sRgb;
             asset.m_settings.generateMips = false;
 
-            auto blob = manager.getOrCompileTexture(asset);
+            auto json = nlohmann::json{};
+            asset.serializeJson(json);
 
-            CHECK(blob.size() > sizeof(TextureHeader));
+            std::ofstream file(path);
+            file << json.dump(2);
+        };
 
-            // Parse header from blob
-            auto header = TextureHeader{};
-            std::memcpy(&header, blob.data(), sizeof(TextureHeader));
+        writeTextureAsset(assetFile, false);
 
-            CHECK(header.isValid());
-            CHECK(header.width == 1);
-            CHECK(header.height == 1);
-            CHECK(header.channels == 4); // Always RGBA
-            CHECK(header.format == PixelFormat::RGBA8Unorm);
-            CHECK(header.mipLevels == 1);
-            CHECK(header.dataSize == 4); // 1x1 RGBA = 4 bytes
+        SUBCASE("Compiles valid PNG to binary blob")
+        {
+            auto manager = AssetManager{testDir, cacheDir};
+            auto asset = manager.loadAsset<TextureAsset>(assetFile);
+
+            auto blob = std::vector<std::byte>{};
+            auto payload = manager.getTextureData(*asset, blob);
+
+            CHECK(payload.isValid());
+            CHECK(payload.header.width == 1);
+            CHECK(payload.header.height == 1);
+            CHECK(payload.header.channels == 4);
+            CHECK(payload.header.format == PixelFormat::RGBA8Unorm);
+            CHECK(payload.header.mipLevels == 1);
+            CHECK(payload.header.dataSize == 4);
         }
 
         SUBCASE("sRGB setting affects format")
         {
-            auto manager = DDCManager{cacheDir};
+            auto const linearAssetFile = testDir + "/linear.asset";
+            auto const srgbAssetFile = testDir + "/srgb.asset";
+            writeTextureAsset(linearAssetFile, false);
+            writeTextureAsset(srgbAssetFile, true);
 
-            auto assetLinear = TextureAsset{};
-            assetLinear.setSourcePath(srcFile);
-            assetLinear.m_settings.sRGB = false;
+            auto manager = AssetManager{testDir, cacheDir};
+            auto assetLinear = manager.loadAsset<TextureAsset>(linearAssetFile);
+            auto assetSrgb = manager.loadAsset<TextureAsset>(srgbAssetFile);
 
-            auto assetSrgb = TextureAsset{};
-            assetSrgb.setSourcePath(srcFile);
-            assetSrgb.m_settings.sRGB = true;
+            auto blobLinear = std::vector<std::byte>{};
+            auto blobSrgb = std::vector<std::byte>{};
+            auto payloadLinear = manager.getTextureData(*assetLinear, blobLinear);
+            auto payloadSrgb = manager.getTextureData(*assetSrgb, blobSrgb);
 
-            auto blobLinear = manager.getOrCompileTexture(assetLinear);
-            auto blobSrgb = manager.getOrCompileTexture(assetSrgb);
-
-            auto headerLinear = TextureHeader{};
-            auto headerSrgb = TextureHeader{};
-            std::memcpy(&headerLinear, blobLinear.data(), sizeof(TextureHeader));
-            std::memcpy(&headerSrgb, blobSrgb.data(), sizeof(TextureHeader));
-
-            CHECK(headerLinear.format == PixelFormat::RGBA8Unorm);
-            CHECK(headerSrgb.format == PixelFormat::RGBA8UnormSrgb);
+            CHECK(payloadLinear.header.format == PixelFormat::RGBA8Unorm);
+            CHECK(payloadSrgb.header.format == PixelFormat::RGBA8UnormSrgb);
         }
 
         SUBCASE("Cache hit returns same data")
         {
-            auto manager = DDCManager{cacheDir};
-            auto asset = TextureAsset{};
-            asset.setSourcePath(srcFile);
+            auto manager = AssetManager{testDir, cacheDir};
+            auto asset = manager.loadAsset<TextureAsset>(assetFile);
 
-            auto blob1 = manager.getOrCompileTexture(asset);
-            auto blob2 = manager.getOrCompileTexture(asset);
+            auto blob1 = std::vector<std::byte>{};
+            auto blob2 = std::vector<std::byte>{};
+            manager.getTextureData(*asset, blob1);
+            manager.getTextureData(*asset, blob2);
 
             CHECK(blob1 == blob2);
         }
 
-        SUBCASE("Cache file is created")
+        SUBCASE("Cache entry exists")
         {
-            auto manager = DDCManager{cacheDir};
-            auto asset = TextureAsset{};
-            asset.setSourcePath(srcFile);
+            auto manager = AssetManager{testDir, cacheDir};
+            auto asset = manager.loadAsset<TextureAsset>(assetFile);
 
-            manager.getOrCompileTexture(asset);
+            auto blob = std::vector<std::byte>{};
+            manager.getTextureData(*asset, blob);
 
-            auto key = asset.computeDDCKey();
-            auto subDir = key.substr(0, 2);
-            auto cacheFile = fs::path(cacheDir) / subDir / (key + ".bin");
+            auto settingsJson = nlohmann::json{};
+            settingsJson["settings"] = asset->m_settings;
+            auto key = buildDdcKey(FingerprintInput{
+                "TX",
+                asset->getHandle().toString(),
+                "TextureImporter",
+                1,
+                "stb_image@unknown|texblob@1",
+                hashFileContents(asset->getSourcePath()),
+                hashJson(settingsJson),
+                hashDependencies({}),
+                TargetProfile{}
+            });
 
-            CHECK(fs::exists(cacheFile));
+            CHECK(manager.getDdc().exists(key));
         }
 
-        SUBCASE("Invalid image returns empty blob")
+        SUBCASE("Invalid image returns empty payload")
         {
-            auto manager = DDCManager{cacheDir};
+            auto badAssetFile = testDir + "/bad.asset";
             auto asset = TextureAsset{};
             asset.setSourcePath(testDir + "/nonexistent.png");
 
-            auto blob = manager.getOrCompileTexture(asset);
-            CHECK(blob.empty());
+            {
+                auto json = nlohmann::json{};
+                asset.serializeJson(json);
+                std::ofstream file(badAssetFile);
+                file << json.dump(2);
+            }
+
+            auto manager = AssetManager{testDir, cacheDir};
+            auto loaded = manager.loadAsset<TextureAsset>(badAssetFile);
+            REQUIRE(loaded != nullptr);
+
+            auto blob = std::vector<std::byte>{};
+            auto payload = manager.getTextureData(*loaded, blob);
+
+            CHECK(!payload.isValid());
         }
 
         fs::remove_all(testDir);
@@ -453,16 +464,26 @@ TEST_SUITE("Asset System - Stage 3 & 4")
             auto srcFile = testDir + "/1x1.png";
             createMinimalPNG(srcFile);
 
-            auto manager = DDCManager{cacheDir};
+            auto assetFile = testDir + "/1x1.asset";
             auto asset = TextureAsset{};
             asset.setSourcePath(srcFile);
             asset.m_settings.generateMips = true;
 
-            auto blob = manager.getOrCompileTexture(asset);
-            auto header = TextureHeader{};
-            std::memcpy(&header, blob.data(), sizeof(TextureHeader));
+            {
+                auto json = nlohmann::json{};
+                asset.serializeJson(json);
+                std::ofstream file(assetFile);
+                file << json.dump(2);
+            }
 
-            CHECK(header.mipLevels == 1);
+            auto manager = AssetManager{testDir, cacheDir};
+            auto loaded = manager.loadAsset<TextureAsset>(assetFile);
+            REQUIRE(loaded != nullptr);
+
+            auto blob = std::vector<std::byte>{};
+            auto payload = manager.getTextureData(*loaded, blob);
+
+            CHECK(payload.header.mipLevels == 1);
         }
 
         SUBCASE("generateMips=false forces 1 mip level")
@@ -470,16 +491,26 @@ TEST_SUITE("Asset System - Stage 3 & 4")
             auto srcFile = testDir + "/test.png";
             create2x2PNG(srcFile);
 
-            auto manager = DDCManager{cacheDir};
+            auto assetFile = testDir + "/test.asset";
             auto asset = TextureAsset{};
             asset.setSourcePath(srcFile);
             asset.m_settings.generateMips = false;
 
-            auto blob = manager.getOrCompileTexture(asset);
-            auto header = TextureHeader{};
-            std::memcpy(&header, blob.data(), sizeof(TextureHeader));
+            {
+                auto json = nlohmann::json{};
+                asset.serializeJson(json);
+                std::ofstream file(assetFile);
+                file << json.dump(2);
+            }
 
-            CHECK(header.mipLevels == 1);
+            auto manager = AssetManager{testDir, cacheDir};
+            auto loaded = manager.loadAsset<TextureAsset>(assetFile);
+            REQUIRE(loaded != nullptr);
+
+            auto blob = std::vector<std::byte>{};
+            auto payload = manager.getTextureData(*loaded, blob);
+
+            CHECK(payload.header.mipLevels == 1);
         }
 
         fs::remove_all(testDir);
@@ -502,16 +533,26 @@ TEST_SUITE("Asset System - Stage 3 & 4")
 
         SUBCASE("Pixel data size matches header.dataSize")
         {
-            auto manager = DDCManager{cacheDir};
+            auto assetFile = testDir + "/pixels.asset";
             auto asset = TextureAsset{};
             asset.setSourcePath(srcFile);
 
-            auto blob = manager.getOrCompileTexture(asset);
-            auto header = TextureHeader{};
-            std::memcpy(&header, blob.data(), sizeof(TextureHeader));
+            {
+                auto json = nlohmann::json{};
+                asset.serializeJson(json);
+                std::ofstream file(assetFile);
+                file << json.dump(2);
+            }
+
+            auto manager = AssetManager{testDir, cacheDir};
+            auto loaded = manager.loadAsset<TextureAsset>(assetFile);
+            REQUIRE(loaded != nullptr);
+
+            auto blob = std::vector<std::byte>{};
+            auto payload = manager.getTextureData(*loaded, blob);
 
             auto expectedPixelDataSize = blob.size() - sizeof(TextureHeader);
-            CHECK(header.dataSize == expectedPixelDataSize);
+            CHECK(payload.header.dataSize == expectedPixelDataSize);
         }
 
         SUBCASE("TexturePayload span points to correct offset")
@@ -609,6 +650,7 @@ TEST_SUITE("Asset System - Stage 3 & 4")
 
     TEST_CASE("StaticMeshAsset - JSON Serialization")
     {
+        using namespace april;
         using namespace april::asset;
 
         auto const testDir = std::string{"TestAssets_MeshSerialize"};
@@ -624,6 +666,12 @@ TEST_SUITE("Asset System - Stage 3 & 4")
             asset.m_settings.generateTangents = true;
             asset.m_settings.flipWindingOrder = false;
             asset.m_settings.scale = 2.0f;
+            auto matGuid0 = core::UUID{"00000000-0000-0000-0000-000000000001"};
+            auto matGuid1 = core::UUID{"00000000-0000-0000-0000-000000000002"};
+            asset.m_materialSlots = {
+                MaterialSlot{"Default", AssetRef{matGuid0, 0}},
+                MaterialSlot{"Detail", AssetRef{matGuid1, 0}}
+            };
 
             auto json = nlohmann::json{};
             asset.serializeJson(json);
@@ -634,6 +682,9 @@ TEST_SUITE("Asset System - Stage 3 & 4")
             CHECK(json["settings"]["generateTangents"] == true);
             CHECK(json["settings"]["flipWindingOrder"] == false);
             CHECK(json["settings"]["scale"] == doctest::Approx(2.0f));
+            CHECK(json["materialSlots"].size() == 2);
+            CHECK(json["materialSlots"][0]["name"] == "Default");
+            CHECK(json["materialSlots"][0]["materialRef"]["guid"] == matGuid0.toString());
 
             auto asset2 = StaticMeshAsset{};
             CHECK(asset2.deserializeJson(json));
@@ -642,73 +693,25 @@ TEST_SUITE("Asset System - Stage 3 & 4")
             CHECK(asset2.m_settings.generateTangents == true);
             CHECK(asset2.m_settings.flipWindingOrder == false);
             CHECK(asset2.m_settings.scale == doctest::Approx(2.0f));
-        }
-
-        SUBCASE("Different settings produce different DDC keys")
-        {
-            auto asset1 = StaticMeshAsset{};
-            asset1.setSourcePath(srcFile);
-            asset1.m_settings.scale = 1.0f;
-
-            auto asset2 = StaticMeshAsset{};
-            asset2.setSourcePath(srcFile);
-            asset2.m_settings.scale = 2.0f;
-
-            auto key1 = asset1.computeDDCKey();
-            auto key2 = asset2.computeDDCKey();
-
-            CHECK(key1.length() == 40); // SHA1 hex
-            CHECK(key2.length() == 40);
-            CHECK(key1 != key2);
+            REQUIRE(asset2.m_materialSlots.size() == 2);
+            CHECK(asset2.m_materialSlots[0].name == "Default");
+            CHECK(asset2.m_materialSlots[0].materialRef.guid == matGuid0);
+            REQUIRE(asset2.getReferences().size() == 2);
+            CHECK(asset2.getReferences()[0].guid == matGuid0);
+            CHECK(asset2.getReferences()[1].guid == matGuid1);
         }
 
         fs::remove_all(testDir);
     }
 
-    TEST_CASE("StaticMeshAsset - DDC Key includes .asset timestamp")
-    {
-        using namespace april::asset;
-
-        auto const testDir = std::string{"TestAssets_MeshDDCKey"};
-        auto const srcFile = testDir + "/triangle.gltf";
-        auto const assetFile = testDir + "/triangle.gltf.asset";
-
-        fs::remove_all(testDir);
-        fs::create_directories(testDir);
-
-        createMinimalGLTF(srcFile);
-
-        auto asset = StaticMeshAsset{};
-        asset.setSourcePath(srcFile);
-        asset.setAssetPath(assetFile);
-
-        {
-            auto json = nlohmann::json{};
-            asset.serializeJson(json);
-            std::ofstream file(assetFile);
-            file << json.dump(2);
-        }
-
-        auto key1 = asset.computeDDCKey();
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        auto newTime = fs::file_time_type::clock::now() + std::chrono::seconds(1);
-        fs::last_write_time(assetFile, newTime);
-
-        auto key2 = asset.computeDDCKey();
-
-        CHECK(key1 != key2);
-
-        fs::remove_all(testDir);
-    }
-
-    TEST_CASE("DDCManager - Mesh Compilation")
+    TEST_CASE("MeshImporter - Mesh Compilation")
     {
         using namespace april::asset;
 
         auto const testDir = std::string{"TestAssets_MeshDDC"};
         auto const cacheDir = std::string{"TestCache_MeshDDC"};
         auto const srcFile = testDir + "/triangle.gltf";
+        auto const assetFile = testDir + "/triangle.gltf.asset";
 
         fs::remove_all(testDir);
         fs::remove_all(cacheDir);
@@ -716,61 +719,73 @@ TEST_SUITE("Asset System - Stage 3 & 4")
 
         createMinimalGLTF(srcFile);
 
-        SUBCASE("Compiles valid glTF to binary blob")
         {
-            auto manager = DDCManager{cacheDir};
             auto asset = StaticMeshAsset{};
             asset.setSourcePath(srcFile);
+            auto json = nlohmann::json{};
+            asset.serializeJson(json);
+            std::ofstream file(assetFile);
+            file << json.dump(2);
+        }
 
-            auto blob = manager.getOrCompileMesh(asset);
+        SUBCASE("Compiles valid glTF to binary blob")
+        {
+            auto manager = AssetManager{testDir, cacheDir};
+            auto asset = manager.loadAsset<StaticMeshAsset>(assetFile);
 
-            CHECK(blob.size() > sizeof(MeshHeader));
+            auto blob = std::vector<std::byte>{};
+            auto payload = manager.getMeshData(*asset, blob);
 
-            auto header = MeshHeader{};
-            std::memcpy(&header, blob.data(), sizeof(MeshHeader));
+            CHECK(payload.isValid());
+            CHECK(payload.header.vertexCount == 3);
+            CHECK(payload.header.indexCount == 3);
+            CHECK(payload.header.submeshCount == 1);
+            CHECK(payload.header.vertexStride == 48);
+            CHECK(payload.header.indexFormat == 1);
+            CHECK(payload.header.vertexDataSize == 144);
+            CHECK(payload.header.indexDataSize == 12);
+            CHECK(payload.header.vertexDataSize == static_cast<uint64_t>(payload.header.vertexCount) * payload.header.vertexStride);
 
-            CHECK(header.isValid());
-            CHECK(header.vertexCount == 3);
-            CHECK(header.indexCount == 3);
-            CHECK(header.submeshCount == 1);
-            CHECK(header.vertexStride == 48);
-            CHECK(header.indexFormat == 1);
-            CHECK(header.vertexDataSize == 144);
-            CHECK(header.indexDataSize == 12);
-            CHECK(header.vertexDataSize == static_cast<uint64_t>(header.vertexCount) * header.vertexStride);
-
-            auto expectedSize = sizeof(MeshHeader) + sizeof(Submesh) + header.vertexDataSize + header.indexDataSize;
+            auto expectedSize = sizeof(MeshHeader) + sizeof(Submesh) + payload.header.vertexDataSize + payload.header.indexDataSize;
             CHECK(blob.size() == expectedSize);
         }
 
         SUBCASE("Cache hit returns same data")
         {
-            auto manager = DDCManager{cacheDir};
-            auto asset = StaticMeshAsset{};
-            asset.setSourcePath(srcFile);
+            auto manager = AssetManager{testDir, cacheDir};
+            auto asset = manager.loadAsset<StaticMeshAsset>(assetFile);
 
-            auto blob1 = manager.getOrCompileMesh(asset);
-            auto blob2 = manager.getOrCompileMesh(asset);
+            auto blob1 = std::vector<std::byte>{};
+            auto blob2 = std::vector<std::byte>{};
+            manager.getMeshData(*asset, blob1);
+            manager.getMeshData(*asset, blob2);
 
             CHECK(blob1 == blob2);
         }
 
-        SUBCASE("Cache file matches compiled blob")
+        SUBCASE("Cache entry exists")
         {
-            auto manager = DDCManager{cacheDir};
-            auto asset = StaticMeshAsset{};
-            asset.setSourcePath(srcFile);
+            auto manager = AssetManager{testDir, cacheDir};
+            auto asset = manager.loadAsset<StaticMeshAsset>(assetFile);
 
-            auto blob = manager.getOrCompileMesh(asset);
+            auto blob = std::vector<std::byte>{};
+            manager.getMeshData(*asset, blob);
 
-            auto key = asset.computeDDCKey();
-            auto subDir = key.substr(0, 2);
-            auto cacheFile = fs::path(cacheDir) / subDir / (key + ".bin");
+            auto settingsJson = nlohmann::json{};
+            settingsJson["settings"] = asset->m_settings;
+            auto key = buildDdcKey(FingerprintInput{
+                "MS",
+                asset->getHandle().toString(),
+                "MeshImporter",
+                1,
+                "tinygltf@unknown|meshopt@unknown|meshblob@1",
+                hashFileContents(asset->getSourcePath()),
+                hashJson(settingsJson),
+                hashDependencies({}),
+                TargetProfile{}
+            });
 
-            CHECK(fs::exists(cacheFile));
-
-            auto fileData = readBinaryFile(cacheFile.string());
-            CHECK(fileData == blob);
+            CHECK(manager.getDdc().exists(key));
         }
 
         fs::remove_all(testDir);
@@ -895,45 +910,37 @@ TEST_SUITE("Asset System - Stage 3 & 4")
 
         SUBCASE("Texture references are serialized")
         {
+            using namespace april;
+
             auto material = MaterialAsset{};
-            material.textures.baseColorTexture = TextureReference{"texture-uuid-123", 0};
-            material.textures.normalTexture = TextureReference{"normal-uuid-456", 1};
+            auto baseGuid = core::UUID{"00000000-0000-0000-0000-000000000010"};
+            auto normalGuid = core::UUID{"00000000-0000-0000-0000-000000000011"};
+            material.textures.baseColorTexture = TextureReference{AssetRef{baseGuid, 0}, 0};
+            material.textures.normalTexture = TextureReference{AssetRef{normalGuid, 0}, 1};
 
             auto json = nlohmann::json{};
             material.serializeJson(json);
 
             CHECK(json["textures"].contains("baseColorTexture"));
-            CHECK(json["textures"]["baseColorTexture"]["assetId"] == "texture-uuid-123");
+            CHECK(json["textures"]["baseColorTexture"]["asset"]["guid"] == baseGuid.toString());
             CHECK(json["textures"]["baseColorTexture"]["texCoord"] == 0);
             CHECK(json["textures"].contains("normalTexture"));
-            CHECK(json["textures"]["normalTexture"]["assetId"] == "normal-uuid-456");
+            CHECK(json["textures"]["normalTexture"]["asset"]["guid"] == normalGuid.toString());
             CHECK(json["textures"]["normalTexture"]["texCoord"] == 1);
 
             auto material2 = MaterialAsset{};
             CHECK(material2.deserializeJson(json));
             REQUIRE(material2.textures.baseColorTexture.has_value());
-            CHECK(material2.textures.baseColorTexture->assetId == "texture-uuid-123");
+            CHECK(material2.textures.baseColorTexture->asset.guid == baseGuid);
             CHECK(material2.textures.baseColorTexture->texCoord == 0);
             REQUIRE(material2.textures.normalTexture.has_value());
-            CHECK(material2.textures.normalTexture->assetId == "normal-uuid-456");
+            CHECK(material2.textures.normalTexture->asset.guid == normalGuid);
             CHECK(material2.textures.normalTexture->texCoord == 1);
+            REQUIRE(material2.getReferences().size() == 2);
+            CHECK(material2.getReferences()[0].guid == baseGuid);
+            CHECK(material2.getReferences()[1].guid == normalGuid);
         }
 
-        SUBCASE("DDC key computation")
-        {
-            auto material1 = MaterialAsset{};
-            material1.parameters.baseColorFactor = {1.0f, 0.0f, 0.0f, 1.0f};
-
-            auto material2 = MaterialAsset{};
-            material2.parameters.baseColorFactor = {0.0f, 1.0f, 0.0f, 1.0f};
-
-            auto key1 = material1.computeDDCKey();
-            auto key2 = material2.computeDDCKey();
-
-            CHECK(key1.length() == 40); // SHA1 hex
-            CHECK(key2.length() == 40);
-            CHECK(key1 != key2); // Different colors produce different keys
-        }
     }
 
     TEST_CASE("AssetManager - Material Loading")
@@ -975,13 +982,16 @@ TEST_SUITE("Asset System - Stage 3 & 4")
 
         SUBCASE("Save and load material roundtrip")
         {
+            using namespace april;
+
             auto const saveFile = testDir + "/test_save.material.asset";
 
             auto originalMaterial = std::make_shared<MaterialAsset>();
             originalMaterial->parameters.baseColorFactor = {0.5f, 0.5f, 0.9f, 1.0f};
             originalMaterial->parameters.metallicFactor = 0.2f;
             originalMaterial->parameters.roughnessFactor = 0.8f;
-            originalMaterial->textures.baseColorTexture = TextureReference{"test-uuid", 0};
+            auto baseGuid = core::UUID{"00000000-0000-0000-0000-000000000020"};
+            originalMaterial->textures.baseColorTexture = TextureReference{AssetRef{baseGuid, 0}, 0};
 
             auto manager = AssetManager{testDir, "TestCache_Material"};
             CHECK(manager.saveMaterialAsset(originalMaterial, saveFile));
@@ -995,7 +1005,7 @@ TEST_SUITE("Asset System - Stage 3 & 4")
             CHECK(loadedMaterial->parameters.metallicFactor == doctest::Approx(0.2f));
             CHECK(loadedMaterial->parameters.roughnessFactor == doctest::Approx(0.8f));
             REQUIRE(loadedMaterial->textures.baseColorTexture.has_value());
-            CHECK(loadedMaterial->textures.baseColorTexture->assetId == "test-uuid");
+            CHECK(loadedMaterial->textures.baseColorTexture->asset.guid == baseGuid);
         }
 
         fs::remove_all(testDir);

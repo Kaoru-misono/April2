@@ -2,17 +2,30 @@
 
 #include "asset.hpp"
 
+#include <string>
+#include <vector>
+
 namespace april::asset
 {
+    struct MaterialSlot
+    {
+        std::string name{};
+        AssetRef materialRef{};
+    };
+
+    auto to_json(nlohmann::json& j, MaterialSlot const& slot) -> void;
+    auto from_json(nlohmann::json const& j, MaterialSlot& slot) -> void;
+
     struct MeshImportSettings
     {
         bool optimize = true;           // Use meshoptimizer
         bool generateTangents = true;   // Compute tangent space
         bool flipWindingOrder = false;  // Flip triangle winding
         float scale = 1.0f;             // Uniform scale factor
-
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE(MeshImportSettings, optimize, generateTangents, flipWindingOrder, scale)
     };
+
+    auto to_json(nlohmann::json& j, MeshImportSettings const& settings) -> void;
+    auto from_json(nlohmann::json const& j, MeshImportSettings& settings) -> void;
 
     class StaticMeshAsset : public Asset
     {
@@ -20,25 +33,13 @@ namespace april::asset
         StaticMeshAsset() : Asset(AssetType::Mesh) {}
 
         MeshImportSettings m_settings;
+        std::vector<MaterialSlot> m_materialSlots{};
 
-        auto serializeJson(nlohmann::json& outJson)  -> void override
-        {
-            Asset::serializeJson(outJson);
+        auto serializeJson(nlohmann::json& outJson)  -> void override;
+        auto deserializeJson(nlohmann::json const& inJson) -> bool  override;
 
-            outJson["settings"] = m_settings;
-        }
+    private:
+        auto rebuildReferences() -> void;
 
-        auto deserializeJson(nlohmann::json const& inJson) -> bool  override
-        {
-            if (!Asset::deserializeJson(inJson)) return false;
-
-            if (inJson.contains("settings"))
-            {
-                m_settings = inJson["settings"].get<MeshImportSettings>();
-            }
-            return true;
-        }
-
-        [[nodiscard]] auto computeDDCKey() const -> std::string;
     };
 }
