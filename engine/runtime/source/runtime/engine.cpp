@@ -7,6 +7,7 @@
 #include <chrono>
 #include <iostream>
 #include <stdexcept>
+#include <utility>
 
 namespace april
 {
@@ -124,18 +125,6 @@ namespace april
             m_context->clearRtv(targetRtv.get(), m_config.clearColor);
         }
 
-        bool uiBegan = false;
-        if (m_imguiLayer)
-        {
-            m_imguiLayer->beginFrame();
-            uiBegan = true;
-
-            if (m_hooks.onUI)
-            {
-                m_hooks.onUI();
-            }
-        }
-
         if (m_renderer && m_sceneGraph)
         {
             m_renderer->render(m_context, *m_sceneGraph, m_config.clearColor);
@@ -157,9 +146,9 @@ namespace april
             }
         }
 
-        if (uiBegan)
+        if (m_hooks.onUIRender)
         {
-            m_imguiLayer->endFrame(m_context, targetRtv);
+            m_hooks.onUIRender(m_context, targetRtv);
         }
 
         if (m_offscreen)
@@ -189,17 +178,6 @@ namespace april
     auto Engine::stop() -> void
     {
         m_running = false;
-    }
-
-    auto Engine::addElement(core::ref<ui::IElement> const& element) -> void
-    {
-        if (m_imguiLayer)
-        {
-            m_imguiLayer->addElement(element);
-            return;
-        }
-
-        m_pendingElements.push_back(element);
     }
 
     auto Engine::getSceneColorSrv() const -> core::ref<graphics::TextureView>
@@ -280,19 +258,6 @@ namespace april
             m_window->getFramebufferHeight()
         );
 
-        if (m_config.enableUI)
-        {
-            auto desc = m_config.imgui;
-            desc.device = m_device;
-            desc.window = m_window.get();
-            desc.vSync = m_config.vSync;
-            desc.iniFilename = m_config.imguiIniFilename;
-
-            m_imguiLayer = core::make_ref<ui::ImGuiLayer>();
-            m_imguiLayer->init(desc);
-            attachPendingElements();
-        }
-
         m_running = true;
         m_initialized = true;
 
@@ -314,12 +279,6 @@ namespace april
             m_hooks.onShutdown();
         }
 
-        if (m_imguiLayer)
-        {
-            m_imguiLayer->terminate();
-            m_imguiLayer.reset();
-        }
-
         m_swapchain.reset();
         m_offscreen.reset();
         m_device.reset();
@@ -329,20 +288,57 @@ namespace april
         m_initialized = false;
     }
 
-    auto Engine::attachPendingElements() -> void
+    auto Engine::addHooks(EngineHooks hooks) -> void
     {
-        if (!m_imguiLayer)
+        if (hooks.onInit)
         {
-            return;
+            auto prev = m_hooks.onInit;
+            m_hooks.onInit = [prev, next = std::move(hooks.onInit)]() {
+                if (prev) prev();
+                next();
+            };
         }
 
-        for (auto const& element : m_pendingElements)
+        if (hooks.onShutdown)
         {
-            m_imguiLayer->addElement(element);
+            auto prev = m_hooks.onShutdown;
+            m_hooks.onShutdown = [prev, next = std::move(hooks.onShutdown)]() {
+                if (prev) prev();
+                next();
+            };
         }
-        m_pendingElements.clear();
+
+        if (hooks.onUpdate)
+        {
+            auto prev = m_hooks.onUpdate;
+            m_hooks.onUpdate = [prev, next = std::move(hooks.onUpdate)](float delta) {
+                if (prev) prev(delta);
+                next(delta);
+            };
+        }
+
+        if (hooks.onRender)
+        {
+            auto prev = m_hooks.onRender;
+            m_hooks.onRender = [prev, next = std::move(hooks.onRender)](
+                graphics::CommandContext* context,
+                graphics::TextureView* target) {
+                if (prev) prev(context, target);
+                next(context, target);
+            };
+        }
+
+        if (hooks.onUIRender)
+        {
+            auto prev = m_hooks.onUIRender;
+            m_hooks.onUIRender = [prev, next = std::move(hooks.onUIRender)](
+                graphics::CommandContext* context,
+                core::ref<graphics::TextureView> const& target) {
+                if (prev) prev(context, target);
+                next(context, target);
+            };
+        }
     }
-
     auto Engine::ensureOffscreenTarget(uint32_t width, uint32_t height) -> void
     {
         if (!m_device || width == 0 || height == 0)

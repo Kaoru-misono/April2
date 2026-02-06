@@ -2,12 +2,12 @@
 #include <doctest/doctest.h>
 #include <core/window/window.hpp>
 #include <graphics/rhi/render-device.hpp>
-#include "ui/imgui-layer.hpp"
+#include "imgui-backend.hpp"
 #include <GLFW/glfw3.h>
 
 using namespace april;
 using namespace april::graphics;
-using namespace april::ui;
+using namespace april::editor;
 
 TEST_CASE("ImGui Font Texture Creation") {
     // 1. Initialize Windowing
@@ -26,17 +26,17 @@ TEST_CASE("ImGui Font Texture Creation") {
     deviceDesc.type = Device::Type::Vulkan;
     auto device = core::make_ref<Device>(deviceDesc);
 
-    // 3. Initialize ImGuiLayer
-    ImGuiLayerDesc layerDesc;
-    layerDesc.device = device;
-    layerDesc.window = window.get();
+    // 3. Initialize ImGui Backend
+    ImGuiBackendDesc backendDesc;
+    backendDesc.device = device;
+    backendDesc.window = window.get();
 
-    auto imguiLayer = core::make_ref<ImGuiLayer>();
-    imguiLayer->init(layerDesc);
+    auto imguiBackend = core::make_ref<ImGuiBackend>();
+    imguiBackend->init(backendDesc);
 
     // 4. Verify Font Texture
     // This is expected to FAIL initially because we haven't implemented the creation logic yet.
-    auto fontTexture = imguiLayer->getFontTexture();
+    auto fontTexture = imguiBackend->getFontTexture();
 
     CHECK(fontTexture != nullptr);
     if (fontTexture) {
@@ -44,6 +44,6 @@ TEST_CASE("ImGui Font Texture Creation") {
         CHECK(fontTexture->getHeight() > 0);
     }
 
-    imguiLayer->terminate();
+    imguiBackend->terminate();
     glfwTerminate();
 }

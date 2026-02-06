@@ -10,7 +10,7 @@
 
 namespace april::editor
 {
-    auto EditorInspectorElement::onAttach(ui::ImGuiLayer* /*pLayer*/) -> void {}
+    auto EditorInspectorElement::onAttach(ImGuiBackend* /*pBackend*/) -> void {}
     auto EditorInspectorElement::onDetach() -> void {}
     auto EditorInspectorElement::onResize(graphics::CommandContext* /*pContext*/, float2 const& /*size*/) -> void {}
     auto EditorInspectorElement::onUIMenu() -> void {}

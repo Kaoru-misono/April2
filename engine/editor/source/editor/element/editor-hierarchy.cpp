@@ -9,7 +9,7 @@
 
 namespace april::editor
 {
-    auto EditorHierarchyElement::onAttach(ui::ImGuiLayer* /*pLayer*/) -> void {}
+    auto EditorHierarchyElement::onAttach(ImGuiBackend* /*pBackend*/) -> void {}
     auto EditorHierarchyElement::onDetach() -> void {}
     auto EditorHierarchyElement::onResize(graphics::CommandContext* /*pContext*/, float2 const& /*size*/) -> void {}
     auto EditorHierarchyElement::onUIMenu() -> void {}

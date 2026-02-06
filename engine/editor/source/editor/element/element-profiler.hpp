@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ui/element.hpp>
+#include <editor/editor-element.hpp>
 #include <core/profile/profile-aggregator.hpp>
 #include <core/profile/profile-manager.hpp>
 #include <imgui.h>
@@ -8,16 +8,16 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace april::ui
+namespace april::editor
 {
-    class ElementProfiler : public IElement
+    class ElementProfiler : public IEditorElement
     {
         APRIL_OBJECT(ElementProfiler)
     public:
         ElementProfiler(bool show = false);
         ~ElementProfiler() override = default;
 
-        auto onAttach(ImGuiLayer* pLayer) -> void override;
+        auto onAttach(ImGuiBackend* pBackend) -> void override;
         auto onDetach() -> void override;
         auto onResize(graphics::CommandContext* pContext, float2 const& size) -> void override;
         auto onUIRender() -> void override;

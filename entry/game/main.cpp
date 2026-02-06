@@ -4,7 +4,6 @@
 #include <core/input/input.hpp>
 #include <core/log/logger.hpp>
 #include <core/math/type.hpp>
-#include <imgui.h>
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -31,11 +30,7 @@ int main()
     config.window.title = "April Game - Scene ECS Test";
     config.device.enableDebugLayer = true;
     config.device.type = april::graphics::Device::Type::D3D12;
-    config.enableUI = false;  // Disable UI for testing
     config.compositeSceneToOutput = true;  // Composite scene to output
-    config.imgui.useMenu = false;
-    config.imgui.imguiConfigFlags = ImGuiConfigFlags_NavEnableKeyboard;
-    config.imguiIniFilename = "imgui_game.ini";
 
     auto testState = TestSceneState{};
 

@@ -3,14 +3,14 @@
 #include <core/profile/profile-manager.hpp>
 #include <imgui.h>
 
-namespace april::ui
+namespace april::editor
 {
     ElementProfiler::ElementProfiler(bool show)
         : m_show(show)
     {
     }
 
-    auto ElementProfiler::onAttach(ImGuiLayer* pLayer) -> void
+    auto ElementProfiler::onAttach(ImGuiBackend* /*pBackend*/) -> void
     {
     }
 

@@ -1,6 +1,8 @@
-#include "imgui-layer.hpp"
-#include "style.hpp"
-#include "font/fonts.hpp"
+#include "imgui-backend.hpp"
+
+#include <ui/style.hpp>
+#include <ui/font/fonts.hpp>
+
 #include <graphics/rhi/render-device.hpp>
 #include <graphics/rhi/command-context.hpp>
 #include <graphics/rhi/resource-views.hpp>
@@ -9,7 +11,6 @@
 #include <core/window/window.hpp>
 #include <core/math/type.hpp>
 #include <core/log/logger.hpp>
-#include <core/error/assert.hpp>
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -17,32 +18,32 @@
 #include <backends/imgui_impl_glfw.h>
 #include <GLFW/glfw3.h>
 
-namespace april::ui
+#include <cstddef>
+#include <cstring>
+
+namespace april::editor
 {
-    ImGuiLayer::ImGuiLayer()
-        : m_fontTexture(nullptr)
-        , m_frameIndex(0)
+    ImGuiBackend::ImGuiBackend()
+        : m_frameIndex(0)
     {
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
         ImPlot::CreateContext();
     }
 
-    ImGuiLayer::~ImGuiLayer()
+    ImGuiBackend::~ImGuiBackend()
     {
-
     }
 
-    auto ImGuiLayer::init(ImGuiLayerDesc const& desc) -> void
+    auto ImGuiBackend::init(ImGuiBackendDesc const& desc) -> void
     {
         m_window = desc.window;
         mp_device = desc.device;
         m_vsync = desc.vSync;
-        m_useMenubar = desc.useMenu;
-        m_dockSetup = desc.dockSetup;
         m_imguiConfigFlags = desc.imguiConfigFlags;
+        m_viewportsEnabled = desc.enableViewports;
 
-        if(desc.hasUndockableViewport == true)
+        if (m_viewportsEnabled)
         {
             m_imguiConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
         }
@@ -56,22 +57,29 @@ namespace april::ui
             m_iniFileName = "imgui.ini";
         }
 
-        // initializeImGuiContext.
-        setupStyle(false);
+        ui::setupStyle(false);
 
-        m_settingsHandler.setHandlerName("ImGuiLayer");
+        m_settingsHandler.setHandlerName("ImGuiBackend");
         m_settingsHandler.addImGuiHandler();
-
-        // ImGui::LoadIniSettingsFromDisk(m_iniFilename.c_str());
 
         auto& io = ImGui::GetIO();
         io.IniFilename = m_iniFileName.c_str();
 
-        addDefaultFont();
-        io.FontDefault = getDefaultFont();
-        addMonospaceFont();
+        ui::addDefaultFont();
+        io.FontDefault = ui::getDefaultFont();
+        ui::addMonospaceFont();
 
         io.ConfigFlags = m_imguiConfigFlags;
+
+        if (m_window)
+        {
+            auto scale = m_window->getWindowContentScale();
+            if (scale.x > 0.0f)
+            {
+                setDpiScale(scale.x);
+            }
+        }
+
         auto* glfwWindow = static_cast<GLFWwindow*>(m_window->getBackendWindow());
         if (mp_device->getType() == graphics::Device::Type::Vulkan)
         {
@@ -82,7 +90,6 @@ namespace april::ui
             ImGui_ImplGlfw_InitForOther(glfwWindow, true);
         }
 
-        // Create font texture
         unsigned char* pixels;
         int width, height;
         io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
@@ -101,20 +108,17 @@ namespace april::ui
 
         io.Fonts->SetTexID(m_fontTexture->getSRV().get());
 
-        // 1. Load Shader
         using namespace graphics;
         m_program = Program::createGraphics(mp_device, "ui/imgui.slang", "vertexMain", "fragmentMain");
         m_vars = ProgramVariables::create(mp_device, m_program->getActiveVersion()->getReflector());
 
-        // 2. Create Vertex Layout
         m_layout = VertexLayout::create();
         auto bufferLayout = VertexBufferLayout::create();
         bufferLayout->addElement("POSITION", 0, ResourceFormat::RG32Float, 1, 0);
-        bufferLayout->addElement("TEXCOORD", (uint32_t)IM_OFFSETOF(ImDrawVert, uv), ResourceFormat::RG32Float, 1, 1);
-        bufferLayout->addElement("COLOR", (uint32_t)IM_OFFSETOF(ImDrawVert, col), ResourceFormat::RGBA8Unorm, 1, 2);
+        bufferLayout->addElement("TEXCOORD", (uint32_t)offsetof(ImDrawVert, uv), ResourceFormat::RG32Float, 1, 1);
+        bufferLayout->addElement("COLOR", (uint32_t)offsetof(ImDrawVert, col), ResourceFormat::RGBA8Unorm, 1, 2);
         m_layout->addBufferLayout(0, bufferLayout);
 
-        // 3. Create Pipeline
         auto pipeDesc = GraphicsPipelineDesc{};
         pipeDesc.programKernels = m_program->getActiveVersion()->getKernels(mp_device.get(), nullptr);
         pipeDesc.vertexLayout = m_layout;
@@ -146,7 +150,6 @@ namespace april::ui
 
         m_pipeline = mp_device->createGraphicsPipeline(pipeDesc);
 
-        // 4. Create Sampler
         Sampler::Desc samplerDesc = {};
         samplerDesc.minFilter = TextureFilteringMode::Linear;
         samplerDesc.magFilter = TextureFilteringMode::Linear;
@@ -157,14 +160,8 @@ namespace april::ui
         m_frameResources.resize(Device::kInFlightFrameCount);
     }
 
-    auto ImGuiLayer::terminate() -> void
+    auto ImGuiBackend::terminate() -> void
     {
-        for (auto& e: m_elements)
-        {
-            e->onDetach();
-        }
-        m_elements.clear();
-
         m_fontTexture.reset();
         m_fontSampler.reset();
 
@@ -173,90 +170,70 @@ namespace april::ui
         ImGui::DestroyContext();
     }
 
-    auto ImGuiLayer::setupImguiDock() -> void
+    auto ImGuiBackend::newFrame() -> void
     {
-        if ((m_imguiConfigFlags & ImGuiConfigFlags_DockingEnable) == 0)
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+    }
+
+    auto ImGuiBackend::render(graphics::CommandContext* pContext, core::ref<graphics::TextureView> const& pTarget) -> void
+    {
+        auto& io = ImGui::GetIO();
+        Input::setUiCapture(io.WantCaptureMouse, io.WantCaptureKeyboard);
+
+        if (pTarget)
+        {
+            auto* drawData = ImGui::GetDrawData();
+            if (drawData->DisplaySize.x > 0.0f && drawData->DisplaySize.y > 0.0f)
+            {
+                auto colorTargets = {
+                    graphics::ColorTarget(pTarget, graphics::LoadOp::Load, graphics::StoreOp::Store)
+                };
+                auto pEncoder = pContext->beginRenderPass(colorTargets);
+                pEncoder->pushDebugGroup("ImGui");
+                renderDrawData(pEncoder.get(), drawData);
+                pEncoder->popDebugGroup();
+                pEncoder->end();
+            }
+        }
+
+        ImGui::EndFrame();
+
+        if ((ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) != 0)
+        {
+            ImGui::UpdatePlatformWindows();
+            ImGui::RenderPlatformWindowsDefault();
+        }
+
+        m_frameIndex = (m_frameIndex + 1) % graphics::Device::kInFlightFrameCount;
+    }
+
+    auto ImGuiBackend::setIniFilename(std::string iniFilename) -> void
+    {
+        if (iniFilename.empty())
+        {
+            iniFilename = "imgui.ini";
+        }
+
+        m_iniFileName = std::move(iniFilename);
+        ImGui::GetIO().IniFilename = m_iniFileName.c_str();
+    }
+
+    auto ImGuiBackend::setDpiScale(float scale) -> void
+    {
+        if (scale <= 0.0f)
         {
             return;
         }
 
-        const ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode | ImGuiDockNodeFlags_NoDockingInCentralNode;
-        ImGuiID dockID = ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), dockFlags);
-        // Docking layout, must be done only if it doesn't exist
-        if(!ImGui::DockBuilderGetNode(dockID)->IsSplitNode() && !ImGui::FindWindowByName("Viewport"))
-        {
-            ImGui::DockBuilderDockWindow("Viewport", dockID);  // Dock "Viewport" to  central node
-            ImGui::DockBuilderGetCentralNode(dockID)->LocalFlags |= ImGuiDockNodeFlags_NoTabBar;  // Remove "Tab" from the central node
-            if(m_dockSetup)
-            {
-                // This override allow to create the layout of windows by default.
-                m_dockSetup(dockID);
-            }
-            else
-            {
-                ImGuiID leftID = ImGui::DockBuilderSplitNode(dockID, ImGuiDir_Left, 0.2f, nullptr, &dockID);  // Split the central node
-                ImGui::DockBuilderDockWindow("Settings", leftID);  // Dock "Settings" to the left node
-            }
-        }
+        auto& io = ImGui::GetIO();
+        io.FontGlobalScale *= scale / m_dpiScale;
+        m_dpiScale = scale;
     }
 
-    auto ImGuiLayer::onViewportSizeChange(float2 size) -> void
-    {
-        auto scale = m_window->getWindowContentScale();
-        ImGui::GetIO().FontGlobalScale *= scale.x / m_dpiScale;
-        m_dpiScale = scale.x;
-
-        m_viewportSize = size;
-
-        // TODO: wait for queue.
-        for (auto& e: m_elements)
-        {
-            e->onResize(mp_device->getCommandContext(), m_viewportSize);
-        }
-    }
-
-    auto ImGuiLayer::renderFrame(graphics::CommandContext* pContext) -> void
-    {
-        for (auto& e: m_elements)
-        {
-            e->onUIRender();
-        }
-
-        {
-            auto viewportSize = float2{};
-            if (auto const viewport = ImGui::FindWindowByName("Viewport"); viewport)
-            {
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-                ImGui::Begin("Viewport");
-                auto avail = ImGui::GetContentRegionAvail();
-                viewportSize = {uint32_t(avail.x), uint32_t(avail.y)};
-                ImGui::End();
-                ImGui::PopStyleVar();
-            }
-
-            if (m_viewportSize.x != viewportSize.x || m_viewportSize.y != viewportSize.y)
-            {
-                onViewportSizeChange(viewportSize);
-            }
-        }
-
-        ImGui::Render();
-
-        for (auto& e: m_elements)
-        {
-            e->onPreRender();
-        }
-
-        for (auto& e: m_elements)
-        {
-            e->onRender(pContext);
-        }
-    }
-
-    auto ImGuiLayer::renderDrawData(graphics::RenderPassEncoder* pEncoder, ImDrawData* pDrawData) -> void
+    auto ImGuiBackend::renderDrawData(graphics::RenderPassEncoder* pEncoder, ImDrawData* pDrawData) -> void
     {
         using namespace graphics;
-        // 2. Render
         float viewportWidth = pDrawData->DisplaySize.x * pDrawData->FramebufferScale.x;
         float viewportHeight = pDrawData->DisplaySize.y * pDrawData->FramebufferScale.y;
 
@@ -271,7 +248,6 @@ namespace april::ui
 
         auto& frameRes = m_frameResources[m_frameIndex];
 
-        // Grow buffers if needed
         if (!frameRes.vertexBuffer || frameRes.vertexCount < (uint32_t)pDrawData->TotalVtxCount)
         {
             frameRes.vertexCount = (uint32_t)pDrawData->TotalVtxCount + 5000;
@@ -368,8 +344,6 @@ namespace april::ui
                     auto* srvToBind = (TextureView*)pcmd->TexRef.GetTexID();
                     if (!srvToBind)
                     {
-                        // Fallback to default if somehow missing, though RendererHasTextures should handle this.
-                        // We don't have a default font texture anymore, so we rely on TexRef.
                         continue;
                     }
 
@@ -381,63 +355,5 @@ namespace april::ui
             globalIdxOffset += cmdList->IdxBuffer.Size;
             globalVtxOffset += cmdList->VtxBuffer.Size;
         }
-    }
-
-    auto ImGuiLayer::beginFrame() -> void
-    {
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-
-        setupImguiDock();
-
-        if(m_useMenubar && ImGui::BeginMainMenuBar())
-        {
-            for(auto& e: m_elements)
-            {
-                e->onUIMenu();
-            }
-            ImGui::EndMainMenuBar();
-        }
-
-        // Viewport size is updated after UI is built in renderFrame().
-    }
-
-    auto ImGuiLayer::endFrame(graphics::CommandContext* pCtx, core::ref<graphics::TextureView> const& pTargetView) -> void
-    {
-        renderFrame(pCtx);
-        {
-            auto& io = ImGui::GetIO();
-            Input::setUiCapture(io.WantCaptureMouse, io.WantCaptureKeyboard);
-        }
-
-        if (pTargetView)
-        {
-            auto* drawData = ImGui::GetDrawData();
-            if (drawData->DisplaySize.x <= 0.0f || drawData->DisplaySize.y <= 0.0f) return;
-
-            auto colorTargets = {
-                graphics::ColorTarget(pTargetView, graphics::LoadOp::Load, graphics::StoreOp::Store)
-            };
-            auto pEncoder = pCtx->beginRenderPass(colorTargets);
-            pEncoder->pushDebugGroup("ImGui");
-            renderDrawData(pEncoder.get(), drawData);
-            pEncoder->popDebugGroup();
-            pEncoder->end();
-        }
-
-        ImGui::EndFrame();
-
-        if((ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) != 0)
-        {
-            ImGui::UpdatePlatformWindows();
-            ImGui::RenderPlatformWindowsDefault();
-        }
-
-        m_frameIndex = (m_frameIndex + 1) % graphics::Device::kInFlightFrameCount;
-    }
-
-    auto ImGuiLayer::addElement(core::ref<IElement> const& element) -> void
-    {
-        m_elements.emplace_back(element)->onAttach(this);
     }
 }

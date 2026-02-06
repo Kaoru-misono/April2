@@ -4,4 +4,4 @@ type = library
 version = 0.1.0
 
 [dependencies]
-public = core, graphics, ui, scene, asset
+public = core, graphics, scene, asset

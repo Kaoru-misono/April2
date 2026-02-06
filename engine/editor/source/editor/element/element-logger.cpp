@@ -2,7 +2,7 @@
 #include <core/log/logger.hpp>
 #include <imgui_internal.h> // For ImGuiTextBuffer if needed, mostly covered by imgui.h
 
-namespace april::ui
+namespace april::editor
 {
     ElementLogger::ElementLogger(bool show)
         : m_showLog(show)
@@ -19,7 +19,7 @@ namespace april::ui
         }
     }
 
-    auto ElementLogger::onAttach(ImGuiLayer* pLayer) -> void
+    auto ElementLogger::onAttach(ImGuiBackend* /*pBackend*/) -> void
     {
         if (!m_registered && m_sink)
         {

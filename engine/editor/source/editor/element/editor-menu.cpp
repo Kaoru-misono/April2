@@ -11,7 +11,7 @@
 
 namespace april::editor
 {
-    auto EditorMenuElement::onAttach(ui::ImGuiLayer* /*pLayer*/) -> void {}
+    auto EditorMenuElement::onAttach(ImGuiBackend* /*pBackend*/) -> void {}
     auto EditorMenuElement::onDetach() -> void {}
     auto EditorMenuElement::onResize(graphics::CommandContext* /*pContext*/, float2 const& /*size*/) -> void {}
     auto EditorMenuElement::onUIRender() -> void {}

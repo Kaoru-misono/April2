@@ -20,8 +20,9 @@
 #include <core/profile/profile-exporter.hpp>
 #include <thread> // For sleep
 
-#include "ui/imgui-layer.hpp"
-#include "ui/element.hpp"
+#include "editor/imgui-backend.hpp"
+#include "editor/editor-shell.hpp"
+#include "editor/editor-element.hpp"
 #include "editor/element/element-logger.hpp"
 #include "editor/element/element-profiler.hpp"
 
@@ -33,7 +34,7 @@
 
 using namespace april;
 using namespace april::graphics;
-using namespace april::ui;
+using namespace april::editor;
 
 // --- Shaders for Load Simulation ---
 char const* vs_code = R"(
@@ -61,15 +62,15 @@ void SimulateCpuWork(char const* name, int millis)
     std::this_thread::sleep_for(std::chrono::milliseconds(millis));
 }
 
-class SampleElement : public IElement
+class SampleElement : public IEditorElement
 {
 public:
     APRIL_OBJECT(SampleElement)
 
-    void onAttach(ImGuiLayer* pLayer) override
+    void onAttach(ImGuiBackend* pBackend) override
     {
-        m_pLayer = pLayer;
-        auto device = pLayer->getFontTexture()->getDevice();
+        m_pBackend = pBackend;
+        auto device = pBackend->getFontTexture()->getDevice();
 
         // 1. Create Offscreen Texture (RenderTarget)
         m_viewportTexture = device->createTexture2D(
@@ -193,7 +194,7 @@ public:
     }
 
 private:
-    ImGuiLayer* m_pLayer{nullptr};
+    ImGuiBackend* m_pBackend{nullptr};
     core::ref<Texture> m_viewportTexture;
     core::ref<GraphicsPipeline> m_pipeline;
     core::ref<ProgramVariables> m_vars;
@@ -232,19 +233,22 @@ int main()
         swapchainDesc.height = window->getFramebufferHeight();
         auto swapchain = core::make_ref<Swapchain>(device, swapchainDesc, window->getNativeWindowHandle());
 
-        // 4. Initialize ImGuiLayer
-        ImGuiLayerDesc layerDesc;
-        layerDesc.device = device;
-        layerDesc.window = window.get();
+        // 4. Initialize ImGui Backend + Editor Shell
+        auto backendDesc = ImGuiBackendDesc{};
+        backendDesc.device = device;
+        backendDesc.window = window.get();
 
-        auto imguiLayer = core::make_ref<ImGuiLayer>();
-        imguiLayer->init(layerDesc);
+        auto shellDesc = EditorShellDesc{};
+        shellDesc.backend = backendDesc;
+
+        auto editorShell = EditorShell{};
+        editorShell.init(shellDesc);
 
         // 5. Add Elements
         auto sampleElement = core::make_ref<SampleElement>();
-        imguiLayer->addElement(sampleElement);
-        imguiLayer->addElement(core::make_ref<ElementLogger>(true));
-        imguiLayer->addElement(core::make_ref<ElementProfiler>(true));
+        editorShell.addElement(sampleElement);
+        editorShell.addElement(core::make_ref<ElementLogger>(true));
+        editorShell.addElement(core::make_ref<ElementProfiler>(true));
 
         auto ctx = device->getCommandContext();
         bool closeWindow = false;
@@ -302,10 +306,9 @@ int main()
                 {
                     APRIL_GPU_ZONE(ctx, "Frame Render");
 
-                    // ImGuiLayer calls onRender for elements inside beginFrame/endFrame
+                    // EditorShell calls onRender for elements during renderFrame
                     // So SampleElement's heavy draw happens here
-                    imguiLayer->beginFrame();
-                    imguiLayer->endFrame(ctx, backBuffer->getRTV());
+                    editorShell.renderFrame(ctx, backBuffer->getRTV());
                 }
 
                 ctx->resourceBarrier(backBuffer.get(), Resource::State::Present);
@@ -343,7 +346,7 @@ int main()
             }
         }
 
-        imguiLayer->terminate();
+        editorShell.terminate();
     }
     catch (std::exception const& e)
     {

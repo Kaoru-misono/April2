@@ -7,9 +7,7 @@ int main()
     config.window.title = "April Editor";
     config.device.enableDebugLayer = true;
     config.device.type = april::graphics::Device::Type::Default;
-    config.imgui.hasUndockableViewport = true;
     config.compositeSceneToOutput = false;
-    config.imguiIniFilename = "imgui_editor.ini";
     config.assetRoot = "content";
     config.ddcRoot = "build/cache/DDC";
 
@@ -19,7 +17,10 @@ int main()
     editor.setOnExit([&engine]() {
         engine.stop();
     });
-    editor.install(engine);
+    auto uiConfig = april::editor::EditorUiConfig{};
+    uiConfig.enableViewports = true;
+    uiConfig.iniFilename = "imgui_editor.ini";
+    editor.install(engine, uiConfig);
 
     return engine.run();
 }

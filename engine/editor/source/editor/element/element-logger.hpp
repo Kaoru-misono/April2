@@ -1,13 +1,13 @@
 #pragma once
 
-#include <ui/element.hpp>
+#include <editor/editor-element.hpp>
 #include <core/log/log-sink.hpp>
 #include <imgui.h>
 #include <mutex>
 
-namespace april::ui
+namespace april::editor
 {
-    class ElementLogger : public IElement
+    class ElementLogger : public IEditorElement
     {
         APRIL_OBJECT(ElementLogger)
 
@@ -15,8 +15,8 @@ namespace april::ui
         ElementLogger(bool show = false);
         virtual ~ElementLogger();
 
-        // IElement overrides
-        auto onAttach(ImGuiLayer* pLayer) -> void override;
+        // IEditorElement overrides
+        auto onAttach(ImGuiBackend* pBackend) -> void override;
         auto onDetach() -> void override;
         auto onResize(graphics::CommandContext* pContext, float2 const& size) -> void override;
         auto onUIRender() -> void override;

@@ -7,7 +7,7 @@
 
 namespace april::editor
 {
-    auto EditorViewportElement::onAttach(ui::ImGuiLayer* /*pLayer*/) -> void
+    auto EditorViewportElement::onAttach(ImGuiBackend* /*pBackend*/) -> void
     {
         auto constexpr kDefaultFov = 45.0f;
         m_camera = std::make_unique<SimpleCamera>(glm::radians(kDefaultFov), 1.777f, 0.1f, 1000.0f);

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../editor-context.hpp"
-#include <ui/element.hpp>
+#include <editor/editor-element.hpp>
 #include <graphics/camera/simple-camera.hpp>
 #include <scene/ecs-core.hpp>
 
@@ -9,7 +9,7 @@
 
 namespace april::editor
 {
-    class EditorViewportElement final : public ui::IElement
+    class EditorViewportElement final : public IEditorElement
     {
         APRIL_OBJECT(EditorViewportElement)
     public:
@@ -18,7 +18,7 @@ namespace april::editor
         {
         }
 
-        auto onAttach(ui::ImGuiLayer* pLayer) -> void override;
+        auto onAttach(ImGuiBackend* pBackend) -> void override;
         auto onDetach() -> void override;
         auto onResize(graphics::CommandContext* pContext, float2 const& size) -> void override;
         auto onUIRender() -> void override;
