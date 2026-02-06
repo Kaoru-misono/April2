@@ -300,6 +300,13 @@ namespace april::asset
         meshAsset->setSourcePath(sourcePath.string());
         meshAsset->setAssetPath(sourcePath.string() + ".asset");
 
+        if (!context.importMaterials)
+        {
+            result.primaryAsset = meshAsset;
+            result.assets.push_back(meshAsset);
+            return result;
+        }
+
         auto materialsData = importMaterials(sourcePath);
         if (!materialsData)
         {
@@ -308,7 +315,8 @@ namespace april::asset
         }
         auto materialSlots = std::vector<MaterialSlot>{};
         auto materialAssets = std::vector<std::shared_ptr<MaterialAsset>>{};
-        auto textureRefs = importTextures(*materialsData, context);
+        auto textureRefs = context.importTextures ? importTextures(*materialsData, context)
+                                                   : std::unordered_map<std::string, AssetRef>{};
         materialSlots = importMaterialAssets(
             *materialsData,
             textureRefs,
@@ -825,7 +833,7 @@ namespace april::asset
             }
 
             // Check for deduplication - see if texture already exists
-            if (context.findAssetBySource)
+            if (context.reuseExistingAssets && context.findAssetBySource)
             {
                 auto existing = context.findAssetBySource(source->path, AssetType::Texture);
                 if (existing)
@@ -837,7 +845,7 @@ namespace april::asset
             }
 
             // Import the texture
-            if (context.importSubAsset)
+            if (context.importSubAsset && context.importTextures)
             {
                 auto textureAsset = context.importSubAsset(source->path);
                 if (textureAsset && textureAsset->getType() == AssetType::Texture)
@@ -899,7 +907,7 @@ namespace april::asset
 
             // Check if material already exists
             auto materialAsset = std::shared_ptr<MaterialAsset>{};
-            if (context.findAssetBySource)
+            if (context.reuseExistingAssets && context.findAssetBySource)
             {
                 // For materials, we use the source path (the gltf file) + name as key
                 auto existing = context.findAssetBySource(materialPath, AssetType::Material);

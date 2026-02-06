@@ -38,6 +38,20 @@ namespace april::asset
             ReimportIfSourceChanged
         };
 
+        struct ImportConfig
+        {
+            ImportPolicy policy{ImportPolicy::ReuseIfExists};
+            ImportPolicy subAssetPolicy{ImportPolicy::ReuseIfExists};
+            bool forceReimport{false};
+            bool importMaterials{true};
+            bool importTextures{true};
+            bool reuseExistingAssets{true};
+            bool overrideTextureSettings{false};
+            TextureImportSettings textureSettings{};
+            bool overrideMeshSettings{false};
+            MeshImportSettings meshSettings{};
+        };
+
         explicit AssetManager(
             std::filesystem::path const& assetRoot = "content",
             std::filesystem::path const& cacheRoot = "build/cache/DDC"
@@ -53,6 +67,21 @@ namespace april::asset
             std::filesystem::path const& sourcePath,
             ImportPolicy policy = ImportPolicy::ReuseIfExists
         ) -> std::shared_ptr<Asset>;
+
+        /**
+         * Import a raw file with explicit import configuration.
+         */
+        auto importAsset(
+            std::filesystem::path const& sourcePath,
+            ImportConfig const& config
+        ) -> std::shared_ptr<Asset>;
+
+        [[nodiscard]] auto getAssetRoot() const -> std::filesystem::path const& { return m_assetRoot; }
+
+        /**
+         * Load asset metadata from a .asset JSON file.
+         */
+        [[nodiscard]] auto loadAssetMetadata(std::filesystem::path const& assetPath) -> std::shared_ptr<Asset>;
 
         /**
          * Get an asset by UUID from cache or load from registry.
@@ -142,11 +171,6 @@ namespace april::asset
         mutable std::mutex m_mutex{};
 
         /**
-         * Load asset metadata from a .asset JSON file.
-         */
-        [[nodiscard]] auto loadAssetMetadata(std::filesystem::path const& assetPath) -> std::shared_ptr<Asset>;
-
-        /**
          * Load a typed asset from file.
          */
         template <typename T>
@@ -194,7 +218,7 @@ namespace april::asset
 
         auto importAssetInternal(
             std::filesystem::path const& sourcePath,
-            ImportPolicy policy,
+            ImportConfig const& config,
             std::string const& parentImporterChain
         ) -> std::shared_ptr<Asset>;
 

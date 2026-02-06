@@ -10,6 +10,8 @@ int main()
     config.imgui.hasUndockableViewport = true;
     config.compositeSceneToOutput = false;
     config.imguiIniFilename = "imgui_editor.ini";
+    config.assetRoot = "content";
+    config.ddcRoot = "build/cache/DDC";
 
     april::Engine engine(config);
 

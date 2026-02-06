@@ -60,15 +60,26 @@ namespace april::asset
 
     auto AssetManager::importAsset(std::filesystem::path const& sourcePath, ImportPolicy policy) -> std::shared_ptr<Asset>
     {
-        return importAssetInternal(sourcePath, policy, "");
+        auto config = ImportConfig{};
+        config.policy = policy;
+        return importAssetInternal(sourcePath, config, "");
+    }
+
+    auto AssetManager::importAsset(
+        std::filesystem::path const& sourcePath,
+        AssetManager::ImportConfig const& config
+    ) -> std::shared_ptr<Asset>
+    {
+        return importAssetInternal(sourcePath, config, "");
     }
 
     auto AssetManager::importAssetInternal(
         std::filesystem::path const& sourcePath,
-        ImportPolicy policy,
+        AssetManager::ImportConfig const& config,
         std::string const& parentImporterChain
     ) -> std::shared_ptr<Asset>
     {
+        auto effectivePolicy = config.forceReimport ? ImportPolicy::Reimport : config.policy;
         if (!std::filesystem::exists(sourcePath))
         {
             AP_ERROR("[AssetManager] Import failed: Source file not found: {}", sourcePath.string());
@@ -109,12 +120,12 @@ namespace april::asset
                 existingAsset = std::static_pointer_cast<Asset>(loadAssetFromFile<StaticMeshAsset>(assetFilePath));
             }
 
-            if (policy == ImportPolicy::ReuseIfExists && existingAsset)
+            if (effectivePolicy == ImportPolicy::ReuseIfExists && existingAsset)
             {
                 return existingAsset;
             }
 
-            if (policy == ImportPolicy::ReimportIfSourceChanged && existingAsset)
+            if (effectivePolicy == ImportPolicy::ReimportIfSourceChanged && existingAsset)
             {
                 auto recordOpt = m_registry.findRecord(existingAsset->getHandle());
                 if (recordOpt.has_value())
@@ -133,13 +144,22 @@ namespace april::asset
         auto context = ImportSourceContext{};
         context.sourcePath = sourcePath;
         context.importerChain = importerChain;
+        context.importMaterials = config.importMaterials;
+        context.importTextures = config.importTextures;
+        context.reuseExistingAssets = config.reuseExistingAssets;
         context.findAssetBySource = [this](std::filesystem::path const& path, AssetType type) -> std::shared_ptr<Asset>
         {
             return findAssetBySourcePath(path, type);
         };
-        context.importSubAsset = [this, importerChain](std::filesystem::path const& path) -> std::shared_ptr<Asset>
+        context.importSubAsset = [this, importerChain, config](std::filesystem::path const& path) -> std::shared_ptr<Asset>
         {
-            return importAssetInternal(path, ImportPolicy::ReuseIfExists, importerChain);
+            auto childConfig = config;
+            childConfig.policy = config.subAssetPolicy;
+            if (config.forceReimport)
+            {
+                childConfig.policy = ImportPolicy::Reimport;
+            }
+            return importAssetInternal(path, childConfig, importerChain);
         };
 
         auto result = importer->import(context);
@@ -180,6 +200,18 @@ namespace april::asset
             if (!asset)
             {
                 continue;
+            }
+
+            if (asset->getType() == AssetType::Texture && config.overrideTextureSettings)
+            {
+                auto textureAsset = std::static_pointer_cast<TextureAsset>(asset);
+                textureAsset->m_settings = config.textureSettings;
+            }
+
+            if (asset->getType() == AssetType::Mesh && config.overrideMeshSettings)
+            {
+                auto meshAsset = std::static_pointer_cast<StaticMeshAsset>(asset);
+                meshAsset->m_settings = config.meshSettings;
             }
 
             if (asset->getSourcePath().empty())

@@ -60,6 +60,8 @@ namespace april::editor
     {
         ensureDefaultSelection();
 
+        m_context.assetManager = engine.getAssetManager();
+
 
         if (!m_defaultsRegistered && m_factories.empty())
         {

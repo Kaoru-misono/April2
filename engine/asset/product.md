@@ -103,6 +103,21 @@ auto manager = april::asset::AssetManager{};
 auto asset = manager.importAsset("content/mesh/hero.gltf");
 ```
 
+Import with configuration (Unreal/Blender-style toggles + settings override):
+```cpp
+auto config = april::asset::AssetManager::ImportConfig{};
+config.policy = april::asset::AssetManager::ImportPolicy::ReimportIfSourceChanged;
+config.importMaterials = true;
+config.importTextures = false;
+config.reuseExistingAssets = true;
+config.overrideMeshSettings = true;
+config.meshSettings.optimize = true;
+config.meshSettings.generateTangents = true;
+config.meshSettings.scale = 1.0f;
+
+auto mesh = manager.importAsset("content/mesh/hero.gltf", config);
+```
+
 Load an asset by path and fetch cooked data:
 ```cpp
 auto mesh = manager.loadAsset<april::asset::StaticMeshAsset>("content/mesh/hero.gltf.asset");

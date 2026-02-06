@@ -4,6 +4,11 @@
 #include <scene/ecs-core.hpp>
 #include <string>
 
+namespace april::asset
+{
+    class AssetManager;
+}
+
 namespace april::editor
 {
     struct EditorSelection
@@ -37,5 +42,6 @@ namespace april::editor
         EditorSceneRef scene{};
         EditorSelection selection{};
         EditorToolState tools{};
+        asset::AssetManager* assetManager{};
     };
 }

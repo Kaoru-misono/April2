@@ -15,6 +15,7 @@
 #include <scene/scene.hpp>
 
 #include <functional>
+#include <filesystem>
 #include <memory>
 #include <vector>
 
@@ -30,6 +31,8 @@ namespace april
         float4 clearColor{0.1f, 0.1f, 0.1f, 1.0f};
         std::string imguiIniFilename{};
         ui::ImGuiLayerDesc imgui{};
+        std::filesystem::path assetRoot{"content"};
+        std::filesystem::path ddcRoot{"build/cache/DDC"};
     };
 
     struct EngineHooks

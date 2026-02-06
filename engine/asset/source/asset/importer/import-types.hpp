@@ -27,6 +27,9 @@ namespace april::asset
     {
         std::filesystem::path sourcePath{};
         std::string importerChain{};
+        bool importMaterials{true};
+        bool importTextures{true};
+        bool reuseExistingAssets{true};
 
         // Check if asset exists by source path (for deduplication)
         std::function<std::shared_ptr<Asset>(std::filesystem::path const&, AssetType)> findAssetBySource{};
