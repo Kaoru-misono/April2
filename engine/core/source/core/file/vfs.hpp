@@ -7,6 +7,7 @@
 #include <map>
 #include <mutex>
 #include <span>
+#include <string_view>
 
 namespace april
 {
@@ -38,11 +39,23 @@ namespace april
         [[nodiscard]] static auto open(std::string const& virtualPath) -> std::unique_ptr<File>;
 
         [[nodiscard]] static auto exists(std::string const& virtualPath) -> bool;
+        [[nodiscard]] static auto existsFile(std::string const& virtualPath) -> bool;
+        [[nodiscard]] static auto existsDirectory(std::string const& virtualPath) -> bool;
+        static auto createDirectories(std::string const& virtualPath) -> bool;
+        static auto removeFile(std::string const& virtualPath) -> bool;
+        static auto rename(std::string const& fromVirtualPath, std::string const& toVirtualPath) -> bool;
 
         [[nodiscard]] static auto readTextFile(std::string const& virtualPath) -> std::string;
         [[nodiscard]] static auto readBinaryFile(std::string const& virtualPath) -> Blob;
+        [[nodiscard]] static auto writeTextFile(std::string const& virtualPath, std::string const& contents) -> bool;
+        [[nodiscard]] static auto writeBinaryFile(std::string const& virtualPath, std::span<std::byte const> contents) -> bool;
 
         [[nodiscard]] static auto resolvePath(std::string const& virtualPath) -> std::filesystem::path;
+
+        [[nodiscard]] static auto listFilesRecursive(
+            std::string const& virtualPath,
+            std::string_view extensionFilter = {}
+        ) -> std::vector<std::string>;
 
     private:
         [[nodiscard]] static auto normalize(std::string const& path) -> std::string;

@@ -2,10 +2,10 @@
 
 #include "../dependency.hpp"
 
+#include <core/file/vfs.hpp>
 #include <core/tools/hash.hpp>
 #include <core/tools/sha1.hpp>
 
-#include <fstream>
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -22,23 +22,24 @@ namespace april::asset
 
     inline auto hashFileContents(std::string const& path) -> std::string
     {
-        auto file = std::ifstream{path, std::ios::binary};
-        if (!file.is_open())
+        auto file = VFS::open(path);
+        if (!file)
         {
             return core::computeStringHash("missing");
         }
 
         auto hash = core::Sha1{};
-        auto buffer = std::array<char, 64 * 1024>{};
+        auto buffer = std::array<std::byte, 64 * 1024>{};
 
-        while (file.good())
+        while (true)
         {
-            file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-            auto const readCount = file.gcount();
-            if (readCount > 0)
+            auto const readCount = file->read(buffer);
+            if (readCount == 0)
             {
-                hash.update(buffer.data(), static_cast<size_t>(readCount));
+                break;
             }
+
+            hash.update(reinterpret_cast<char const*>(buffer.data()), readCount);
         }
 
         return hash.getHexDigest();

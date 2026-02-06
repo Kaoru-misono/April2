@@ -5,6 +5,7 @@
 #include "importer/gltf-importer.hpp"
 #include "importer/material-importer.hpp"
 
+#include <core/file/vfs.hpp>
 #include <algorithm>
 #include <cctype>
 #include <cstring>
@@ -80,7 +81,7 @@ namespace april::asset
     ) -> std::shared_ptr<Asset>
     {
         auto effectivePolicy = config.forceReimport ? ImportPolicy::Reimport : config.policy;
-        if (!std::filesystem::exists(sourcePath))
+        if (!VFS::existsFile(sourcePath.string()))
         {
             AP_ERROR("[AssetManager] Import failed: Source file not found: {}", sourcePath.string());
             return nullptr;
@@ -105,7 +106,7 @@ namespace april::asset
         auto existingAsset = std::shared_ptr<Asset>{};
         auto const primaryType = importer->primaryType();
 
-        if (std::filesystem::exists(assetFilePath))
+        if (VFS::existsFile(assetFilePath.string()))
         {
             if (primaryType == AssetType::Texture)
             {
@@ -337,7 +338,7 @@ namespace april::asset
             assetFilePath = std::filesystem::path{assetFilePath.string() + ".asset"};
         }
 
-        if (std::filesystem::exists(assetFilePath))
+        if (VFS::existsFile(assetFilePath.string()))
         {
             if (type == AssetType::Texture)
             {
@@ -515,15 +516,11 @@ namespace april::asset
         auto json = nlohmann::json{};
         asset->serializeJson(json);
 
-        auto file = std::ofstream{assetPath};
-        if (!file.is_open())
+        if (!VFS::writeTextFile(assetPath.string(), json.dump(4)))
         {
             AP_ERROR("[AssetManager] Failed to write asset file: {}", assetPath.string());
             return false;
         }
-
-        file << json.dump(4);
-        file.close();
 
         registerAssetInternal(asset, assetPath, true);
 
@@ -552,22 +549,21 @@ namespace april::asset
     {
         auto count = size_t{0};
 
-        if (!std::filesystem::exists(directory))
+        if (!VFS::existsDirectory(directory.string()))
         {
             AP_WARN("[AssetManager] Directory does not exist: {}", directory.string());
             return count;
         }
 
-        for (auto const& entry : std::filesystem::recursive_directory_iterator(directory))
+        auto assetFiles = VFS::listFilesRecursive(directory.string(), ".asset");
+        for (auto const& assetPath : assetFiles)
         {
-            if (entry.is_regular_file() && entry.path().extension() == ".asset")
+            auto assetFilePath = std::filesystem::path{assetPath};
+            auto asset = loadAssetMetadata(assetFilePath);
+            if (asset)
             {
-                auto asset = loadAssetMetadata(entry.path());
-                if (asset)
-                {
-                    registerAssetInternal(asset, entry.path(), false);
-                    ++count;
-                }
+                registerAssetInternal(asset, assetFilePath, false);
+                ++count;
             }
         }
 
@@ -625,8 +621,8 @@ namespace april::asset
 
     auto AssetManager::loadAssetMetadata(std::filesystem::path const& assetPath) -> std::shared_ptr<Asset>
     {
-        auto file = std::ifstream{assetPath};
-        if (!file.is_open())
+        auto payload = VFS::readTextFile(assetPath.string());
+        if (payload.empty())
         {
             AP_ERROR("[AssetManager] Failed to open asset file: {}", assetPath.string());
             return nullptr;
@@ -635,7 +631,7 @@ namespace april::asset
         auto json = nlohmann::json{};
         try
         {
-            file >> json;
+            json = nlohmann::json::parse(payload);
         }
         catch (nlohmann::json::parse_error const& e)
         {
@@ -727,14 +723,8 @@ namespace april::asset
             return {};
         }
 
-        auto ec = std::error_code{};
-        auto normalized = std::filesystem::weakly_canonical(path, ec);
-        if (ec)
-        {
-            return path.lexically_normal().string();
-        }
-
-        return normalized.string();
+        auto resolved = VFS::resolvePath(path.string());
+        return resolved.lexically_normal().string();
     }
 
     auto AssetManager::buildSourceKey(AssetType type, std::filesystem::path const& path) const -> std::string

@@ -3,6 +3,7 @@
 #include "../ddc/ddc-key.hpp"
 #include "../ddc/ddc-utils.hpp"
 
+#include <core/file/vfs.hpp>
 #include <core/log/logger.hpp>
 
 #define TINYGLTF_IMPLEMENTATION
@@ -17,6 +18,7 @@
 #include <cstring>
 #include <cmath>
 #include <format>
+#include <span>
 #include <limits>
 
 namespace april::asset
@@ -29,6 +31,74 @@ namespace april::asset
             auto err = std::string{};
             auto warn = std::string{};
 
+            auto callbacks = tinygltf::FsCallbacks{};
+            callbacks.FileExists = [](std::string const& path, void*) -> bool
+            {
+                return VFS::existsFile(path);
+            };
+            callbacks.ReadWholeFile = [](std::vector<unsigned char>* out,
+                                         std::string* outErr,
+                                         std::string const& path,
+                                         void*) -> bool
+            {
+                auto data = VFS::readBinaryFile(path);
+                if (data.empty())
+                {
+                    if (outErr)
+                    {
+                        *outErr = std::format("Failed to read file: {}", path);
+                    }
+                    return false;
+                }
+
+                out->assign(reinterpret_cast<unsigned char const*>(data.data()),
+                    reinterpret_cast<unsigned char const*>(data.data() + data.size()));
+                return true;
+            };
+            callbacks.WriteWholeFile = [](std::string* outErr,
+                                          std::string const& path,
+                                          std::vector<unsigned char> const& data,
+                                          void*) -> bool
+            {
+                auto span = std::span<std::byte const>{
+                    reinterpret_cast<std::byte const*>(data.data()),
+                    data.size()};
+                if (!VFS::writeBinaryFile(path, span))
+                {
+                    if (outErr)
+                    {
+                        *outErr = std::format("Failed to write file: {}", path);
+                    }
+                    return false;
+                }
+
+                return true;
+            };
+            callbacks.ExpandFilePath = [](std::string const& path, void*) -> std::string
+            {
+                return path;
+            };
+            callbacks.GetFileSizeInBytes = [](size_t* fileSize,
+                                              std::string* outErr,
+                                              std::string const& path,
+                                              void*) -> bool
+            {
+                auto file = VFS::open(path);
+                if (!file)
+                {
+                    if (outErr)
+                    {
+                        *outErr = std::format("Failed to open file: {}", path);
+                    }
+                    return false;
+                }
+
+                *fileSize = file->getSize();
+                return true;
+            };
+            callbacks.user_data = nullptr;
+            loader.SetFsCallbacks(callbacks);
+
             auto extension = sourcePath.extension().string();
             std::transform(extension.begin(), extension.end(), extension.begin(),
                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -36,11 +106,39 @@ namespace april::asset
             auto success = false;
             if (extension == ".gltf")
             {
-                success = loader.LoadASCIIFromFile(&outModel, &err, &warn, sourcePath.string());
+                auto payload = VFS::readTextFile(sourcePath.string());
+                if (payload.empty())
+                {
+                    AP_ERROR("[GltfImporter] Failed to open glTF file: {}", sourcePath.string());
+                    return false;
+                }
+
+                auto baseDir = VFS::resolvePath(sourcePath.parent_path().string());
+                success = loader.LoadASCIIFromString(
+                    &outModel,
+                    &err,
+                    &warn,
+                    payload.c_str(),
+                    static_cast<unsigned int>(payload.size()),
+                    std::filesystem::absolute(baseDir).string());
             }
             else if (extension == ".glb")
             {
-                success = loader.LoadBinaryFromFile(&outModel, &err, &warn, sourcePath.string());
+                auto payload = VFS::readBinaryFile(sourcePath.string());
+                if (payload.empty())
+                {
+                    AP_ERROR("[GltfImporter] Failed to open glTF file: {}", sourcePath.string());
+                    return false;
+                }
+
+                auto baseDir = VFS::resolvePath(sourcePath.parent_path().string());
+                success = loader.LoadBinaryFromMemory(
+                    &outModel,
+                    &err,
+                    &warn,
+                    reinterpret_cast<unsigned char const*>(payload.data()),
+                    static_cast<unsigned int>(payload.size()),
+                    std::filesystem::absolute(baseDir).string());
             }
             else
             {
@@ -101,7 +199,7 @@ namespace april::asset
             }
 
             auto texturePath = baseDir / image.uri;
-            if (!std::filesystem::exists(texturePath))
+            if (!VFS::existsFile(texturePath.string()))
             {
                 AP_WARN("[GltfImporter] Texture file not found: {}", texturePath.string());
                 return std::nullopt;

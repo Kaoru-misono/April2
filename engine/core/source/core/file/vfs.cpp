@@ -3,6 +3,7 @@
 
 #include <fstream>
 #include <algorithm>
+#include <system_error>
 
 namespace april
 {
@@ -150,9 +151,74 @@ namespace april
 
     auto VFS::exists(std::string const& virtualPath) -> bool
     {
+        return existsFile(virtualPath);
+    }
+
+    auto VFS::existsFile(std::string const& virtualPath) -> bool
+    {
         auto path = resolvePath(virtualPath);
 
         return std::filesystem::exists(path) && std::filesystem::is_regular_file(path);
+    }
+
+    auto VFS::existsDirectory(std::string const& virtualPath) -> bool
+    {
+        auto path = resolvePath(virtualPath);
+
+        return std::filesystem::exists(path) && std::filesystem::is_directory(path);
+    }
+
+    auto VFS::createDirectories(std::string const& virtualPath) -> bool
+    {
+        auto path = resolvePath(virtualPath);
+        auto ec = std::error_code{};
+
+        if (std::filesystem::exists(path, ec))
+        {
+            return std::filesystem::is_directory(path);
+        }
+
+        auto created = std::filesystem::create_directories(path, ec);
+        if (ec)
+        {
+            AP_ERROR("<VFS>: Failed to create directories: {} ({})", path.generic_string(), ec.message());
+            return false;
+        }
+
+        return created || std::filesystem::exists(path);
+    }
+
+    auto VFS::removeFile(std::string const& virtualPath) -> bool
+    {
+        auto path = resolvePath(virtualPath);
+        auto ec = std::error_code{};
+        auto removed = std::filesystem::remove(path, ec);
+        if (ec)
+        {
+            AP_ERROR("<VFS>: Failed to remove file: {} ({})", path.generic_string(), ec.message());
+            return false;
+        }
+
+        return removed;
+    }
+
+    auto VFS::rename(std::string const& fromVirtualPath, std::string const& toVirtualPath) -> bool
+    {
+        auto fromPath = resolvePath(fromVirtualPath);
+        auto toPath = resolvePath(toVirtualPath);
+        auto ec = std::error_code{};
+
+        std::filesystem::rename(fromPath, toPath, ec);
+        if (ec)
+        {
+            AP_ERROR("<VFS>: Failed to rename file: {} -> {} ({})",
+                fromPath.generic_string(),
+                toPath.generic_string(),
+                ec.message());
+            return false;
+        }
+
+        return true;
     }
 
     auto VFS::open(std::string const& virtualPath) -> std::unique_ptr<File>
@@ -160,12 +226,6 @@ namespace april
         auto path = resolvePath(virtualPath);
 
         auto displayPath = normalize(virtualPath);
-
-        if (path.string() == virtualPath)
-        {
-            AP_ERROR("<VFS>: Mount point not found for path: {}", displayPath);
-            return nullptr;
-        }
 
         if (!std::filesystem::exists(path))
         {
@@ -197,6 +257,100 @@ namespace april
         if (!file) return {};
 
         return file->readAll();
+    }
+
+    auto VFS::writeTextFile(std::string const& virtualPath, std::string const& contents) -> bool
+    {
+        auto path = resolvePath(virtualPath);
+
+        auto file = std::ofstream{path, std::ios::trunc};
+        if (!file.is_open())
+        {
+            AP_ERROR("<VFS>: Failed to write file: {}", path.generic_string());
+            return false;
+        }
+
+        file << contents;
+
+        return file.good();
+    }
+
+    auto VFS::writeBinaryFile(std::string const& virtualPath, std::span<std::byte const> contents) -> bool
+    {
+        auto path = resolvePath(virtualPath);
+
+        auto file = std::ofstream{path, std::ios::binary | std::ios::trunc};
+        if (!file.is_open())
+        {
+            AP_ERROR("<VFS>: Failed to write file: {}", path.generic_string());
+            return false;
+        }
+
+        if (!contents.empty())
+        {
+            file.write(reinterpret_cast<char const*>(contents.data()),
+                static_cast<std::streamsize>(contents.size()));
+        }
+
+        return file.good();
+    }
+
+    auto VFS::listFilesRecursive(std::string const& virtualPath, std::string_view extensionFilter)
+        -> std::vector<std::string>
+    {
+        auto rootPath = resolvePath(virtualPath);
+        auto files = std::vector<std::string>{};
+
+        if (!std::filesystem::exists(rootPath) || !std::filesystem::is_directory(rootPath))
+        {
+            return files;
+        }
+
+        auto baseVirtual = normalize(virtualPath);
+        if (!baseVirtual.empty() && baseVirtual.back() == '/')
+        {
+            baseVirtual.pop_back();
+        }
+
+        auto ec = std::error_code{};
+        auto it = std::filesystem::recursive_directory_iterator(rootPath, ec);
+        if (ec)
+        {
+            AP_ERROR("<VFS>: Failed to iterate directory: {} ({})", rootPath.generic_string(), ec.message());
+            return files;
+        }
+
+        for (auto const& entry : it)
+        {
+            if (!entry.is_regular_file())
+            {
+                continue;
+            }
+
+            if (!extensionFilter.empty() && entry.path().extension().string() != extensionFilter)
+            {
+                continue;
+            }
+
+            auto relEc = std::error_code{};
+            auto relPath = std::filesystem::relative(entry.path(), rootPath, relEc);
+            if (relEc)
+            {
+                continue;
+            }
+
+            auto relString = relPath.generic_string();
+            if (baseVirtual.empty())
+            {
+                files.push_back(relString);
+            }
+            else
+            {
+                files.push_back(baseVirtual + "/" + relString);
+            }
+        }
+
+        return files;
     }
 
 } // namespace april

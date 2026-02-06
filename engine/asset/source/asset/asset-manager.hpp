@@ -9,6 +9,7 @@
 #include "asset-registry.hpp"
 #include "importer/importer-registry.hpp"
 
+#include <core/file/vfs.hpp>
 #include <core/log/logger.hpp>
 #include <core/tools/uuid.hpp>
 
@@ -16,7 +17,6 @@
 #include <unordered_set>
 #include <filesystem>
 #include <memory>
-#include <fstream>
 #include <optional>
 #include <format>
 #include <mutex>
@@ -176,8 +176,8 @@ namespace april::asset
         template <typename T>
         [[nodiscard]] auto loadAssetFromFile(std::filesystem::path const& assetPath) -> std::shared_ptr<T>
         {
-            auto file = std::ifstream{assetPath};
-            if (!file.is_open())
+            auto payload = VFS::readTextFile(assetPath.string());
+            if (payload.empty())
             {
                 AP_ERROR("[AssetManager] Failed to open asset file: {}", assetPath.string());
                 return nullptr;
@@ -186,7 +186,7 @@ namespace april::asset
             auto json = nlohmann::json{};
             try
             {
-                file >> json;
+                json = nlohmann::json::parse(payload);
             }
             catch (nlohmann::json::parse_error const& e)
             {

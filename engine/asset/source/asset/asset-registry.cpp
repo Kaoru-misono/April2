@@ -1,8 +1,8 @@
 #include "asset-registry.hpp"
 
+#include <core/file/vfs.hpp>
 #include <core/log/logger.hpp>
 
-#include <fstream>
 #include <utility>
 
 namespace april::asset
@@ -66,20 +66,28 @@ namespace april::asset
 
     auto AssetRegistry::load(std::filesystem::path const& path) -> bool
     {
-        if (!std::filesystem::exists(path))
+        if (!VFS::existsFile(path.string()))
         {
             return false;
         }
 
-        auto file = std::ifstream{path};
-        if (!file.is_open())
+        auto payload = VFS::readTextFile(path.string());
+        if (payload.empty())
         {
             AP_ERROR("[AssetRegistry] Failed to open registry: {}", path.string());
             return false;
         }
 
         auto json = nlohmann::json{};
-        file >> json;
+        try
+        {
+            json = nlohmann::json::parse(payload);
+        }
+        catch (nlohmann::json::parse_error const& e)
+        {
+            AP_ERROR("[AssetRegistry] Failed to parse registry: {} - {}", path.string(), e.what());
+            return false;
+        }
 
         auto lock = std::scoped_lock{m_mutex};
         m_records.clear();
@@ -96,13 +104,6 @@ namespace april::asset
 
     auto AssetRegistry::save(std::filesystem::path const& path) const -> bool
     {
-        auto file = std::ofstream{path};
-        if (!file.is_open())
-        {
-            AP_ERROR("[AssetRegistry] Failed to write registry: {}", path.string());
-            return false;
-        }
-
         auto lock = std::scoped_lock{m_mutex};
         auto json = nlohmann::json::array();
         for (auto const& [guid, record] : m_records)
@@ -110,7 +111,12 @@ namespace april::asset
             json.push_back(record);
         }
 
-        file << json.dump(4);
+        if (!VFS::writeTextFile(path.string(), json.dump(4)))
+        {
+            AP_ERROR("[AssetRegistry] Failed to write registry: {}", path.string());
+            return false;
+        }
+
         return true;
     }
 

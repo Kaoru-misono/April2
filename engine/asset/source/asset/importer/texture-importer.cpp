@@ -5,6 +5,7 @@
 #include "../ddc/ddc-key.hpp"
 #include "../ddc/ddc-utils.hpp"
 
+#include <core/file/vfs.hpp>
 #include <core/log/logger.hpp>
 
 #include <stb/stb_image.h>
@@ -100,12 +101,25 @@ namespace april::asset
 
         auto compileTexture(std::string const& sourcePath, TextureImportSettings const& settings) -> std::vector<std::byte>
         {
+            auto sourceBytes = VFS::readBinaryFile(sourcePath);
+            if (sourceBytes.empty())
+            {
+                AP_ERROR("[TextureImporter] Failed to open image: {}", sourcePath);
+                return {};
+            }
+
             auto width = 0;
             auto height = 0;
             auto channels = 0;
             auto constexpr desiredChannels = 4;
 
-            auto* pixels = stbi_load(sourcePath.c_str(), &width, &height, &channels, desiredChannels);
+            auto* pixels = stbi_load_from_memory(
+                reinterpret_cast<unsigned char const*>(sourceBytes.data()),
+                static_cast<int>(sourceBytes.size()),
+                &width,
+                &height,
+                &channels,
+                desiredChannels);
             if (!pixels)
             {
                 AP_ERROR("[TextureImporter] Failed to load image: {} - {}", sourcePath, stbi_failure_reason());

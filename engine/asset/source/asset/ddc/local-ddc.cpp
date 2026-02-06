@@ -1,5 +1,6 @@
 #include "local-ddc.hpp"
 
+#include <core/file/vfs.hpp>
 #include <core/log/logger.hpp>
 #include <core/tools/hash.hpp>
 
@@ -8,7 +9,6 @@
 #include <chrono>
 #include <cstring>
 #include <format>
-#include <fstream>
 #include <string>
 #include <system_error>
 #include <thread>
@@ -18,16 +18,16 @@ namespace april::asset
     LocalDdc::LocalDdc(std::filesystem::path rootPath)
         : m_rootPath{std::move(rootPath)}
     {
-        if (!std::filesystem::exists(m_rootPath))
+        if (!VFS::existsDirectory(m_rootPath.string()))
         {
-            std::filesystem::create_directories(m_rootPath);
+            VFS::createDirectories(m_rootPath.string());
         }
     }
 
     auto LocalDdc::get(std::string const& key, DdcValue& outValue) -> bool
     {
         auto path = makePathForKey(key);
-        if (!std::filesystem::exists(path))
+        if (!VFS::existsFile(path.string()))
         {
             return false;
         }
@@ -71,9 +71,9 @@ namespace april::asset
         auto lock = std::scoped_lock{m_writeMutex};
         auto path = makePathForKey(key);
         auto directory = path.parent_path();
-        if (!std::filesystem::exists(directory))
+        if (!VFS::existsDirectory(directory.string()))
         {
-            std::filesystem::create_directories(directory);
+            VFS::createDirectories(directory.string());
         }
 
         auto header = LocalDdc::DdcFileHeader{};
@@ -95,7 +95,7 @@ namespace april::asset
     auto LocalDdc::exists(std::string const& key) -> bool
     {
         auto path = makePathForKey(key);
-        return std::filesystem::exists(path);
+        return VFS::existsFile(path.string());
     }
 
     auto LocalDdc::makePathForKey(std::string const& key) const -> std::filesystem::path
@@ -108,20 +108,7 @@ namespace april::asset
 
     auto LocalDdc::readFile(std::filesystem::path const& path) const -> std::vector<std::byte>
     {
-        auto file = std::ifstream{path, std::ios::binary | std::ios::ate};
-        if (!file.is_open())
-        {
-            AP_ERROR("[DDC] Failed to open file: {}", path.string());
-            return {};
-        }
-
-        auto size = static_cast<size_t>(file.tellg());
-        file.seekg(0, std::ios::beg);
-
-        auto data = std::vector<std::byte>(size);
-        file.read(reinterpret_cast<char*>(data.data()), static_cast<std::streamsize>(size));
-
-        return data;
+        return VFS::readBinaryFile(path.string());
     }
 
     auto LocalDdc::writeFile(std::filesystem::path const& path, std::vector<std::byte> const& data) const -> void
@@ -139,29 +126,21 @@ namespace april::asset
         tempPath += unique;
         tempPath += ".tmp";
 
-        auto file = std::ofstream{tempPath, std::ios::binary | std::ios::trunc};
-        if (!file.is_open())
+        if (!VFS::writeBinaryFile(tempPath.string(), data))
         {
             AP_ERROR("[DDC] Failed to write file: {}", tempPath.string());
             return;
         }
 
-        file.write(reinterpret_cast<char const*>(data.data()), static_cast<std::streamsize>(data.size()));
-        file.flush();
-        file.close();
-
-        auto ec = std::error_code{};
-        if (std::filesystem::exists(path, ec))
+        if (VFS::existsFile(path.string()))
         {
-            std::filesystem::remove(path, ec);
+            VFS::removeFile(path.string());
         }
 
-        ec = {};
-        std::filesystem::rename(tempPath, path, ec);
-        if (ec)
+        if (!VFS::rename(tempPath.string(), path.string()))
         {
-            AP_ERROR("[DDC] Failed to finalize file: {} -> {} ({})", tempPath.string(), path.string(), ec.message());
-            std::filesystem::remove(tempPath, ec);
+            AP_ERROR("[DDC] Failed to finalize file: {} -> {}", tempPath.string(), path.string());
+            VFS::removeFile(tempPath.string());
         }
     }
 } // namespace april::asset
