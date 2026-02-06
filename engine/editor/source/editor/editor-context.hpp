@@ -1,5 +1,7 @@
 #pragma once
 
+#include "command-stack.hpp"
+
 #include <core/math/type.hpp>
 #include <scene/ecs-core.hpp>
 #include <string>
@@ -43,5 +45,6 @@ namespace april::editor
         EditorSelection selection{};
         EditorToolState tools{};
         asset::AssetManager* assetManager{};
+        CommandStack commandStack{};
     };
 }

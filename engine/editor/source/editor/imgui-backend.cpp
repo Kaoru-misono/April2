@@ -1,7 +1,6 @@
 #include "imgui-backend.hpp"
-
-#include <ui/style.hpp>
-#include <ui/font/fonts.hpp>
+#include "style.hpp"
+#include "font/fonts.hpp"
 
 #include <graphics/rhi/render-device.hpp>
 #include <graphics/rhi/command-context.hpp>
@@ -57,7 +56,7 @@ namespace april::editor
             m_iniFileName = "imgui.ini";
         }
 
-        ui::setupStyle(false);
+        ::april::ui::setupStyle(false);
 
         m_settingsHandler.setHandlerName("ImGuiBackend");
         m_settingsHandler.addImGuiHandler();
@@ -65,9 +64,10 @@ namespace april::editor
         auto& io = ImGui::GetIO();
         io.IniFilename = m_iniFileName.c_str();
 
-        ui::addDefaultFont();
-        io.FontDefault = ui::getDefaultFont();
-        ui::addMonospaceFont();
+        ::april::ui::addDefaultFont();
+        io.FontDefault = ::april::ui::getDefaultFont();
+        ::april::ui::addMonospaceFont();
+        ::april::ui::addIconFont();
 
         io.ConfigFlags = m_imguiConfigFlags;
 

@@ -1,55 +1,18 @@
-#include "element-profiler.hpp"
+#include "profiler-window.hpp"
 
-#include <core/profile/profile-manager.hpp>
+#include <editor/ui/ui.hpp>
 #include <imgui.h>
 
 namespace april::editor
 {
-    ElementProfiler::ElementProfiler(bool show)
-        : m_show(show)
+    ProfilerWindow::ProfilerWindow(bool show)
     {
+        open = show;
     }
 
-    auto ElementProfiler::onAttach(ImGuiBackend* /*pBackend*/) -> void
+    auto ProfilerWindow::onUIRender(EditorContext& /*context*/) -> void
     {
-    }
-
-    auto ElementProfiler::onDetach() -> void
-    {
-    }
-
-    auto ElementProfiler::onResize(graphics::CommandContext* pContext, float2 const& size) -> void
-    {
-    }
-
-    auto ElementProfiler::onPreRender() -> void
-    {
-    }
-
-    auto ElementProfiler::onRender(graphics::CommandContext* pContext) -> void
-    {
-    }
-
-    auto ElementProfiler::onFileDrop(std::filesystem::path const& filename) -> void
-    {
-    }
-
-    auto ElementProfiler::onUIMenu() -> void
-    {
-        if (!m_enableMenu)
-        {
-            return;
-        }
-        if (ImGui::BeginMenu("View"))
-        {
-            ImGui::MenuItem("Profiler", nullptr, &m_show);
-            ImGui::EndMenu();
-        }
-    }
-
-    auto ElementProfiler::onUIRender() -> void
-    {
-        if (!m_show)
+        if (!open)
         {
             return;
         }
@@ -65,32 +28,29 @@ namespace april::editor
         draw();
     }
 
-    auto ElementProfiler::draw() -> void
+    auto ProfilerWindow::draw() -> void
     {
-        if (!ImGui::Begin("Profiler", &m_show))
+        ui::ScopedWindow window{title(), &open};
+        if (!window)
         {
-            ImGui::End();
             return;
         }
 
         m_seenThisFrame.clear();
 
-        if (ImGui::Button(m_paused ? "Resume" : "Pause"))
+        auto toolbar = ui::Toolbar{};
+        if (toolbar.button(m_paused ? "Resume" : "Pause"))
         {
             m_paused = !m_paused;
         }
-        ImGui::SameLine();
-        if (ImGui::Button("Reset Stats"))
+        if (toolbar.button("Reset Stats"))
         {
             m_aggregator.clear();
             m_frames.clear();
         }
-        ImGui::SameLine();
-        ImGui::Checkbox("Average", &m_showAvg);
-        ImGui::SameLine();
-        ImGui::Checkbox("Min/Max", &m_showMinMax);
-        ImGui::SameLine();
-        m_filter.Draw("Filter", 180.0f);
+        toolbar.checkbox("Average", &m_showAvg);
+        toolbar.checkbox("Min/Max", &m_showMinMax);
+        toolbar.textFilter(m_filter, 180.0f);
 
         ImGui::Separator();
 
@@ -99,12 +59,10 @@ namespace april::editor
             drawThread(frame);
         }
 
-        ImGui::End();
-
         m_seenLastFrame.swap(m_seenThisFrame);
     }
 
-    auto ElementProfiler::drawThread(april::core::ProfileThreadFrame& frame) -> void
+    auto ProfilerWindow::drawThread(april::core::ProfileThreadFrame& frame) -> void
     {
         auto label = frame.threadName.empty()
             ? std::string("Thread ") + std::to_string(frame.threadId)
@@ -120,7 +78,8 @@ namespace april::editor
 
         int columnCount = 2 + (m_showAvg ? 1 : 0) + (m_showMinMax ? 2 : 0);
         auto tableId = std::string("ProfilerTable##") + std::to_string(frame.threadId);
-        if (ImGui::BeginTable(tableId.c_str(), columnCount, tableFlags))
+        ui::ScopedTable table{tableId.c_str(), columnCount, tableFlags};
+        if (table)
         {
             ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_NoHide | ImGuiTableColumnFlags_WidthStretch);
             ImGui::TableSetupColumn("Last (ms)", ImGuiTableColumnFlags_WidthFixed, 90.0f);
@@ -135,21 +94,19 @@ namespace april::editor
             }
             ImGui::TableHeadersRow();
 
-        auto pathRoot = "t:" + std::to_string(frame.threadId);
-        std::unordered_map<std::string, int> rootCounts;
-        for (auto& node : frame.roots)
-        {
-            int& count = rootCounts[node.name];
-            count += 1;
-            auto path = pathRoot + "/" + node.name + "#" + std::to_string(count);
-            drawNode(node, path);
-        }
-
-            ImGui::EndTable();
+            auto pathRoot = "t:" + std::to_string(frame.threadId);
+            std::unordered_map<std::string, int> rootCounts;
+            for (auto& node : frame.roots)
+            {
+                int& count = rootCounts[node.name];
+                count += 1;
+                auto path = pathRoot + "/" + node.name + "#" + std::to_string(count);
+                drawNode(node, path);
+            }
         }
     }
 
-    auto ElementProfiler::nodeMatchesFilter(april::core::ProfileNode const& node) const -> bool
+    auto ProfilerWindow::nodeMatchesFilter(april::core::ProfileNode const& node) const -> bool
     {
         if (!m_filter.IsActive())
         {
@@ -172,7 +129,7 @@ namespace april::editor
         return false;
     }
 
-    auto ElementProfiler::drawNode(april::core::ProfileNode& node, std::string const& path) -> bool
+    auto ProfilerWindow::drawNode(april::core::ProfileNode& node, std::string const& path) -> bool
     {
         if (!nodeMatchesFilter(node))
         {
@@ -189,17 +146,17 @@ namespace april::editor
             flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
         }
 
-        ImGui::PushID(path.c_str());
+        ui::ScopedID nodeScope{path.c_str()};
         bool seenLast = m_seenLastFrame.contains(path);
         m_seenThisFrame.insert(path);
         if (hasChildren && !seenLast)
         {
             ImGui::SetNextItemOpen(getOpenState(path), ImGuiCond_Always);
         }
-        bool open = ImGui::TreeNodeEx(node.name.c_str(), flags);
+        bool openNode = ImGui::TreeNodeEx(node.name.c_str(), flags);
         if (hasChildren)
         {
-            setOpenState(path, open);
+            setOpenState(path, openNode);
         }
 
         auto drawValue = [](double us) {
@@ -228,7 +185,7 @@ namespace april::editor
             drawValue(node.maxUs);
         }
 
-        if (open && !node.children.empty())
+        if (openNode && !node.children.empty())
         {
             std::unordered_map<std::string, int> childCounts;
             for (auto& child : node.children)
@@ -240,12 +197,10 @@ namespace april::editor
             }
             ImGui::TreePop();
         }
-        ImGui::PopID();
-
         return true;
     }
 
-    auto ElementProfiler::getOpenState(std::string const& path) const -> bool
+    auto ProfilerWindow::getOpenState(std::string const& path) const -> bool
     {
         auto it = m_openState.find(path);
         if (it == m_openState.end())
@@ -255,8 +210,8 @@ namespace april::editor
         return it->second;
     }
 
-    auto ElementProfiler::setOpenState(std::string const& path, bool open) -> void
+    auto ProfilerWindow::setOpenState(std::string const& path, bool openState) -> void
     {
-        m_openState[path] = open;
+        m_openState[path] = openState;
     }
 }

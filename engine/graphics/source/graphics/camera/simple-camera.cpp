@@ -1,5 +1,5 @@
 #include "simple-camera.hpp"
-#include <imgui.h>
+// #include <imgui.h>
 #include <glm/glm.hpp>
 
 namespace april
@@ -18,46 +18,46 @@ namespace april
 
     auto SimpleCamera::onUpdate(float dt) -> void
     {
-        auto& io = ImGui::GetIO();
-        const float2 mouse{ io.MousePos.x, io.MousePos.y };
+//         auto& io = ImGui::GetIO();
+//         const float2 mouse{ io.MousePos.x, io.MousePos.y };
+//
+//         if (!m_inputEnabled)
+//         {
+//             m_initialMousePosition = mouse;
+//             return;
+//         }
+//
+//         if (io.WantCaptureMouse && !ImGui::IsMouseDown(ImGuiMouseButton_Right))
+//         {
+//             m_initialMousePosition = mouse;
+//             return;
+//         }
+//
+//         float2 delta = (mouse - m_initialMousePosition) * 0.003f;
+//         m_initialMousePosition = mouse;
 
-        if (!m_inputEnabled)
-        {
-            m_initialMousePosition = mouse;
-            return;
-        }
-
-        if (io.WantCaptureMouse && !ImGui::IsMouseDown(ImGuiMouseButton_Right))
-        {
-            m_initialMousePosition = mouse;
-            return;
-        }
-
-        float2 delta = (mouse - m_initialMousePosition) * 0.003f;
-        m_initialMousePosition = mouse;
-
-        if (ImGui::IsMouseDown(ImGuiMouseButton_Right))
-        {
-            if (delta.x != 0.0f || delta.y != 0.0f)
-            {
-                float yawSign = getUpDirection().y < 0 ? -1.0f : 1.0f;
-                m_yaw   -= yawSign * delta.x;
-                m_pitch += delta.y;
-            }
-
-            float speed = 5.0f * dt;
-
-            if (io.KeyShift) speed *= 2.5f;
-            if (io.KeyCtrl) speed *= 0.1f;
-
-            if (ImGui::IsKeyDown(ImGuiKey_W)) m_position += getForwardDirection() * speed;
-            if (ImGui::IsKeyDown(ImGuiKey_S)) m_position -= getForwardDirection() * speed;
-            if (ImGui::IsKeyDown(ImGuiKey_A)) m_position += getRightDirection() * speed;
-            if (ImGui::IsKeyDown(ImGuiKey_D)) m_position -= getRightDirection() * speed;
-
-            if (ImGui::IsKeyDown(ImGuiKey_Q)) m_position -= float3(0.0f, 1.0f, 0.0f) * speed;
-            if (ImGui::IsKeyDown(ImGuiKey_E)) m_position += float3(0.0f, 1.0f, 0.0f) * speed;
-        }
+//         if (ImGui::IsMouseDown(ImGuiMouseButton_Right))
+//         {
+//             if (delta.x != 0.0f || delta.y != 0.0f)
+//             {
+//                 float yawSign = getUpDirection().y < 0 ? -1.0f : 1.0f;
+//                 m_yaw   -= yawSign * delta.x;
+//                 m_pitch += delta.y;
+//             }
+//
+//             float speed = 5.0f * dt;
+//
+//             if (io.KeyShift) speed *= 2.5f;
+//             if (io.KeyCtrl) speed *= 0.1f;
+//
+//             if (ImGui::IsKeyDown(ImGuiKey_W)) m_position += getForwardDirection() * speed;
+//             if (ImGui::IsKeyDown(ImGuiKey_S)) m_position -= getForwardDirection() * speed;
+//             if (ImGui::IsKeyDown(ImGuiKey_A)) m_position += getRightDirection() * speed;
+//             if (ImGui::IsKeyDown(ImGuiKey_D)) m_position -= getRightDirection() * speed;
+//
+//             if (ImGui::IsKeyDown(ImGuiKey_Q)) m_position -= float3(0.0f, 1.0f, 0.0f) * speed;
+//             if (ImGui::IsKeyDown(ImGuiKey_E)) m_position += float3(0.0f, 1.0f, 0.0f) * speed;
+//         }
 
         updateCameraView();
     }

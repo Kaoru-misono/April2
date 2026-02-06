@@ -1,5 +1,7 @@
-#include "editor-hierarchy.hpp"
+#include "hierarchy-window.hpp"
 
+#include <editor/editor-context.hpp>
+#include <editor/ui/ui.hpp>
 #include <runtime/engine.hpp>
 #include <scene/scene.hpp>
 #include <imgui.h>
@@ -9,14 +11,6 @@
 
 namespace april::editor
 {
-    auto EditorHierarchyElement::onAttach(ImGuiBackend* /*pBackend*/) -> void {}
-    auto EditorHierarchyElement::onDetach() -> void {}
-    auto EditorHierarchyElement::onResize(graphics::CommandContext* /*pContext*/, float2 const& /*size*/) -> void {}
-    auto EditorHierarchyElement::onUIMenu() -> void {}
-    auto EditorHierarchyElement::onPreRender() -> void {}
-    auto EditorHierarchyElement::onRender(graphics::CommandContext* /*pContext*/) -> void {}
-    auto EditorHierarchyElement::onFileDrop(std::filesystem::path const& /*filename*/) -> void {}
-
     namespace
     {
         auto getEntityLabel(scene::Registry const& registry, scene::Entity entity) -> std::string
@@ -70,19 +64,28 @@ namespace april::editor
         }
     }
 
-    auto EditorHierarchyElement::onUIRender() -> void
+    auto HierarchyWindow::onUIRender(EditorContext& context) -> void
     {
-        ImGui::Begin("Hierarchy");
-        if (ImGui::Selectable(m_context.scene.name.c_str(), m_context.selection.entity == scene::NullEntity))
+        if (!open)
         {
-            m_context.selection.entity = scene::NullEntity;
+            return;
+        }
+
+        ui::ScopedWindow window{title(), &open};
+        if (!window)
+        {
+            return;
+        }
+
+        if (ImGui::Selectable(context.scene.name.c_str(), context.selection.entity == scene::NullEntity))
+        {
+            context.selection.entity = scene::NullEntity;
         }
 
         auto* sceneGraph = Engine::get().getSceneGraph();
         if (!sceneGraph)
         {
             ImGui::Text("No active scene graph.");
-            ImGui::End();
             return;
         }
 
@@ -91,7 +94,6 @@ namespace april::editor
         if (!relationshipPool)
         {
             ImGui::Text("No entities.");
-            ImGui::End();
             return;
         }
 
@@ -101,10 +103,9 @@ namespace april::editor
             auto const& relationship = relationshipPool->data()[i];
             if (relationship.parent == scene::NullEntity)
             {
-                drawEntityNode(m_context, registry, entity);
+                drawEntityNode(context, registry, entity);
             }
         }
 
-        ImGui::End();
     }
 }

@@ -8,4 +8,6 @@ namespace april::ui
     auto getDefaultFont() -> ImFont*;                                             // Returns the default font.
     auto addMonospaceFont(float fontSize = 15.0f) -> void;                        // Initializes the monospace font.
     auto getMonospaceFont() -> ImFont*;                                           // Returns the monospace font
+    auto addIconFont(float fontSize = 128.0f) -> void;                            // Initializes a large icon-only font.
+    auto getIconFont() -> ImFont*;                                                // Returns the large icon font.
 } // namespace april::ui

@@ -1,16 +1,41 @@
-#include "editor-viewport.hpp"
+#include "viewport-window.hpp"
 
+#include <editor/editor-context.hpp>
+#include <editor/ui/ui.hpp>
 #include <runtime/engine.hpp>
 #include <scene/scene.hpp>
 #include <imgui.h>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include <algorithm>
+#include <cmath>
+
 namespace april::editor
 {
-    auto EditorViewportElement::onAttach(ImGuiBackend* /*pBackend*/) -> void
+    ViewportWindow::~ViewportWindow()
     {
+        auto* scene = Engine::get().getSceneGraph();
+        if (!scene)
+        {
+            return;
+        }
+
+        if (m_cameraEntity != scene::NullEntity)
+        {
+            scene->destroyEntity(m_cameraEntity);
+            m_cameraEntity = scene::NullEntity;
+        }
+    }
+
+    auto ViewportWindow::ensureScene(EditorContext& /*context*/) -> void
+    {
+        if (m_camera)
+        {
+            return;
+        }
+
         auto constexpr kDefaultFov = 45.0f;
-        m_camera = std::make_unique<SimpleCamera>(glm::radians(kDefaultFov), 1.777f, 0.1f, 1000.0f);
+        m_camera = std::make_unique<EditorCamera>(glm::radians(kDefaultFov), 1.777f, 0.1f, 1000.0f);
         m_camera->setPosition(float3{0.0f, 0.0f, 10.0f});
 
         auto* scene = Engine::get().getSceneGraph();
@@ -57,57 +82,81 @@ namespace april::editor
         }
     }
 
-    auto EditorViewportElement::onDetach() -> void
+    auto ViewportWindow::queueViewportResize(EditorContext& context, float2 const& size) -> void
     {
-        auto* scene = Engine::get().getSceneGraph();
-        if (!scene)
+        auto width = static_cast<uint32_t>(size.x);
+        auto height = static_cast<uint32_t>(size.y);
+        if (width == 0 || height == 0)
         {
             return;
         }
 
-        if (m_cameraEntity != scene::NullEntity)
+        if (context.viewportSize.x == size.x && context.viewportSize.y == size.y)
         {
-            scene->destroyEntity(m_cameraEntity);
-            m_cameraEntity = scene::NullEntity;
+            return;
         }
-    }
-    auto EditorViewportElement::onUIMenu() -> void {}
-    auto EditorViewportElement::onPreRender() -> void {}
-    auto EditorViewportElement::onRender(graphics::CommandContext* /*pContext*/) -> void {}
-    auto EditorViewportElement::onFileDrop(std::filesystem::path const& /*filename*/) -> void {}
 
-    auto EditorViewportElement::onResize(graphics::CommandContext* /*pContext*/, float2 const& size) -> void
+        context.viewportSize = size;
+        m_pendingViewportSize = size;
+        m_hasPendingViewportResize = true;
+    }
+
+    auto ViewportWindow::applyViewportResize(EditorContext& context) -> void
     {
-        m_context.viewportSize = size;
+        if (!m_hasPendingViewportResize)
+        {
+            return;
+        }
+
+        auto const size = m_pendingViewportSize;
+        m_hasPendingViewportResize = false;
+
         auto width = static_cast<uint32_t>(size.x);
         auto height = static_cast<uint32_t>(size.y);
-        if (width > 0 && height > 0)
+        if (width == 0 || height == 0)
         {
-            Engine::get().setSceneViewportSize(width, height);
-            if (m_camera)
+            return;
+        }
+
+        Engine::get().setSceneViewportSize(width, height);
+
+        if (m_camera)
+        {
+            m_camera->setViewportSize(width, height);
+        }
+
+        if (m_cameraEntity != scene::NullEntity)
+        {
+            auto* scene = Engine::get().getSceneGraph();
+            if (scene)
             {
-                m_camera->setViewportSize(width, height);
-            }
-            if (m_cameraEntity != scene::NullEntity)
-            {
-                auto* scene = Engine::get().getSceneGraph();
-                if (scene)
-                {
-                    auto& registry = scene->getRegistry();
-                    auto& cameraComponent = registry.get<scene::CameraComponent>(m_cameraEntity);
-                    cameraComponent.viewportWidth = width;
-                    cameraComponent.viewportHeight = height;
-                    cameraComponent.isDirty = true;
-                }
+                auto& registry = scene->getRegistry();
+                auto& cameraComponent = registry.get<scene::CameraComponent>(m_cameraEntity);
+                cameraComponent.viewportWidth = width;
+                cameraComponent.viewportHeight = height;
+                cameraComponent.isDirty = true;
             }
         }
     }
 
-    auto EditorViewportElement::onUIRender() -> void
+    auto ViewportWindow::onUIRender(EditorContext& context) -> void
     {
-        ImGui::Begin("Viewport");
+        ensureScene(context);
+
+        if (!open)
+        {
+            return;
+        }
+
+        ui::ScopedWindow window{title(), &open};
+        if (!window)
+        {
+            return;
+        }
+
         auto hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
         auto focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+
         if (m_camera)
         {
             auto const inputActive = hovered || focused;
@@ -121,7 +170,7 @@ namespace april::editor
                 {
                     auto& registry = scene->getRegistry();
                     auto& transform = registry.get<scene::TransformComponent>(m_cameraEntity);
-                    auto const selected = m_context.selection.entity == m_cameraEntity;
+                    auto const selected = context.selection.entity == m_cameraEntity;
 
                     if (!inputActive && selected)
                     {
@@ -143,7 +192,10 @@ namespace april::editor
                 }
             }
         }
+
         auto size = ImGui::GetContentRegionAvail();
+        queueViewportResize(context, {size.x, size.y});
+
         auto sceneSrv = Engine::get().getSceneColorSrv();
         if (sceneSrv)
         {
@@ -156,8 +208,8 @@ namespace april::editor
         }
         else
         {
-            ImGui::Text("Viewport: %.0f x %.0f", m_context.viewportSize.x, m_context.viewportSize.y);
+            ImGui::Text("Viewport: %.0f x %.0f", context.viewportSize.x, context.viewportSize.y);
         }
-        ImGui::End();
+
     }
 }

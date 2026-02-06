@@ -90,4 +90,49 @@ namespace april::ui
         return g_monospaceFont;
     }
 
+    auto addIconFont(float fontSize) -> void
+    {
+        if (g_iconicFont != nullptr)
+        {
+            return;
+        }
+
+        ImFontConfig iconConfig = getDefaultConfig();
+        iconConfig.MergeMode = false;
+        iconConfig.PixelSnapH = true;
+
+        static ImWchar const iconRanges[] = {
+            0xe2a7, 0xe2a7, // scene
+            0xe2c7, 0xe2c8, // folder, folder_open
+            0xe2cc, 0xe2cc, // create_new_folder
+            0xe3f4, 0xe3f4, // image
+            0xe421, 0xe421, // texture
+            0xe5cb, 0xe5cc, // chevron_left, chevron_right
+            0xe5d5, 0xe5d5, // refresh
+            0xe86f, 0xe86f, // code
+            0xe873, 0xe873, // description
+            0xe89e, 0xe89e, // open_in_new
+            0xe8b6, 0xe8b6, // search
+            0xe92e, 0xe92e, // delete
+            0xe9b2, 0xe9b2, // home
+            0xeb82, 0xeb82, // audio_file
+            0xefc9, 0xefc9, // view_in_ar
+            0xf097, 0xf097, // edit
+            0
+        };
+
+        g_iconicFont = ImGui::GetIO().Fonts->AddFontFromMemoryCompressedTTF(
+            MATERIAL_SYMBOLS_DATA,
+            MATERIAL_SYMBOLS_SIZE,
+            fontSize,
+            &iconConfig,
+            iconRanges
+        );
+    }
+
+    auto getIconFont() -> ImFont*
+    {
+        return g_iconicFont;
+    }
+
 } // namespace april::ui

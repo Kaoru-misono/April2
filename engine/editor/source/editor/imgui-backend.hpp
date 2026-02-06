@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ui/settings-handler.hpp>
+#include "settings-handler.hpp"
 
 #include <core/foundation/object.hpp>
 #include <core/window/window.hpp>
@@ -11,7 +11,6 @@
 
 #include <imgui.h>
 
-#include <functional>
 #include <string>
 #include <vector>
 
@@ -78,6 +77,6 @@ namespace april::editor
         bool m_viewportsEnabled{false};
         ImGuiConfigFlags m_imguiConfigFlags{};
         std::string m_iniFileName{};
-        ui::SettingsHandler m_settingsHandler{};
+        ::april::ui::SettingsHandler m_settingsHandler{};
     };
 }

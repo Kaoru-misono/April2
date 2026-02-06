@@ -1,7 +1,11 @@
 #pragma once
 
 #include "editor-context.hpp"
-#include "editor-shell.hpp"
+#include "imgui-backend.hpp"
+#include "window-manager.hpp"
+#include "window-registry.hpp"
+#include "tool-window.hpp"
+#include "ui/action-manager.hpp"
 #include <runtime/engine.hpp>
 #include <core/foundation/object.hpp>
 
@@ -9,12 +13,14 @@
 
 #include <functional>
 #include <string>
+#include <string_view>
+#include <array>
+#include <memory>
 #include <vector>
 
 namespace april::editor
 {
-    class ElementLogger;
-    class ElementProfiler;
+    class ViewportWindow;
 
     struct EditorUiConfig
     {
@@ -28,31 +34,37 @@ namespace april::editor
     class EditorApp final
     {
     public:
-        using ElementFactory = std::function<core::ref<IEditorElement>(EditorContext&, EditorApp&)>;
+        using WindowFactory = std::function<std::unique_ptr<ToolWindow>(EditorContext&, EditorApp&)>;
 
         EditorApp() = default;
 
         auto setOnExit(std::function<void()> onExit) -> void { m_onExit = std::move(onExit); }
-        auto registerElement(ElementFactory factory) -> void;
-        auto registerDefaultElements() -> void;
+        auto registerWindow(WindowFactory factory) -> void;
+        auto registerDefaultWindows() -> void;
         auto install(Engine& engine, EditorUiConfig config = {}) -> void;
 
         auto getContext() -> EditorContext& { return m_context; }
-        auto getLogger() -> core::ref<ElementLogger>;
-        auto getProfiler() -> core::ref<ElementProfiler>;
+        auto getWindows() -> WindowRegistry& { return m_windows; }
 
     private:
+        auto buildMenu(EditorContext& context) -> void;
+        auto registerActions() -> void;
+        auto renderMenuActions(std::string_view menu) -> void;
         auto ensureDefaultSelection() -> void;
-        auto initShell(Engine& engine) -> void;
+        auto initWindowManager(Engine& engine) -> void;
 
         EditorContext m_context{};
+        WindowRegistry m_windows{};
+        core::ref<ImGuiBackend> m_backend{};
+        ui::ActionManager m_actionManager{};
         std::function<void()> m_onExit{};
-        std::vector<ElementFactory> m_factories{};
+        std::vector<WindowFactory> m_factories{};
         bool m_defaultsRegistered{false};
-        core::ref<ElementLogger> m_logger{};
-        core::ref<ElementProfiler> m_profiler{};
-        EditorShell m_shell{};
+        bool m_actionsRegistered{false};
+        WindowManager m_windowManager{};
         EditorUiConfig m_uiConfig{};
-        bool m_shellInitialized{false};
+        bool m_windowManagerInitialized{false};
+        ViewportWindow* m_viewportWindow{};
+        std::array<char, 260> m_importBuffer{};
     };
 }

@@ -21,16 +21,20 @@
 #include <thread> // For sleep
 
 #include "editor/imgui-backend.hpp"
-#include "editor/editor-shell.hpp"
-#include "editor/editor-element.hpp"
-#include "editor/element/element-logger.hpp"
-#include "editor/element/element-profiler.hpp"
+#include "editor/window-manager.hpp"
+#include "editor/editor-context.hpp"
+#include "editor/tool-window.hpp"
+#include "editor/window-registry.hpp"
+#include "editor/window/console-window.hpp"
+#include "editor/window/profiler-window.hpp"
 
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <implot.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <memory>
+#include <utility>
 
 using namespace april;
 using namespace april::graphics;
@@ -62,19 +66,177 @@ void SimulateCpuWork(char const* name, int millis)
     std::this_thread::sleep_for(std::chrono::milliseconds(millis));
 }
 
-class SampleElement : public IEditorElement
+struct SampleState
+{
+    bool animate{true};
+    bool simulateLoad{true};
+    int drawCount{100};
+    int frameCount{0};
+    bool traceExported{false};
+};
+
+class SampleSettingsWindow final : public ToolWindow
 {
 public:
-    APRIL_OBJECT(SampleElement)
-
-    void onAttach(ImGuiBackend* pBackend) override
+    explicit SampleSettingsWindow(SampleState& state)
+        : m_state(state)
     {
-        m_pBackend = pBackend;
-        auto device = pBackend->getFontTexture()->getDevice();
+        open = true;
+    }
+
+    [[nodiscard]] auto title() const -> char const* override { return "Settings"; }
+
+    auto onUIRender(EditorContext&) -> void override
+    {
+        if (!open)
+        {
+            return;
+        }
+
+        if (!ImGui::Begin(title(), &open))
+        {
+            ImGui::End();
+            return;
+        }
+
+        ImGui::Checkbox("Animated Viewport", &m_state.animate);
+        ImGui::Checkbox("Simulate Heavy Load", &m_state.simulateLoad);
+        ImGui::SliderInt("Draw Calls", &m_state.drawCount, 1, 500);
+
+        ImGui::Separator();
+        ImGui::TextDisabled("FPS: %.1f", ImGui::GetIO().Framerate);
+
+        if (m_state.traceExported)
+        {
+            ImGui::TextColored(ImVec4(0, 1, 0, 1), "Trace Exported!");
+        }
+        else
+        {
+            ImGui::Text("Tracing... (Frame %d/100)", m_state.frameCount);
+        }
+
+        ImGui::End();
+    }
+
+private:
+    SampleState& m_state;
+};
+
+class SampleViewportWindow final : public ToolWindow
+{
+public:
+    SampleViewportWindow(core::ref<Device> device, SampleState& state)
+        : m_device(std::move(device))
+        , m_state(state)
+    {
+        open = true;
+        initResources();
+    }
+
+    ~SampleViewportWindow() override
+    {
+        shutdownResources();
+    }
+
+    [[nodiscard]] auto title() const -> char const* override { return "Viewport"; }
+
+    auto onUIRender(EditorContext&) -> void override
+    {
+        if (!open)
+        {
+            return;
+        }
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        if (!ImGui::Begin(title(), &open))
+        {
+            ImGui::End();
+            ImGui::PopStyleVar();
+            return;
+        }
+
+        if (m_viewportTexture)
+        {
+            auto srv = m_viewportTexture->getSRV();
+            ImGui::Image((ImTextureID)srv.get(), ImGui::GetContentRegionAvail());
+        }
+        ImGui::End();
+        ImGui::PopStyleVar();
+    }
+
+    auto render(CommandContext* pContext) -> void
+    {
+        if (!open)
+        {
+            return;
+        }
+
+        // Profiling the GPU work of this window
+        APRIL_GPU_ZONE(pContext, "SampleViewport Render");
+
+        if (m_state.animate && m_viewportTexture && m_pipeline)
+        {
+            float4 clearColor;
+            ImGui::ColorConvertHSVtoRGB(
+                static_cast<float>(ImGui::GetTime()) * 0.1f,
+                0.8f,
+                0.8f,
+                clearColor.x,
+                clearColor.y,
+                clearColor.z
+            );
+            clearColor.w = 1.0f;
+
+            auto rtv = m_viewportTexture->getRTV();
+            auto colorTarget = ColorTarget(rtv, LoadOp::Clear, StoreOp::Store, clearColor);
+
+            auto encoder = pContext->beginRenderPass({colorTarget});
+
+            // Set dynamic state
+            Viewport vp = Viewport::fromSize(
+                static_cast<float>(m_viewportTexture->getWidth()),
+                static_cast<float>(m_viewportTexture->getHeight())
+            );
+            encoder->setViewport(0, vp);
+            encoder->setScissor(0, {0, 0, static_cast<uint32_t>(vp.width), static_cast<uint32_t>(vp.height)});
+
+            // Bind Pipeline
+            encoder->bindPipeline(m_pipeline.get(), m_vars.get());
+
+            // Simulate Heavy GPU Load
+            if (m_state.simulateLoad)
+            {
+                APRIL_GPU_ZONE(pContext, "Heavy Draw Loop");
+                for (int i = 0; i < m_state.drawCount; ++i)
+                {
+                    encoder->draw(3, 0);
+                }
+            }
+            else
+            {
+                encoder->draw(3, 0);
+            }
+
+            encoder->end();
+        }
+    }
+
+private:
+    auto initResources() -> void
+    {
+        if (!m_device)
+        {
+            return;
+        }
 
         // 1. Create Offscreen Texture (RenderTarget)
-        m_viewportTexture = device->createTexture2D(
-            1280, 720, ResourceFormat::RGBA8Unorm, 1, 1, nullptr,
+        m_viewportTexture = m_device->createTexture2D(
+            1280,
+            720,
+            ResourceFormat::RGBA8Unorm,
+            1,
+            1,
+            nullptr,
             TextureUsage::ShaderResource | TextureUsage::RenderTarget
         );
         m_viewportTexture->setName("ViewportTexture");
@@ -85,125 +247,32 @@ public:
         progDesc.vsEntryPoint("main");
         progDesc.addShaderModule("TrianglePS").addString(ps_code, "TrianglePS.slang");
         progDesc.psEntryPoint("main");
-        auto program = Program::create(device, progDesc);
-        m_vars = ProgramVariables::create(device, program.get());
+        auto program = Program::create(m_device, progDesc);
+        m_vars = ProgramVariables::create(m_device, program.get());
 
         GraphicsPipelineDesc pipelineDesc;
-        pipelineDesc.programKernels = program->getActiveVersion()->getKernels(device.get(), nullptr);
+        pipelineDesc.programKernels = program->getActiveVersion()->getKernels(m_device.get(), nullptr);
         pipelineDesc.renderTargetCount = 1;
         pipelineDesc.renderTargetFormats[0] = ResourceFormat::RGBA8Unorm;
         pipelineDesc.primitiveType = GraphicsPipelineDesc::PrimitiveType::TriangleList;
         RasterizerState::Desc rsDesc;
         rsDesc.setCullMode(RasterizerState::CullMode::None);
         pipelineDesc.rasterizerState = RasterizerState::create(rsDesc);
-        m_pipeline = device->createGraphicsPipeline(pipelineDesc);
+        m_pipeline = m_device->createGraphicsPipeline(pipelineDesc);
     }
 
-    void onDetach() override
+    auto shutdownResources() -> void
     {
         m_viewportTexture.reset();
         m_pipeline.reset();
         m_vars.reset();
     }
 
-    void onResize(CommandContext*, float2 const& size) override
-    {
-        // Resize texture if needed (simplified for this test)
-    }
-
-    void onUIRender() override
-    {
-        ImGui::Begin("Settings");
-        ImGui::Checkbox("Animated Viewport", &m_animate);
-        ImGui::Checkbox("Simulate Heavy Load", &m_simulateLoad);
-        ImGui::SliderInt("Draw Calls", &m_drawCount, 1, 500);
-
-        ImGui::Separator();
-        ImGui::TextDisabled("FPS: %.1f", ImGui::GetIO().Framerate);
-
-        if (m_traceExported) {
-             ImGui::TextColored(ImVec4(0,1,0,1), "Trace Exported!");
-        } else {
-             ImGui::Text("Tracing... (Frame %d/100)", m_frameCount);
-        }
-
-        ImGui::End();
-
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-        ImGui::Begin("Viewport");
-        if (m_viewportTexture)
-        {
-            auto srv = m_viewportTexture->getSRV();
-            // Simple resize logic: if window size != texture size, recreate (omitted for brevity in test)
-            ImGui::Image((ImTextureID)srv.get(), ImGui::GetContentRegionAvail());
-        }
-        ImGui::End();
-        ImGui::PopStyleVar();
-    }
-
-    void onPreRender() override {}
-
-    void onRender(CommandContext* pContext) override
-    {
-        // Profiling the GPU work of this Element
-        APRIL_GPU_ZONE(pContext, "SampleElement Render");
-
-        if (m_animate && m_viewportTexture && m_pipeline)
-        {
-            float4 clearColor;
-            ImGui::ColorConvertHSVtoRGB((float)ImGui::GetTime() * 0.1f, 0.8f, 0.8f, clearColor.x, clearColor.y, clearColor.z);
-            clearColor.w = 1.0f;
-
-            auto rtv = m_viewportTexture->getRTV();
-            auto colorTarget = ColorTarget(rtv, LoadOp::Clear, StoreOp::Store, clearColor);
-
-            auto encoder = pContext->beginRenderPass({colorTarget});
-
-            // Set dynamic state
-            Viewport vp = Viewport::fromSize((float)m_viewportTexture->getWidth(), (float)m_viewportTexture->getHeight());
-            encoder->setViewport(0, vp);
-            encoder->setScissor(0, {0, 0, (uint32_t)vp.width, (uint32_t)vp.height});
-
-            // Bind Pipeline
-            encoder->bindPipeline(m_pipeline.get(), m_vars.get());
-
-            // Simulate Heavy GPU Load
-            if (m_simulateLoad)
-            {
-                APRIL_GPU_ZONE(pContext, "Heavy Draw Loop");
-                for(int i=0; i < m_drawCount; ++i)
-                {
-                    encoder->draw(3, 0);
-                }
-            }
-            else
-            {
-                 encoder->draw(3, 0);
-            }
-
-            encoder->end();
-        }
-    }
-
-    void onUIMenu() override { /* ... */ }
-    void onFileDrop(std::filesystem::path const&) override {}
-
-    void notifyFrame(int frame) {
-        m_frameCount = frame;
-        if (frame > 100) m_traceExported = true;
-    }
-
-private:
-    ImGuiBackend* m_pBackend{nullptr};
+    core::ref<Device> m_device{};
     core::ref<Texture> m_viewportTexture;
     core::ref<GraphicsPipeline> m_pipeline;
     core::ref<ProgramVariables> m_vars;
-
-    bool m_animate{true};
-    bool m_simulateLoad{true};
-    int m_drawCount{100};
-    int m_frameCount{0};
-    bool m_traceExported{false};
+    SampleState& m_state;
 };
 
 int main()
@@ -238,17 +307,28 @@ int main()
         backendDesc.device = device;
         backendDesc.window = window.get();
 
-        auto shellDesc = EditorShellDesc{};
-        shellDesc.backend = backendDesc;
+        auto imguiBackend = ImGuiBackend{};
+        imguiBackend.init(backendDesc);
 
-        auto editorShell = EditorShell{};
-        editorShell.init(shellDesc);
+        auto managerDesc = WindowManagerDesc{};
+        managerDesc.imguiConfigFlags = backendDesc.imguiConfigFlags;
 
-        // 5. Add Elements
-        auto sampleElement = core::make_ref<SampleElement>();
-        editorShell.addElement(sampleElement);
-        editorShell.addElement(core::make_ref<ElementLogger>(true));
-        editorShell.addElement(core::make_ref<ElementProfiler>(true));
+        auto windowManager = WindowManager{};
+        windowManager.init(managerDesc);
+
+        // 5. Add Windows
+        auto editorContext = EditorContext{};
+        auto windows = WindowRegistry{};
+
+        auto sampleState = SampleState{};
+        auto settingsWindow = std::make_unique<SampleSettingsWindow>(sampleState);
+        auto viewportWindow = std::make_unique<SampleViewportWindow>(device, sampleState);
+        auto* viewportPtr = viewportWindow.get();
+
+        windows.add(std::move(settingsWindow));
+        windows.add(std::move(viewportWindow));
+        windows.add(std::make_unique<ConsoleWindow>(true));
+        windows.add(std::make_unique<ProfilerWindow>(true));
 
         auto ctx = device->getCommandContext();
         bool closeWindow = false;
@@ -266,32 +346,32 @@ int main()
 
                 {
                     APRIL_PROFILE_ZONE("Window Poll");
-                window->onEvent();
-            }
+                    window->onEvent();
+                }
 
-            // CPU Load Simulation
-            {
-                APRIL_PROFILE_ZONE("Game Logic");
-                SimulateCpuWork("Physics", 2);
-                SimulateCpuWork("AI", 1);
-            }
-
-            // Logic
-            {
-                frame++;
-                sampleElement->notifyFrame(frame);
-
-                auto fw = window->getFramebufferWidth();
-                auto fh = window->getFramebufferHeight();
-
-                if (fw > 0 && fh > 0)
+                // CPU Load Simulation
                 {
-                    if (swapchain->getDesc().width != fw || swapchain->getDesc().height != fh)
+                    APRIL_PROFILE_ZONE("Game Logic");
+                    SimulateCpuWork("Physics", 2);
+                    SimulateCpuWork("AI", 1);
+                }
+
+                // Logic
+                {
+                    frame++;
+                    sampleState.frameCount = frame;
+
+                    auto fw = window->getFramebufferWidth();
+                    auto fh = window->getFramebufferHeight();
+
+                    if (fw > 0 && fh > 0)
                     {
-                        swapchain->resize(fw, fh);
+                        if (swapchain->getDesc().width != fw || swapchain->getDesc().height != fh)
+                        {
+                            swapchain->resize(fw, fh);
+                        }
                     }
                 }
-            }
             }
 
             auto fw = window->getFramebufferWidth();
@@ -302,13 +382,22 @@ int main()
                 auto backBuffer = swapchain->acquireNextImage();
                 if (!backBuffer) continue;
 
-                // GPU Profiling: UI Pass (includes SampleElement render)
+                // GPU Profiling: UI Pass (includes SampleViewport render)
                 {
                     APRIL_GPU_ZONE(ctx, "Frame Render");
 
-                    // EditorShell calls onRender for elements during renderFrame
-                    // So SampleElement's heavy draw happens here
-                    editorShell.renderFrame(ctx, backBuffer->getRTV());
+                    // Render the offscreen viewport first, then the UI.
+                    if (viewportPtr)
+                    {
+                        viewportPtr->render(ctx);
+                    }
+
+                    imguiBackend.newFrame();
+                    windowManager.beginFrame();
+                    windowManager.renderWindows(editorContext, windows);
+                    windowManager.endFrame();
+                    ImGui::Render();
+                    imguiBackend.render(ctx, backBuffer->getRTV());
                 }
 
                 ctx->resourceBarrier(backBuffer.get(), Resource::State::Present);
@@ -332,6 +421,7 @@ int main()
             if (frame == 100 && !traceExported)
             {
                 traceExported = true;
+                sampleState.traceExported = true;
                 AP_INFO("Exporting trace...");
 
                 // Flush GPU
@@ -346,7 +436,8 @@ int main()
             }
         }
 
-        editorShell.terminate();
+        imguiBackend.terminate();
+        windowManager.terminate();
     }
     catch (std::exception const& e)
     {

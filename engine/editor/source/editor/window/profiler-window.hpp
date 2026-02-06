@@ -1,6 +1,6 @@
 #pragma once
 
-#include <editor/editor-element.hpp>
+#include <editor/tool-window.hpp>
 #include <core/profile/profile-aggregator.hpp>
 #include <core/profile/profile-manager.hpp>
 #include <imgui.h>
@@ -10,26 +10,13 @@
 
 namespace april::editor
 {
-    class ElementProfiler : public IEditorElement
+    class ProfilerWindow final : public ToolWindow
     {
-        APRIL_OBJECT(ElementProfiler)
     public:
-        ElementProfiler(bool show = false);
-        ~ElementProfiler() override = default;
+        explicit ProfilerWindow(bool show = false);
 
-        auto onAttach(ImGuiBackend* pBackend) -> void override;
-        auto onDetach() -> void override;
-        auto onResize(graphics::CommandContext* pContext, float2 const& size) -> void override;
-        auto onUIRender() -> void override;
-        auto onUIMenu() -> void override;
-        auto onPreRender() -> void override;
-        auto onRender(graphics::CommandContext* pContext) -> void override;
-        auto onFileDrop(std::filesystem::path const& filename) -> void override;
-
-        auto setVisible(bool show) -> void { m_show = show; }
-        auto isVisible() const -> bool { return m_show; }
-        auto setMenuEnabled(bool enable) -> void { m_enableMenu = enable; }
-        auto isMenuEnabled() const -> bool { return m_enableMenu; }
+        [[nodiscard]] auto title() const -> char const* override { return "Profiler"; }
+        auto onUIRender(EditorContext& context) -> void override;
 
     private:
         auto draw() -> void;
@@ -40,11 +27,9 @@ namespace april::editor
         auto setOpenState(std::string const& path, bool open) -> void;
 
         ImGuiTextFilter m_filter;
-        bool m_show{false};
         bool m_paused{false};
         bool m_showAvg{true};
         bool m_showMinMax{true};
-        bool m_enableMenu{true};
 
         april::core::ProfileAggregator m_aggregator{};
         std::vector<april::core::ProfileThreadFrame> m_frames{};

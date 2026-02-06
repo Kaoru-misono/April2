@@ -1,34 +1,24 @@
-#include "element-logger.hpp"
+#include "console-window.hpp"
+
 #include <core/log/logger.hpp>
-#include <imgui_internal.h> // For ImGuiTextBuffer if needed, mostly covered by imgui.h
+#include <editor/ui/ui.hpp>
+#include <imgui.h>
 
 namespace april::editor
 {
-    ElementLogger::ElementLogger(bool show)
-        : m_showLog(show)
+    ConsoleWindow::ConsoleWindow(bool show)
     {
-        m_sink = std::make_shared<ElementSink>();
-    }
+        open = show;
+        m_sink = std::make_shared<ConsoleSink>();
 
-    ElementLogger::~ElementLogger()
-    {
-        if (m_registered && m_sink)
-        {
-            april::Log::getLogger()->removeSink(m_sink);
-            m_registered = false;
-        }
-    }
-
-    auto ElementLogger::onAttach(ImGuiBackend* /*pBackend*/) -> void
-    {
-        if (!m_registered && m_sink)
+        if (m_sink)
         {
             april::Log::getLogger()->addSink(m_sink);
             m_registered = true;
         }
     }
 
-    auto ElementLogger::onDetach() -> void
+    ConsoleWindow::~ConsoleWindow()
     {
         if (m_registered && m_sink)
         {
@@ -37,38 +27,12 @@ namespace april::editor
         }
     }
 
-    auto ElementLogger::onResize(graphics::CommandContext* pContext, float2 const& size) -> void {}
-    auto ElementLogger::onPreRender() -> void {}
-    auto ElementLogger::onRender(graphics::CommandContext* pContext) -> void {}
-    auto ElementLogger::onFileDrop(std::filesystem::path const& filename) -> void {}
-
-    auto ElementLogger::onUIMenu() -> void
-    {
-        if (!m_enableMenu)
-        {
-            return;
-        }
-        if (ImGui::BeginMenu("View"))
-        {
-            ImGui::MenuItem("Log", nullptr, &m_showLog);
-            ImGui::EndMenu();
-        }
-    }
-
-    auto ElementLogger::onUIRender() -> void
-    {
-        if (m_showLog)
-        {
-            draw("Log", &m_showLog);
-        }
-    }
-
-    auto ElementLogger::ElementSink::log(LogContext const& context, LogConfig const& config, std::string_view message) -> void
+    auto ConsoleWindow::ConsoleSink::log(LogContext const& context, LogConfig const& /*config*/, std::string_view message) -> void
     {
         auto lock = std::lock_guard<std::mutex>{m_mutex};
         auto old_size = m_buf.size();
         m_buf.append(message.data());
-        m_buf.append("\n"); // Ensure newline
+        m_buf.append("\n");
         for (auto new_size = m_buf.size(); old_size < new_size; old_size++)
         {
             if (m_buf[old_size] == '\n')
@@ -79,7 +43,7 @@ namespace april::editor
         }
     }
 
-    auto ElementLogger::clear() -> void
+    auto ConsoleWindow::clear() -> void
     {
         if (!m_sink)
         {
@@ -92,24 +56,24 @@ namespace april::editor
         m_sink->m_lineOffsets.push_back(0);
     }
 
-    auto ElementLogger::draw(char const* title, bool* p_open) -> void
+    auto ConsoleWindow::draw() -> void
     {
-        if (!ImGui::Begin(title, p_open))
+        ui::ScopedWindow window{title(), &open};
+        if (!window)
         {
-            ImGui::End();
             return;
         }
 
-        // Options menu
         if (ImGui::BeginPopup("Options"))
         {
             ImGui::Checkbox("Auto-scroll", &m_autoScroll);
             ImGui::EndPopup();
         }
 
-        // Main window
         if (ImGui::Button("Options"))
+        {
             ImGui::OpenPopup("Options");
+        }
         ImGui::SameLine();
         auto clear_log = ImGui::Button("Clear");
         ImGui::SameLine();
@@ -118,21 +82,25 @@ namespace april::editor
         m_filter.Draw("Filter", -100.0f);
 
         if (clear_log)
+        {
             clear();
+        }
         if (copy)
+        {
             ImGui::LogToClipboard();
+        }
 
         ImGui::Separator();
-        ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
+        [[maybe_unused]] ui::ScopedChild scrolling{"scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar};
 
         if (clear_log)
+        {
             clear();
+        }
 
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+        ui::ScopedStyle itemSpacing{ImGuiStyleVar_ItemSpacing, ImVec2(0, 0)};
         if (!m_sink)
         {
-            ImGui::EndChild();
-            ImGui::End();
             return;
         }
 
@@ -143,8 +111,6 @@ namespace april::editor
         auto& lineOffsets = m_sink->m_lineOffsets;
         auto& lineLevels = m_sink->m_lineLevels;
 
-        // std::lock_guard<std::mutex> lock(m_mutex);
-
         if (m_filter.IsActive())
         {
             for (auto line_no = 0; line_no < lineOffsets.Size; line_no++)
@@ -153,21 +119,21 @@ namespace april::editor
                 auto* line_end = (line_no < lineOffsets.Size) ? (buf + lineOffsets[line_no] - 1) : buf_end;
                 if (m_filter.PassFilter(line_start, line_end))
                 {
-                    // Color based on level (stored in m_lineLevels)
                     auto color = ImVec4(1, 1, 1, 1);
-                    if (line_no < lineLevels.Size) {
-                        switch ((ELogLevel)lineLevels[line_no]) {
+                    if (line_no < lineLevels.Size)
+                    {
+                        switch ((ELogLevel)lineLevels[line_no])
+                        {
                             case ELogLevel::Trace: color = ImVec4(0.5f, 0.5f, 0.5f, 1.0f); break;
                             case ELogLevel::Debug: color = ImVec4(0.4f, 0.7f, 1.0f, 1.0f); break;
-                            case ELogLevel::Info:  color = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); break;
+                            case ELogLevel::Info: color = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); break;
                             case ELogLevel::Warning: color = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); break;
                             case ELogLevel::Error: color = ImVec4(1.0f, 0.4f, 0.4f, 1.0f); break;
                             case ELogLevel::Fatal: color = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); break;
                         }
                     }
-                    ImGui::PushStyleColor(ImGuiCol_Text, color);
+                    ui::ScopedStyleColor textColor{ImGuiCol_Text, color};
                     ImGui::TextUnformatted(line_start, line_end);
-                    ImGui::PopStyleColor();
                 }
             }
         }
@@ -183,29 +149,39 @@ namespace april::editor
                     auto* line_end = (line_no < lineOffsets.Size) ? (buf + lineOffsets[line_no] - 1) : buf_end;
 
                     auto color = ImVec4(1, 1, 1, 1);
-                    if (line_no < lineLevels.Size) {
-                        switch ((ELogLevel)lineLevels[line_no]) {
+                    if (line_no < lineLevels.Size)
+                    {
+                        switch ((ELogLevel)lineLevels[line_no])
+                        {
                             case ELogLevel::Trace: color = ImVec4(0.5f, 0.5f, 0.5f, 1.0f); break;
                             case ELogLevel::Debug: color = ImVec4(0.4f, 0.7f, 1.0f, 1.0f); break;
-                            case ELogLevel::Info:  color = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); break;
+                            case ELogLevel::Info: color = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); break;
                             case ELogLevel::Warning: color = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); break;
                             case ELogLevel::Error: color = ImVec4(1.0f, 0.4f, 0.4f, 1.0f); break;
                             case ELogLevel::Fatal: color = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); break;
                         }
                     }
-                    ImGui::PushStyleColor(ImGuiCol_Text, color);
+                    ui::ScopedStyleColor textColor{ImGuiCol_Text, color};
                     ImGui::TextUnformatted(line_start, line_end);
-                    ImGui::PopStyleColor();
                 }
             }
             clipper.End();
         }
-        ImGui::PopStyleVar();
 
         if (m_autoScroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+        {
             ImGui::SetScrollHereY(1.0f);
+        }
 
-        ImGui::EndChild();
-        ImGui::End();
+    }
+
+    auto ConsoleWindow::onUIRender(EditorContext& /*context*/) -> void
+    {
+        if (!open)
+        {
+            return;
+        }
+
+        draw();
     }
 }
