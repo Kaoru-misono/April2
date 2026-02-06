@@ -4,11 +4,17 @@
 
 namespace april::asset
 {
-    auto MeshImporter::import(ImportContext const& /*context*/) -> ImportResult
+    auto MeshImporter::import(ImportSourceContext const& /*context*/) -> ImportSourceResult
     {
-        // MeshImporter is deprecated in favor of GltfImporter.
-        // This implementation returns an error for any import attempt.
-        auto result = ImportResult{};
+        auto result = ImportSourceResult{};
+        result.errors.push_back("MeshImporter is deprecated. Use GltfImporter for GLTF/GLB files.");
+        AP_WARN("[MeshImporter] This importer is deprecated. Use GltfImporter instead.");
+        return result;
+    }
+
+    auto MeshImporter::cook(ImportCookContext const& /*context*/) -> ImportCookResult
+    {
+        auto result = ImportCookResult{};
         result.errors.push_back("MeshImporter is deprecated. Use GltfImporter for GLTF/GLB files.");
         AP_WARN("[MeshImporter] This importer is deprecated. Use GltfImporter instead.");
         return result;

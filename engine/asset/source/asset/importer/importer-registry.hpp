@@ -4,6 +4,9 @@
 
 #include <array>
 #include <memory>
+#include <string>
+#include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace april::asset
@@ -14,6 +17,10 @@ namespace april::asset
         auto registerImporter(std::unique_ptr<IImporter> importer) -> void
         {
             auto* rawImporter = importer.get();
+            if (rawImporter)
+            {
+                m_importersById[std::string{rawImporter->id()}] = rawImporter;
+            }
             m_importers.push_back(std::move(importer));
             cacheImporter(rawImporter);
         }
@@ -25,13 +32,27 @@ namespace april::asset
             {
                 return m_importersByType[index];
             }
+            return nullptr;
+        }
 
+        [[nodiscard]] auto findImporterByExtension(std::string_view extension) const -> IImporter*
+        {
             for (auto const& importer : m_importers)
             {
-                if (importer->supports(type))
+                if (importer->supportsExtension(extension))
                 {
                     return importer.get();
                 }
+            }
+            return nullptr;
+        }
+
+        [[nodiscard]] auto findImporterById(std::string_view importerId) const -> IImporter*
+        {
+            auto it = m_importersById.find(std::string{importerId});
+            if (it != m_importersById.end())
+            {
+                return it->second;
             }
             return nullptr;
         }
@@ -54,7 +75,7 @@ namespace april::asset
                 }
 
                 auto const type = static_cast<AssetType>(i);
-                if (importer->supports(type))
+                if (importer->primaryType() == type)
                 {
                     m_importersByType[i] = importer;
                 }
@@ -62,6 +83,7 @@ namespace april::asset
         }
 
         std::vector<std::unique_ptr<IImporter>> m_importers{};
+        std::unordered_map<std::string, IImporter*> m_importersById{};
         std::array<IImporter*, kAssetTypeCount> m_importersByType{};
     };
 } // namespace april::asset

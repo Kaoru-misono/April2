@@ -11,7 +11,14 @@
 
 namespace april::asset
 {
-    auto MaterialImporter::import(ImportContext const& context) -> ImportResult
+    auto MaterialImporter::import(ImportSourceContext const& /*context*/) -> ImportSourceResult
+    {
+        auto result = ImportSourceResult{};
+        result.errors.push_back("MaterialImporter cannot import raw source files");
+        return result;
+    }
+
+    auto MaterialImporter::cook(ImportCookContext const& context) -> ImportCookResult
     {
         context.deps.deps.clear();
 
@@ -42,7 +49,7 @@ namespace april::asset
             context.target
         });
 
-        auto result = ImportResult{};
+        auto result = ImportCookResult{};
         if (!context.forceReimport && context.ddc.exists(key))
         {
             result.producedKeys.push_back(key);

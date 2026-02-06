@@ -120,7 +120,10 @@ namespace april::asset
         j["assetPath"] = record.assetPath;
         j["type"] = record.type;
         j["deps"] = record.deps;
-        j["lastSourceHash"] = record.lastSourceHash;
+        if (!record.lastSourceHash.empty())
+        {
+            j["lastSourceHash"] = record.lastSourceHash;
+        }
         j["lastFingerprint"] = record.lastFingerprint;
         j["ddcKeys"] = record.ddcKeys;
         j["lastImportFailed"] = record.lastImportFailed;
@@ -151,7 +154,15 @@ namespace april::asset
         }
         if (j.contains("lastSourceHash"))
         {
-            record.lastSourceHash = j.at("lastSourceHash").get<std::unordered_map<std::string, std::string>>();
+            auto const& sourceHash = j.at("lastSourceHash");
+            if (sourceHash.is_string())
+            {
+                record.lastSourceHash = sourceHash.get<std::string>();
+            }
+            else if (sourceHash.is_object() && !sourceHash.empty())
+            {
+                record.lastSourceHash = sourceHash.begin().value().get<std::string>();
+            }
         }
         if (j.contains("ddcKeys"))
         {

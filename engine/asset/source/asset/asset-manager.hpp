@@ -49,7 +49,7 @@ namespace april::asset
          * Import a raw file (e.g., .png, .gltf) into the asset system.
          * Creates a corresponding .asset file alongside the source file.
          */
-        [[nodiscard]] auto importAsset(
+        auto importAsset(
             std::filesystem::path const& sourcePath,
             ImportPolicy policy = ImportPolicy::ReuseIfExists
         ) -> std::shared_ptr<Asset>;
@@ -186,19 +186,22 @@ namespace april::asset
             return asset;
         }
 
-        /**
-         * Import a GLTF/GLB file, producing mesh, material, and texture assets.
-         */
-        [[nodiscard]] auto importGltfFile(
-            std::filesystem::path const& sourcePath,
-            ImportPolicy policy
-        ) -> std::shared_ptr<Asset>;
-
         auto registerAssetInternal(
             std::shared_ptr<Asset> const& asset,
             std::filesystem::path const& assetPath,
             bool cacheAsset
         ) -> void;
+
+        auto importAssetInternal(
+            std::filesystem::path const& sourcePath,
+            ImportPolicy policy,
+            std::string const& parentImporterChain
+        ) -> std::shared_ptr<Asset>;
+
+        auto saveAssetFile(
+            std::shared_ptr<Asset> const& asset,
+            std::filesystem::path const& assetPath
+        ) -> bool;
 
         auto markDependentsDirty(core::UUID const& guid) -> void;
 

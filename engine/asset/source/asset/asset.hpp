@@ -43,9 +43,8 @@ namespace april::asset
         [[nodiscard]] auto getAssetPath() const -> std::string const&;
         auto setAssetPath(std::string_view path) -> void;
 
-        [[nodiscard]] auto getImporterId() const -> std::string const&;
-        [[nodiscard]] auto getImporterVersion() const -> int;
-        auto setImporter(std::string importerId, int importerVersion) -> void;
+        [[nodiscard]] auto getImporterChain() const -> std::string const&;
+        auto setImporterChain(std::string importerChain) -> void;
 
         [[nodiscard]] auto getReferences() const -> std::vector<AssetRef> const&;
         auto setReferences(std::vector<AssetRef> references) -> void;
@@ -61,8 +60,7 @@ namespace april::asset
 
         std::string m_sourcePath{};
         std::string m_assetPath{};
-        std::string m_importerId{};
-        int m_importerVersion = 0;
+        std::string m_importerChain{};
         std::vector<AssetRef> m_references{};
     };
 }

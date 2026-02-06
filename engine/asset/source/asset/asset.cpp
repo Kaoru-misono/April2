@@ -3,6 +3,7 @@
 
 #include <core/error/assert.hpp>
 
+#include <format>
 #include <utility>
 
 namespace april::asset
@@ -21,12 +22,10 @@ namespace april::asset
     auto Asset::getAssetPath() const -> std::string const& { return m_assetPath; }
     auto Asset::setAssetPath(std::string_view path) -> void { m_assetPath = path; }
 
-    auto Asset::getImporterId() const -> std::string const& { return m_importerId; }
-    auto Asset::getImporterVersion() const -> int { return m_importerVersion; }
-    auto Asset::setImporter(std::string importerId, int importerVersion) -> void
+    auto Asset::getImporterChain() const -> std::string const& { return m_importerChain; }
+    auto Asset::setImporterChain(std::string importerChain) -> void
     {
-        m_importerId = std::move(importerId);
-        m_importerVersion = importerVersion;
+        m_importerChain = std::move(importerChain);
     }
 
     auto Asset::getReferences() const -> std::vector<AssetRef> const& { return m_references; }
@@ -40,12 +39,9 @@ namespace april::asset
 
         outJson["source_path"] = m_sourcePath;
 
-        if (!m_importerId.empty())
+        if (!m_importerChain.empty())
         {
-            outJson["importer"] = {
-                {"id", m_importerId},
-                {"version", m_importerVersion}
-            };
+            outJson["importer"] = m_importerChain;
         }
 
         if (!m_references.empty())
@@ -75,13 +71,18 @@ namespace april::asset
         if (inJson.contains("importer"))
         {
             auto const& importer = inJson["importer"];
-            if (importer.contains("id"))
+            if (importer.is_string())
             {
-                m_importerId = importer["id"].get<std::string>();
+                m_importerChain = importer.get<std::string>();
             }
-            if (importer.contains("version"))
+            else if (importer.is_object())
             {
-                m_importerVersion = importer["version"].get<int>();
+                if (importer.contains("id") && importer.contains("version"))
+                {
+                    auto importerId = importer["id"].get<std::string>();
+                    auto importerVersion = importer["version"].get<int>();
+                    m_importerChain = std::format("{}@v{}", importerId, importerVersion);
+                }
             }
         }
 

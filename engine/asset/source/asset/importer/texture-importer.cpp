@@ -17,6 +17,24 @@
 
 namespace april::asset
 {
+    auto TextureImporter::supportsExtension(std::string_view extension) const -> bool
+    {
+        return extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".tga";
+    }
+
+    auto TextureImporter::import(ImportSourceContext const& context) -> ImportSourceResult
+    {
+        auto result = ImportSourceResult{};
+
+        auto asset = std::make_shared<TextureAsset>();
+        asset->setSourcePath(context.sourcePath.string());
+        asset->setAssetPath(context.sourcePath.string() + ".asset");
+
+        result.primaryAsset = asset;
+        result.assets.push_back(asset);
+        return result;
+    }
+
     namespace
     {
         constexpr auto kTextureToolchainTag = "stb_image@unknown|texblob@1";
@@ -141,7 +159,7 @@ namespace april::asset
         }
     }
 
-    auto TextureImporter::import(ImportContext const& context) -> ImportResult
+    auto TextureImporter::cook(ImportCookContext const& context) -> ImportCookResult
     {
         context.deps.deps.clear();
 
@@ -167,7 +185,7 @@ namespace april::asset
             context.target
         });
 
-        auto result = ImportResult{};
+        auto result = ImportCookResult{};
 
         if (!asset.m_settings.compression.empty() && asset.m_settings.compression != "RGBA8")
         {

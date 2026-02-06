@@ -17,7 +17,6 @@
 #include <cstring>
 #include <cmath>
 #include <format>
-#include <fstream>
 #include <limits>
 
 namespace april::asset
@@ -280,12 +279,65 @@ namespace april::asset
         }
     }
 
-    auto GltfImporter::supports(AssetType type) const -> bool
+    auto GltfImporter::supportsExtension(std::string_view extension) const -> bool
     {
-        return type == AssetType::Mesh;
+        return extension == ".gltf" || extension == ".glb";
     }
 
-    auto GltfImporter::import(ImportContext const& context) -> ImportResult
+    auto GltfImporter::import(ImportSourceContext const& context) -> ImportSourceResult
+    {
+        auto result = ImportSourceResult{};
+
+        if (context.sourcePath.empty())
+        {
+            result.errors.push_back("Missing source path for glTF import");
+            return result;
+        }
+
+        auto sourcePath = context.sourcePath;
+
+        auto meshAsset = std::make_shared<StaticMeshAsset>();
+        meshAsset->setSourcePath(sourcePath.string());
+        meshAsset->setAssetPath(sourcePath.string() + ".asset");
+
+        auto materialsData = importMaterials(sourcePath);
+        if (!materialsData)
+        {
+            result.errors.push_back("Failed to load GLTF materials");
+            return result;
+        }
+        auto materialSlots = std::vector<MaterialSlot>{};
+        auto materialAssets = std::vector<std::shared_ptr<MaterialAsset>>{};
+        auto textureRefs = importTextures(*materialsData, context);
+        materialSlots = importMaterialAssets(
+            *materialsData,
+            textureRefs,
+            sourcePath.parent_path(),
+            context,
+            materialAssets
+        );
+
+        meshAsset->m_materialSlots = materialSlots;
+
+        auto meshRefs = std::vector<AssetRef>{};
+        meshRefs.reserve(materialSlots.size());
+        for (auto const& slot : materialSlots)
+        {
+            meshRefs.push_back(slot.materialRef);
+        }
+        meshAsset->setReferences(std::move(meshRefs));
+
+        result.primaryAsset = meshAsset;
+        result.assets.push_back(meshAsset);
+        for (auto const& material : materialAssets)
+        {
+            result.assets.push_back(material);
+        }
+
+        return result;
+    }
+
+    auto GltfImporter::cook(ImportCookContext const& context) -> ImportCookResult
     {
         context.deps.deps.clear();
 
@@ -294,17 +346,39 @@ namespace april::asset
             context.sourcePath.empty() ? asset.getSourcePath() : context.sourcePath
         };
 
-        auto result = ImportResult{};
+        auto result = ImportCookResult{};
 
-        // Load GLTF model once
-        auto model = tinygltf::Model{};
-        if (!loadModel(sourcePath, model))
+        for (auto const& ref : asset.getReferences())
         {
-            result.errors.push_back("Failed to load GLTF model");
+            context.deps.addStrong(ref);
+        }
+
+        auto settingsJson = nlohmann::json{};
+        settingsJson["settings"] = asset.m_settings;
+        auto settingsHash = hashJson(settingsJson);
+
+        auto sourceHash = hashFileContents(context.sourcePath.empty() ? asset.getSourcePath() : context.sourcePath);
+        auto depsHash = hashDependencies(context.deps.deps);
+
+        constexpr auto kMeshToolchainTag = "tinygltf@unknown|meshopt@unknown|meshblob@1";
+        auto key = buildDdcKey(FingerprintInput{
+            "MS",
+            asset.getHandle().toString(),
+            std::string{id()},
+            version(),
+            kMeshToolchainTag,
+            sourceHash,
+            settingsHash,
+            depsHash,
+            context.target
+        });
+
+        if (!context.forceReimport && context.ddc.exists(key))
+        {
+            result.producedKeys.push_back(key);
             return result;
         }
 
-        // Extract mesh data
         auto meshData = importMesh(sourcePath, asset.m_settings);
         if (!meshData)
         {
@@ -312,41 +386,7 @@ namespace april::asset
             return result;
         }
 
-        // Extract materials
-        auto materialsData = importMaterials(sourcePath);
-
-        // If we have material extraction support and callbacks are present, handle sub-assets
-        auto materialSlots = std::vector<MaterialSlot>{};
-        if (materialsData && context.importSubAsset && context.registerSubAsset)
-        {
-            // Import textures with deduplication
-            auto textureRefs = importTextures(*materialsData, context);
-
-            // Import materials with texture references
-            materialSlots = importMaterialAssets(
-                *materialsData,
-                textureRefs,
-                sourcePath.parent_path(),
-                context
-            );
-
-            // Update mesh asset with material slots
-            auto& mutableAsset = const_cast<StaticMeshAsset&>(asset);
-            mutableAsset.m_materialSlots = materialSlots;
-
-            // Update mesh asset references to include materials
-            auto meshRefs = std::vector<AssetRef>{};
-            meshRefs.reserve(materialSlots.size());
-            for (auto const& slot : materialSlots)
-            {
-                meshRefs.push_back(slot.materialRef);
-                context.deps.addStrong(slot.materialRef);
-            }
-            mutableAsset.setReferences(std::move(meshRefs));
-        }
-
-        // Compile mesh to DDC
-        auto key = compileMesh(*meshData, context);
+        key = compileMesh(*meshData, context);
         if (key.empty())
         {
             result.errors.push_back("Failed to compile mesh");
@@ -354,12 +394,6 @@ namespace april::asset
         }
 
         result.producedKeys.push_back(key);
-        result.producedAssets.push_back(ProducedAsset{
-            AssetType::Mesh,
-            asset.getHandle(),
-            asset.getAssetPath()
-        });
-
         return result;
     }
 
@@ -772,7 +806,7 @@ namespace april::asset
 
     auto GltfImporter::importTextures(
         std::vector<GltfMaterialData> const& materials,
-        ImportContext const& context
+        ImportSourceContext const& context
     ) const -> std::unordered_map<std::string, AssetRef>
     {
         auto textureRefs = std::unordered_map<std::string, AssetRef>{};
@@ -834,7 +868,8 @@ namespace april::asset
         std::vector<GltfMaterialData> const& materials,
         std::unordered_map<std::string, AssetRef> const& textureRefs,
         std::filesystem::path const& baseDir,
-        ImportContext const& context
+        ImportSourceContext const& context,
+        std::vector<std::shared_ptr<MaterialAsset>>& outAssets
     ) const -> std::vector<MaterialSlot>
     {
         auto slots = std::vector<MaterialSlot>{};
@@ -879,9 +914,8 @@ namespace april::asset
                 materialAsset = std::make_shared<MaterialAsset>();
             }
 
-            materialAsset->setSourcePath(context.sourcePath);
+            materialAsset->setSourcePath(context.sourcePath.string());
             materialAsset->setAssetPath(materialPath.string());
-            materialAsset->setImporter("MaterialImporter", 1);
             materialAsset->parameters = materialData.parameters;
 
             auto textures = MaterialTextures{};
@@ -901,27 +935,7 @@ namespace april::asset
             if (textures.emissiveTexture) references.push_back(textures.emissiveTexture->asset);
             materialAsset->setReferences(std::move(references));
 
-            // Save material asset file
-            auto json = nlohmann::json{};
-            materialAsset->serializeJson(json);
-
-            auto file = std::ofstream{materialPath};
-            if (file.is_open())
-            {
-                file << json.dump(4);
-                file.close();
-                AP_INFO("[GltfImporter] Saved material asset: {}", materialPath.string());
-            }
-            else
-            {
-                AP_WARN("[GltfImporter] Failed to write material asset: {}", materialPath.string());
-            }
-
-            // Register sub-asset
-            if (context.registerSubAsset)
-            {
-                context.registerSubAsset(materialAsset);
-            }
+            outAssets.push_back(materialAsset);
 
             slots.push_back(MaterialSlot{
                 materialName,
@@ -934,7 +948,7 @@ namespace april::asset
 
     auto GltfImporter::compileMesh(
         GltfMeshData const& meshData,
-        ImportContext const& context
+        ImportCookContext const& context
     ) const -> std::string
     {
         auto const& asset = static_cast<StaticMeshAsset const&>(context.asset);

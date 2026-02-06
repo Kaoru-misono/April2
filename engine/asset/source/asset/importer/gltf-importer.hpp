@@ -7,6 +7,7 @@
 
 #include <array>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -51,8 +52,10 @@ namespace april::asset
     public:
         auto id() const -> std::string_view override { return "GltfImporter"; }
         auto version() const -> int override { return 1; }
-        auto supports(AssetType type) const -> bool override;
-        auto import(ImportContext const& context) -> ImportResult override;
+        auto supportsExtension(std::string_view extension) const -> bool override;
+        auto primaryType() const -> AssetType override { return AssetType::Mesh; }
+        auto import(ImportSourceContext const& context) -> ImportSourceResult override;
+        auto cook(ImportCookContext const& context) -> ImportCookResult override;
 
         // Legacy API for direct mesh/material extraction (used internally)
         [[nodiscard]] auto importMesh(
@@ -68,7 +71,7 @@ namespace april::asset
         // Import textures from material data, with deduplication
         auto importTextures(
             std::vector<GltfMaterialData> const& materials,
-            ImportContext const& context
+            ImportSourceContext const& context
         ) const -> std::unordered_map<std::string, AssetRef>;
 
         // Import materials with texture references
@@ -76,13 +79,14 @@ namespace april::asset
             std::vector<GltfMaterialData> const& materials,
             std::unordered_map<std::string, AssetRef> const& textureRefs,
             std::filesystem::path const& baseDir,
-            ImportContext const& context
+            ImportSourceContext const& context,
+            std::vector<std::shared_ptr<MaterialAsset>>& outAssets
         ) const -> std::vector<MaterialSlot>;
 
         // Compile mesh data to DDC
         auto compileMesh(
             GltfMeshData const& meshData,
-            ImportContext const& context
+            ImportCookContext const& context
         ) const -> std::string;
     };
 } // namespace april::asset

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "dependency.hpp"
-#include "target-profile.hpp"
 #include "asset.hpp"
 
 #include <nlohmann/json.hpp>
@@ -24,7 +23,7 @@ namespace april::asset
 
         std::vector<Dependency> deps{};
 
-        std::unordered_map<std::string, std::string> lastSourceHash{};
+        std::string lastSourceHash{};
         std::unordered_map<std::string, std::string> lastFingerprint{};
         std::unordered_map<std::string, std::vector<std::string>> ddcKeys{};
 

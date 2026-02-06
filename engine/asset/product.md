@@ -94,6 +94,35 @@ A deterministic transformation:
 Runtime:
 AssetRef(GUID, subId) -> Catalog/Registry -> DDCKey -> load blob -> create resource
 
+## Usage (Current Engine)
+Basic usage patterns for the current implementation:
+
+Import a source file (creates .asset files):
+```cpp
+auto manager = april::asset::AssetManager{};
+auto asset = manager.importAsset("content/mesh/hero.gltf");
+```
+
+Load an asset by path and fetch cooked data:
+```cpp
+auto mesh = manager.loadAsset<april::asset::StaticMeshAsset>("content/mesh/hero.gltf.asset");
+if (mesh)
+{
+  std::vector<std::byte> blob;
+  auto payload = manager.getMeshData(*mesh, blob);
+}
+```
+
+Load an asset by UUID:
+```cpp
+auto texture = manager.getAsset<april::asset::TextureAsset>(someGuid);
+```
+
+Notes:
+- `importAsset` resolves the importer by file extension and creates one or more `.asset` files.
+- `getTextureData`/`getMeshData` call `ensureImported`, which triggers a cook only when the DDC key is missing.
+- Materials are authored assets; they are cooked from their `.asset` data rather than a raw source file.
+
 
 ---
 
@@ -149,8 +178,8 @@ Example: Assets/Textures/wood-texture.asset
 {
   "guid": "b2c5f3d2-a7b4-4c1e-a0d5-b9c8a91f6c0a",
   "type": "Texture",
-  "source": "Assets/Textures/wood.png",
-  "importer": { "id": "TextureImporter", "version": 3 },
+  "source_path": "Assets/Textures/wood.png",
+  "importer": "TextureImporter@v1",
   "settings": {
     "srgb": true,
     "mipmaps": true,
@@ -167,7 +196,7 @@ Example: Assets/Materials/hero-mat.asset (no single source file)
 {
   "guid": "84c10d11-3e47-4a05-b5e7-33e1b2a5d9a2",
   "type": "Material",
-  "importer": { "id": "MaterialCompiler", "version": 12 },
+  "importer": "MaterialImporter@v1",
   "settings": {
     "shader": { "guid": "11111111-2222-3333-4444-555555555555", "subId": 0 },
     "params": {
@@ -181,6 +210,10 @@ Example: Assets/Materials/hero-mat.asset (no single source file)
   ]
 }
 ```
+Importer field
+`importer` stores the importer chain string:
+- Root asset: `ImporterId@vN`
+- Sub-asset via another importer: `Parent@vA|Child@vB`
 Meta files (optional)
 If you prefer source-centric: wood.png.meta can store GUID and importer settings.
 But .asset is often simpler long-term, especially for non-source-authored assets.
@@ -232,6 +265,7 @@ struct AssetRecord
   // Per target:
   std::unordered_map<std::string /*targetId*/, std::string /*fingerprint*/> lastFingerprint;
   std::unordered_map<std::string /*targetId*/, std::vector<std::string /*ddcKey*/>> ddcKeys;
+  std::string lastSourceHash; // source content hash, not per target
 
   // State:
   bool lastImportFailed = false;
@@ -266,9 +300,9 @@ class IDdc
 {
 public:
   virtual ~IDdc() = default;
-  virtual bool Get(const std::string& key, DdcValue& out) = 0;
-  virtual void Put(const std::string& key, const DdcValue& value) = 0;
-  virtual bool Exists(const std::string& key) = 0;
+  virtual bool get(const std::string& key, DdcValue& out) = 0;
+  virtual void put(const std::string& key, const DdcValue& value) = 0;
+  virtual bool exists(const std::string& key) = 0;
 };
 ```
 Local Disk Implementation
@@ -381,45 +415,62 @@ DDC key: used to retrieve derived blobs
 In practice you can use the same string for both, or store fingerprint as a shorter hash and key as the full descriptor.
 
 ## Importer Framework
-Import Context / Result
+Two-phase import: **source import** (build assets) + **cook** (build DDC).
+
+Source import context/result
 ```cpp
-struct ImportContext
+struct ImportSourceContext
 {
-  Guid guid;
-  std::string assetPath;      // *.asset
-  std::string sourcePath;     // optional
-  nlohmann::json settings;    // or your own JSON type
-  TargetProfile target;
+  std::filesystem::path sourcePath;
+  std::string importerChain;
 
-  IDdc* ddc;
-
-  // Recording dependencies:
-  struct DepRecorder* deps;
-
-  // Logging:
-  struct ImportLogger* log;
+  std::function<std::shared_ptr<Asset>(std::filesystem::path const&, AssetType)> findAssetBySource;
+  std::function<std::shared_ptr<Asset>(std::filesystem::path const&)> importSubAsset;
 };
 
-struct ImportResult
+struct ImportSourceResult
 {
-  std::vector<std::string> producedKeys;  // DDC keys written
+  std::shared_ptr<Asset> primaryAsset;
+  std::vector<std::shared_ptr<Asset>> assets;
   std::vector<std::string> warnings;
   std::vector<std::string> errors;
 };
 ```
+
+Cook context/result
+```cpp
+struct ImportCookContext
+{
+  Asset const& asset;
+  std::string assetPath;
+  std::string sourcePath;
+  TargetProfile target;
+  IDdc& ddc;
+  DepRecorder& deps;
+  bool forceReimport = false;
+};
+
+struct ImportCookResult
+{
+  std::vector<std::string> producedKeys;
+  std::vector<std::string> warnings;
+  std::vector<std::string> errors;
+};
+```
+
 Importer interface
 ```cpp
 class IImporter
 {
 public:
   virtual ~IImporter() = default;
-  virtual const char* Id() const = 0;
-  virtual int Version() const = 0;
+  virtual std::string_view id() const = 0;
+  virtual int version() const = 0;
+  virtual bool supportsExtension(std::string_view ext) const = 0;
+  virtual AssetType primaryType() const = 0;
 
-  // optional: returns true if importer can handle this asset type
-  virtual bool SupportsType(const std::string& assetType) const = 0;
-
-  virtual ImportResult Import(const ImportContext& ctx) = 0;
+  virtual ImportSourceResult import(ImportSourceContext const& ctx) = 0;
+  virtual ImportCookResult cook(ImportCookContext const& ctx) = 0;
 };
 ```
 Dependency recorder
@@ -695,7 +746,7 @@ Example snippet:
 ```json
 {
   "type": "Mesh",
-  "source": "Assets/Meshes/hero.fbx",
+  "source_path": "Assets/Meshes/hero.fbx",
   "settings": {
     "scale": 1.0,
     "generateLODs": true,
@@ -767,6 +818,11 @@ Store discovered sub-assets in registry record:
 (parentGuid -> list of {subId, name, type})
 
 Runtime references sub-assets via (guid, subId).
+
+Importer chain rules
+- Each asset stores an importer chain string: `ImporterId@vN`.
+- If a sub-asset is imported via another importer, append: `Parent@vA|Child@vB`.
+- If a sub-asset is produced directly by the same importer, keep the parent chain only.
 
 ## Runtime Loading (Dev vs Shipping)
 Dev mode (Editor / local runs)
@@ -984,7 +1040,7 @@ Treat dependencies conservatively (strong) at first; relax once you’re confide
 - [x] Implement MeshImporter
 - [x] Implement MaterialImporter
 - [x] Move glTF mesh parsing to GltfImporter
-- [x] Update Asset class to store importer id/version and refs
+- [x] Update Asset class to store importer chain and refs
 - [x] Update MaterialAsset texture refs to AssetRef
 - [x] Update StaticMeshAsset material slots to AssetRef
 - [x] Update AssetManager to use importers and LocalDdc

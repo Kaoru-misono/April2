@@ -9,10 +9,37 @@
 #include <cctype>
 #include <cstring>
 #include <system_error>
+#include <string_view>
 #include <utility>
 
 namespace april::asset
 {
+    namespace
+    {
+        auto extractImporterId(std::string const& chain) -> std::string_view
+        {
+            if (chain.empty())
+            {
+                return {};
+            }
+
+            auto chainView = std::string_view{chain};
+            auto lastSep = chainView.rfind('|');
+            if (lastSep != std::string_view::npos)
+            {
+                chainView.remove_prefix(lastSep + 1);
+            }
+
+            auto atPos = chainView.rfind('@');
+            if (atPos == std::string_view::npos)
+            {
+                return chainView;
+            }
+
+            return chainView.substr(0, atPos);
+        }
+    }
+
     AssetManager::AssetManager(std::filesystem::path const& assetRoot,
                                std::filesystem::path const& cacheRoot)
         : m_assetRoot{assetRoot}
@@ -33,6 +60,15 @@ namespace april::asset
 
     auto AssetManager::importAsset(std::filesystem::path const& sourcePath, ImportPolicy policy) -> std::shared_ptr<Asset>
     {
+        return importAssetInternal(sourcePath, policy, "");
+    }
+
+    auto AssetManager::importAssetInternal(
+        std::filesystem::path const& sourcePath,
+        ImportPolicy policy,
+        std::string const& parentImporterChain
+    ) -> std::shared_ptr<Asset>
+    {
         if (!std::filesystem::exists(sourcePath))
         {
             AP_ERROR("[AssetManager] Import failed: Source file not found: {}", sourcePath.string());
@@ -46,110 +82,32 @@ namespace april::asset
                 return static_cast<char>(std::tolower(c));
             });
 
-        // Route GLTF/GLB files to dedicated importer
-        if (extension == ".gltf" || extension == ".glb")
-        {
-            return importGltfFile(sourcePath, policy);
-        }
-
-        std::shared_ptr<Asset> existingAsset = nullptr;
-        std::shared_ptr<Asset> newAsset = nullptr;
-
-        auto assetFilePath = sourcePath;
-        assetFilePath += ".asset";
-
-        if (std::filesystem::exists(assetFilePath))
-        {
-            if (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".tga")
-            {
-                existingAsset = loadAssetFromFile<TextureAsset>(assetFilePath);
-            }
-            else
-            {
-                AP_WARN("[AssetManager] Import skipped: Unsupported file extension '{}' for {}", extension, sourcePath.string());
-                return nullptr;
-            }
-
-            if (policy == ImportPolicy::ReuseIfExists && existingAsset)
-            {
-                return existingAsset;
-            }
-
-            if (policy == ImportPolicy::ReimportIfSourceChanged)
-            {
-                auto targetId = m_targetProfile.toId();
-                if (existingAsset)
-                {
-                    auto recordOpt = m_registry.findRecord(existingAsset->getHandle());
-                    if (recordOpt.has_value())
-                    {
-                        auto currentHash = hashFileContents(sourcePath.string());
-                        auto existingHashIt = recordOpt->lastSourceHash.find(targetId);
-                        if (existingHashIt != recordOpt->lastSourceHash.end() && existingHashIt->second == currentHash)
-                        {
-                            return existingAsset;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (existingAsset)
-        {
-            newAsset = existingAsset;
-        }
-        else if (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".tga")
-        {
-            newAsset = std::make_shared<TextureAsset>();
-        }
-        else
+        auto* importer = m_importers.findImporterByExtension(extension);
+        if (!importer)
         {
             AP_WARN("[AssetManager] Import skipped: Unsupported file extension '{}' for {}", extension, sourcePath.string());
             return nullptr;
         }
 
-        newAsset->setSourcePath(sourcePath.string());
-        newAsset->setAssetPath(assetFilePath.string());
+        auto assetFilePath = std::filesystem::path{sourcePath.string() + ".asset"};
 
-        if (auto importer = m_importers.findImporter(newAsset->getType()))
-        {
-            newAsset->setImporter(std::string{importer->id()}, importer->version());
-        }
-
-        nlohmann::json json;
-        newAsset->serializeJson(json);
-
-        auto file = std::ofstream{assetFilePath};
-        if (!file.is_open())
-        {
-            AP_ERROR("[AssetManager] Failed to write .asset file: {}", assetFilePath.string());
-            return nullptr;
-        }
-        file << json.dump(4);
-        file.close();
-
-        registerAssetInternal(newAsset, assetFilePath, true);
-
-        AP_INFO("[AssetManager] Imported asset: {} -> {} (UUID: {})",
-            sourcePath.string(), assetFilePath.string(), newAsset->getHandle().toString()
-        );
-
-        return newAsset;
-    }
-
-    auto AssetManager::importGltfFile(
-        std::filesystem::path const& sourcePath,
-        ImportPolicy policy
-    ) -> std::shared_ptr<Asset>
-    {
-        auto assetFilePath = sourcePath;
-        assetFilePath += ".asset";
-
-        std::shared_ptr<StaticMeshAsset> existingAsset = nullptr;
+        auto existingAsset = std::shared_ptr<Asset>{};
+        auto const primaryType = importer->primaryType();
 
         if (std::filesystem::exists(assetFilePath))
         {
-            existingAsset = loadAssetFromFile<StaticMeshAsset>(assetFilePath);
+            if (primaryType == AssetType::Texture)
+            {
+                existingAsset = std::static_pointer_cast<Asset>(loadAssetFromFile<TextureAsset>(assetFilePath));
+            }
+            else if (primaryType == AssetType::Material)
+            {
+                existingAsset = std::static_pointer_cast<Asset>(loadAssetFromFile<MaterialAsset>(assetFilePath));
+            }
+            else if (primaryType == AssetType::Mesh)
+            {
+                existingAsset = std::static_pointer_cast<Asset>(loadAssetFromFile<StaticMeshAsset>(assetFilePath));
+            }
 
             if (policy == ImportPolicy::ReuseIfExists && existingAsset)
             {
@@ -158,13 +116,11 @@ namespace april::asset
 
             if (policy == ImportPolicy::ReimportIfSourceChanged && existingAsset)
             {
-                auto targetId = m_targetProfile.toId();
                 auto recordOpt = m_registry.findRecord(existingAsset->getHandle());
                 if (recordOpt.has_value())
                 {
                     auto currentHash = hashFileContents(sourcePath.string());
-                    auto existingHashIt = recordOpt->lastSourceHash.find(targetId);
-                    if (existingHashIt != recordOpt->lastSourceHash.end() && existingHashIt->second == currentHash)
+                    if (!recordOpt->lastSourceHash.empty() && recordOpt->lastSourceHash == currentHash)
                     {
                         return existingAsset;
                     }
@@ -172,110 +128,104 @@ namespace april::asset
             }
         }
 
-        auto meshAsset = existingAsset ? existingAsset : std::make_shared<StaticMeshAsset>();
-        meshAsset->setSourcePath(sourcePath.string());
-        meshAsset->setAssetPath(assetFilePath.string());
+        auto importerChain = appendImporterChain(parentImporterChain, importer->id(), importer->version());
 
-        auto* importer = m_importers.findImporter(AssetType::Mesh);
-        if (!importer)
-        {
-            AP_ERROR("[AssetManager] No importer found for Mesh type");
-            return nullptr;
-        }
-        meshAsset->setImporter(std::string{importer->id()}, importer->version());
-
-        // Setup ImportContext with callbacks for sub-asset handling
-        auto deps = DepRecorder{};
-        auto forceReimport = m_dirtyAssets.contains(meshAsset->getHandle()) || policy == ImportPolicy::Reimport;
-        auto context = ImportContext{
-            *meshAsset,
-            meshAsset->getAssetPath(),
-            meshAsset->getSourcePath(),
-            m_targetProfile,
-            m_ddc,
-            deps,
-            forceReimport
-        };
-
-        // Callback for finding existing assets by source path
+        auto context = ImportSourceContext{};
+        context.sourcePath = sourcePath;
+        context.importerChain = importerChain;
         context.findAssetBySource = [this](std::filesystem::path const& path, AssetType type) -> std::shared_ptr<Asset>
         {
             return findAssetBySourcePath(path, type);
         };
-
-        // Callback for registering sub-assets
-        context.registerSubAsset = [this](std::shared_ptr<Asset> const& asset) -> void
+        context.importSubAsset = [this, importerChain](std::filesystem::path const& path) -> std::shared_ptr<Asset>
         {
-            if (asset)
-            {
-                registerAssetInternal(asset, asset->getAssetPath(), true);
-            }
+            return importAssetInternal(path, ImportPolicy::ReuseIfExists, importerChain);
         };
 
-        // Callback for importing sub-assets (textures)
-        context.importSubAsset = [this](std::filesystem::path const& path) -> std::shared_ptr<Asset>
-        {
-            return importAsset(path, ImportPolicy::ReuseIfExists);
-        };
-
-        // Run the importer
         auto result = importer->import(context);
-
         if (!result.errors.empty())
         {
             for (auto const& error : result.errors)
             {
-                AP_ERROR("[AssetManager] GLTF import error: {}", error);
+                AP_ERROR("[AssetManager] Import error ({}): {}", importer->id(), error);
             }
             return nullptr;
         }
 
-        // Save mesh asset file
-        auto json = nlohmann::json{};
-        meshAsset->serializeJson(json);
-
-        auto file = std::ofstream{assetFilePath};
-        if (!file.is_open())
+        for (auto const& warning : result.warnings)
         {
-            AP_ERROR("[AssetManager] Failed to write .asset file: {}", assetFilePath.string());
+            AP_WARN("[AssetManager] Import warning ({}): {}", importer->id(), warning);
+        }
+
+        auto primaryAsset = result.primaryAsset;
+        if (!primaryAsset && !result.assets.empty())
+        {
+            primaryAsset = result.assets.front();
+        }
+
+        if (!primaryAsset)
+        {
+            AP_WARN("[AssetManager] Import produced no assets for {}", sourcePath.string());
             return nullptr;
         }
-        file << json.dump(4);
-        file.close();
 
-        registerAssetInternal(meshAsset, assetFilePath, true);
-
-        // Update registry
-        auto recordOpt = m_registry.findRecord(meshAsset->getHandle());
-        auto record = recordOpt.value_or(AssetRecord{});
-        record.guid = meshAsset->getHandle();
-        record.assetPath = meshAsset->getAssetPath();
-        record.type = AssetType::Mesh;
-        record.deps = deps.deps;
-        record.lastImportFailed = false;
-        record.lastErrorSummary.clear();
-
-        auto targetId = m_targetProfile.toId();
-        record.ddcKeys[targetId] = result.producedKeys;
-        if (!result.producedKeys.empty())
+        auto assetsToSave = result.assets;
+        if (std::find(assetsToSave.begin(), assetsToSave.end(), primaryAsset) == assetsToSave.end())
         {
-            record.lastFingerprint[targetId] = result.producedKeys.front();
-        }
-        record.lastSourceHash[targetId] = hashFileContents(sourcePath.string());
-
-        m_registry.updateRecord(std::move(record));
-
-        if (forceReimport)
-        {
-            auto lock = std::scoped_lock{m_mutex};
-            m_dirtyAssets.erase(meshAsset->getHandle());
+            assetsToSave.push_back(primaryAsset);
         }
 
-        AP_INFO("[AssetManager] Imported GLTF: {} -> {} (UUID: {})",
-            sourcePath.string(), assetFilePath.string(), meshAsset->getHandle().toString()
+        for (auto const& asset : assetsToSave)
+        {
+            if (!asset)
+            {
+                continue;
+            }
+
+            if (asset->getSourcePath().empty())
+            {
+                asset->setSourcePath(sourcePath.string());
+            }
+
+            asset->setImporterChain(importerChain);
+
+            if (asset->getAssetPath().empty())
+            {
+                if (asset == primaryAsset)
+                {
+                    asset->setAssetPath(assetFilePath.string());
+                }
+                else
+                {
+                    AP_WARN("[AssetManager] Skipping asset with empty path for {}", sourcePath.string());
+                    continue;
+                }
+            }
+
+            if (!saveAssetFile(asset, asset->getAssetPath()))
+            {
+                return nullptr;
+            }
+
+            if (!asset->getSourcePath().empty())
+            {
+                auto recordOpt = m_registry.findRecord(asset->getHandle());
+                auto record = recordOpt.value_or(AssetRecord{});
+                record.guid = asset->getHandle();
+                record.assetPath = asset->getAssetPath();
+                record.type = asset->getType();
+
+                record.lastSourceHash = hashFileContents(asset->getSourcePath());
+
+                m_registry.updateRecord(std::move(record));
+            }
+        }
+
+        AP_INFO("[AssetManager] Imported asset: {} -> {} (UUID: {})",
+            sourcePath.string(), primaryAsset->getAssetPath(), primaryAsset->getHandle().toString()
         );
 
-        return meshAsset;
+        return primaryAsset;
     }
 
     auto AssetManager::findAssetBySourcePath(
@@ -336,15 +286,15 @@ namespace april::asset
         {
             if (type == AssetType::Texture)
             {
-                return loadAssetFromFile<TextureAsset>(*assetPathFromIndex);
+                return std::static_pointer_cast<Asset>(loadAssetFromFile<TextureAsset>(*assetPathFromIndex));
             }
             if (type == AssetType::Material)
             {
-                return loadAssetFromFile<MaterialAsset>(*assetPathFromIndex);
+                return std::static_pointer_cast<Asset>(loadAssetFromFile<MaterialAsset>(*assetPathFromIndex));
             }
             if (type == AssetType::Mesh)
             {
-                return loadAssetFromFile<StaticMeshAsset>(*assetPathFromIndex);
+                return std::static_pointer_cast<Asset>(loadAssetFromFile<StaticMeshAsset>(*assetPathFromIndex));
             }
         }
 
@@ -352,22 +302,22 @@ namespace april::asset
         auto assetFilePath = sourcePath;
         if (type == AssetType::Texture)
         {
-            assetFilePath += ".asset";
+            assetFilePath = std::filesystem::path{assetFilePath.string() + ".asset"};
         }
 
         if (std::filesystem::exists(assetFilePath))
         {
             if (type == AssetType::Texture)
             {
-                return loadAssetFromFile<TextureAsset>(assetFilePath);
+                return std::static_pointer_cast<Asset>(loadAssetFromFile<TextureAsset>(assetFilePath));
             }
             else if (type == AssetType::Material)
             {
-                return loadAssetFromFile<MaterialAsset>(assetFilePath);
+                return std::static_pointer_cast<Asset>(loadAssetFromFile<MaterialAsset>(assetFilePath));
             }
             else if (type == AssetType::Mesh)
             {
-                return loadAssetFromFile<StaticMeshAsset>(assetFilePath);
+                return std::static_pointer_cast<Asset>(loadAssetFromFile<StaticMeshAsset>(assetFilePath));
             }
         }
 
@@ -508,25 +458,45 @@ namespace april::asset
             return false;
         }
 
-        material->setAssetPath(outputPath.string());
+        return saveAssetFile(material, outputPath);
+    }
 
-        nlohmann::json json;
-        material->serializeJson(json);
+    auto AssetManager::saveAssetFile(
+        std::shared_ptr<Asset> const& asset,
+        std::filesystem::path const& assetPath
+    ) -> bool
+    {
+        if (!asset)
+        {
+            AP_ERROR("[AssetManager] Cannot save null asset");
+            return false;
+        }
 
-        auto file = std::ofstream{outputPath};
+        if (assetPath.empty())
+        {
+            AP_ERROR("[AssetManager] Cannot save asset with empty path");
+            return false;
+        }
+
+        asset->setAssetPath(assetPath.string());
+
+        auto json = nlohmann::json{};
+        asset->serializeJson(json);
+
+        auto file = std::ofstream{assetPath};
         if (!file.is_open())
         {
-            AP_ERROR("[AssetManager] Failed to write material asset file: {}", outputPath.string());
+            AP_ERROR("[AssetManager] Failed to write asset file: {}", assetPath.string());
             return false;
         }
 
         file << json.dump(4);
         file.close();
 
-        registerAssetInternal(material, outputPath, true);
+        registerAssetInternal(asset, assetPath, true);
 
-        AP_INFO("[AssetManager] Saved material asset: {} (UUID: {})",
-            outputPath.string(), material->getHandle().toString());
+        AP_INFO("[AssetManager] Saved asset: {} (UUID: {})",
+            assetPath.string(), asset->getHandle().toString());
         return true;
     }
 
@@ -742,7 +712,19 @@ namespace april::asset
 
     auto AssetManager::ensureImported(Asset const& asset) -> std::optional<std::string>
     {
-        auto importer = m_importers.findImporter(asset.getType());
+        auto importer = (IImporter*) nullptr;
+        if (!asset.getImporterChain().empty())
+        {
+            auto importerId = extractImporterId(asset.getImporterChain());
+            if (!importerId.empty())
+            {
+                importer = m_importers.findImporterById(importerId);
+            }
+        }
+        if (!importer)
+        {
+            importer = m_importers.findImporter(asset.getType());
+        }
         if (!importer)
         {
             AP_WARN("[AssetManager] No importer for asset type: {}", static_cast<int>(asset.getType()));
@@ -755,7 +737,7 @@ namespace april::asset
             auto lock = std::scoped_lock{m_mutex};
             forceReimport = m_dirtyAssets.contains(asset.getHandle());
         }
-        auto context = ImportContext{
+        auto context = ImportCookContext{
             asset,
             asset.getAssetPath(),
             asset.getSourcePath(),
@@ -771,7 +753,7 @@ namespace april::asset
         record.assetPath = asset.getAssetPath();
         record.type = asset.getType();
 
-        auto result = importer->import(context);
+        auto result = importer->cook(context);
         auto targetId = m_targetProfile.toId();
         auto previousFingerprint = record.lastFingerprint.contains(targetId)
             ? record.lastFingerprint.at(targetId)
@@ -801,7 +783,10 @@ namespace april::asset
             record.lastFingerprint[targetId] = result.producedKeys.front();
         }
 
-        record.lastSourceHash[targetId] = hashFileContents(asset.getSourcePath());
+        if (!asset.getSourcePath().empty())
+        {
+            record.lastSourceHash = hashFileContents(asset.getSourcePath());
+        }
 
         m_registry.updateRecord(std::move(record));
 

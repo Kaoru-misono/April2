@@ -9,8 +9,10 @@ namespace april::asset
     public:
         auto id() const -> std::string_view override { return "TextureImporter"; }
         auto version() const -> int override { return 1; }
-        auto supports(AssetType type) const -> bool override { return type == AssetType::Texture; }
+        auto supportsExtension(std::string_view extension) const -> bool override;
+        auto primaryType() const -> AssetType override { return AssetType::Texture; }
 
-        auto import(ImportContext const& context) -> ImportResult override;
+        auto import(ImportSourceContext const& context) -> ImportSourceResult override;
+        auto cook(ImportCookContext const& context) -> ImportCookResult override;
     };
 } // namespace april::asset
