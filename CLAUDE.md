@@ -104,13 +104,6 @@ Never bypass internal abstractions. If a library (GLFW, ImGui, Slang, Vulkan) is
 
 Before including `<vulkan/vulkan.h>`, check if `"rhi/vulkan_types.h"` exists. If a wrapper lacks a feature, extend the wrapper rather than using raw library calls.
 
-## Workflow
-
-Track work in `conductor/plan.md`. Mark tasks `[ ]` → `[~]` → `[x]`.
-
-Commit format: `<type>(<scope>): <description>`
-Types: feat, fix, docs, style, refactor, test, chore
-
 You are authorized to execute built binaries (e.g., `build/bin/AprilEngine.exe`) for verification.
 
 ## Key Patterns

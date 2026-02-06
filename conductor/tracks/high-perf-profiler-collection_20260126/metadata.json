@@ -1,8 +1,0 @@
-{
-  "track_id": "high-perf-profiler-collection_20260126",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-01-26T01:11:00Z",
-  "updated_at": "2026-01-26T01:11:00Z",
-  "description": "Implement Profiler Phase 2: High-performance lock-free data collection system using TLS bump-pointer buffers and cache-optimized event structures."
-}

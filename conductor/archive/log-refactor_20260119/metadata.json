@@ -1,8 +1,0 @@
-{
-  "track_id": "log-refactor_20260119",
-  "type": "refactor",
-  "status": "new",
-  "created_at": "2026-01-19T16:06:00Z",
-  "updated_at": "2026-01-19T16:06:00Z",
-  "description": "Refactor the log system to be thread-safe, robust, and use modern C++ features like std::format and std::source_location, reusing existing components where possible."
-}

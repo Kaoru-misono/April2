@@ -1,8 +1,0 @@
-{
-  "track_id": "rhi-validation_20260115",
-  "type": "chore",
-  "status": "new",
-  "created_at": "2026-01-15T17:21:00Z",
-  "updated_at": "2026-01-15T17:21:00Z",
-  "description": "Test the rhi warp is working correctly, include resource creation, command recording, uploading to GPU and read data back from GPU, texture sampling, render, compute and ray tracing working, and other tests you think"
-}

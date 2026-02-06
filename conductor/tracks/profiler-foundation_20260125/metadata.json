@@ -1,8 +1,0 @@
-{
-  "track_id": "profiler-foundation_20260125",
-  "type": "feature",
-  "status": "new",
-  "created_at": "2026-01-26T00:43:00Z",
-  "updated_at": "2026-01-26T00:43:00Z",
-  "description": "Implement Profiler Phase 1: Foundational high-precision timing source and RAII-based instrumentation macros."
-}
