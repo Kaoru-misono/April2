@@ -95,7 +95,7 @@ namespace april::graphics
 
     ProgramManager::ProgramManager(Device* device) : mp_device(device)
     {
-        VFS::mount("shader", std::filesystem::current_path() / "shader/graphics");
+        VFS::mount("shader", std::filesystem::current_path() / "shader");
         DefineList globalDefines = {};
 
         addGlobalDefines(globalDefines);

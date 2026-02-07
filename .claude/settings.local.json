@@ -12,7 +12,9 @@
       "Bash(grep:*)",
       "Bash(ls:*)",
       "Bash(timeout:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(tree:*)",
+      "Bash(where:*)"
     ]
   }
 }

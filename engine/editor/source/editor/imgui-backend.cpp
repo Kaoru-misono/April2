@@ -109,7 +109,7 @@ namespace april::editor
         io.Fonts->SetTexID(m_fontTexture->getSRV().get());
 
         using namespace graphics;
-        m_program = Program::createGraphics(mp_device, "ui/imgui.slang", "vertexMain", "fragmentMain");
+        m_program = Program::createGraphics(mp_device, "editor/imgui.slang", "vertexMain", "fragmentMain");
         m_vars = ProgramVariables::create(mp_device, m_program->getActiveVersion()->getReflector());
 
         m_layout = VertexLayout::create();

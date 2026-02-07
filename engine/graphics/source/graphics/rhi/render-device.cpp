@@ -778,7 +778,7 @@ namespace april::graphics
         if (!mp_blitProgram)
         {
             ProgramDesc progDesc;
-            progDesc.addShaderLibrary("blit.slang");
+            progDesc.addShaderLibrary("graphics/blit.slang");
             progDesc.vsEntryPoint("vertexMain");
             progDesc.psEntryPoint("fragmentMain");
             mp_blitProgram = Program::create(core::ref<Device>(this), progDesc);
