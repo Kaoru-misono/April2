@@ -55,6 +55,7 @@ namespace april::editor
         auto& transform = registry.get<scene::TransformComponent>(m_cameraEntity);
         transform.localPosition = m_camera->getPosition();
         transform.isDirty = true;
+        scene->markTransformDirty(m_cameraEntity);
 
         auto const* meshPool = registry.getPool<scene::MeshRendererComponent>();
         if (!meshPool || meshPool->data().empty())
@@ -67,6 +68,7 @@ namespace april::editor
             auto& cubeTransform = registry.get<scene::TransformComponent>(cube);
             cubeTransform.localPosition = {0.0f, 0.0f, 0.0f};
             cubeTransform.isDirty = true;
+            scene->markTransformDirty(cube);
 
             auto cubeChild = scene->createEntity("CubeChild");
             auto& childRenderer = registry.emplace<scene::MeshRendererComponent>(cubeChild);
@@ -77,6 +79,7 @@ namespace april::editor
             childTransform.localPosition = {2.5f, 0.5f, 0.0f};
             childTransform.localScale = {0.6f, 0.6f, 0.6f};
             childTransform.isDirty = true;
+            scene->markTransformDirty(cubeChild);
 
             scene->setParent(cubeChild, cube);
         }
@@ -188,6 +191,7 @@ namespace april::editor
                         transform.localPosition = position;
                         transform.localRotation = {pitch, yaw, 0.0f};
                         transform.isDirty = true;
+                        scene->markTransformDirty(m_cameraEntity);
                     }
                 }
             }

@@ -28,7 +28,7 @@ auto exampleUsage() -> void
     tag.tag = "Updated Name";
 
     // Check if entity has component
-    if (registry.all_of<TransformComponent>(child1))
+    if (registry.allOf<TransformComponent>(child1))
     {
         // Do something...
     }
@@ -38,8 +38,9 @@ auto exampleUsage() -> void
     scene.setParent(child2, root);
 
     // Iterate over all components of a type (EnTT-style view)
-    for (auto& transform : registry.view<TransformComponent>())
+    for (auto [entity, transform] : registry.view<TransformComponent>().each())
     {
+        static_cast<void>(entity);
         transform.isDirty = true;
     }
 
@@ -57,8 +58,9 @@ auto exampleUsage() -> void
     registry.emplace<VelocityComponent>(child1, float3{1.f, 0.f, 0.f});
 
     // Iterate custom components
-    for (auto& velocity : registry.view<VelocityComponent>())
+    for (auto [entity, velocity] : registry.view<VelocityComponent>().each())
     {
+        static_cast<void>(entity);
         // Update velocity...
     }
 

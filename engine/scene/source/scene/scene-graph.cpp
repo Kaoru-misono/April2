@@ -1,6 +1,10 @@
 #include "scene-graph.hpp"
+#include "components.hpp"
+
+#include <core/error/assert.hpp>
 #include <core/log/logger.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+
+#include <algorithm>
 
 namespace april::scene
 {
@@ -14,6 +18,9 @@ namespace april::scene
         m_registry.emplace<TransformComponent>(entity);
         m_registry.emplace<RelationshipComponent>(entity);
 
+        addRoot(entity);
+        markTransformDirty(entity);
+
         return entity;
     }
 
@@ -24,8 +31,17 @@ namespace april::scene
 
     auto SceneGraph::destroyEntityRecursive(Entity e) -> void
     {
+        if (!m_registry.valid(e))
+        {
+            return;
+        }
+
+        removeRoot(e);
+        removeDirtyRoot(e);
+
         if (!m_registry.allOf<RelationshipComponent>(e))
         {
+            m_registry.destroy(e);
             return;
         }
 
@@ -35,6 +51,11 @@ namespace april::scene
 
         while (child != NullEntity)
         {
+            if (!m_registry.allOf<RelationshipComponent>(child))
+            {
+                break;
+            }
+
             auto& childRelationship = m_registry.get<RelationshipComponent>(child);
             auto const nextChild = childRelationship.nextSibling;
 
@@ -56,14 +77,38 @@ namespace april::scene
 
     auto SceneGraph::setParent(Entity child, Entity newParent) -> void
     {
-        // TODO: Circular Dependency Check.
+        if (!m_registry.valid(child))
+        {
+            return;
+        }
 
         if (!m_registry.allOf<RelationshipComponent>(child))
         {
             return;
         }
 
+        if (child == newParent)
+        {
+            AP_WARN("[SceneGraph] Refused to parent entity to itself.");
+            return;
+        }
+
+        if (newParent != NullEntity)
+        {
+            if (!m_registry.valid(newParent) || !m_registry.allOf<RelationshipComponent>(newParent))
+            {
+                return;
+            }
+
+            if (isDescendant(newParent, child))
+            {
+                AP_WARN("[SceneGraph] Refused to create a parenting cycle.");
+                return;
+            }
+        }
+
         auto& childRel = m_registry.get<RelationshipComponent>(child);
+        auto const wasRoot = childRel.parent == NullEntity;
 
         // If already has this parent, do nothing
         if (childRel.parent == newParent)
@@ -83,11 +128,16 @@ namespace april::scene
             linkToParent(child, newParent);
         }
 
-        // Mark transform as dirty
-        if (m_registry.allOf<TransformComponent>(child))
+        if (wasRoot && newParent != NullEntity)
         {
-            m_registry.get<TransformComponent>(child).isDirty = true;
+            removeRoot(child);
         }
+        else if (newParent == NullEntity)
+        {
+            addRoot(child);
+        }
+
+        markTransformDirty(child);
     }
 
     auto SceneGraph::unlinkFromParent(Entity child) -> void
@@ -122,7 +172,10 @@ namespace april::scene
         }
 
         // Update parent's child count
-        --parentRel.childrenCount;
+        if (parentRel.childrenCount > 0)
+        {
+            --parentRel.childrenCount;
+        }
 
         // Clear child's relationship
         childRel.parent = NullEntity;
@@ -157,55 +210,87 @@ namespace april::scene
         ++parentRel.childrenCount;
     }
 
-    auto SceneGraph::onUpdateRuntime(float dt) -> void
+    auto SceneGraph::onUpdateRuntime(float /*dt*/) -> void
     {
-        // Iterate all entities and update root entities (those with no parent)
-        auto transformView = m_registry.view<TransformComponent>();
-
-        for (auto& transform : transformView)
-        {
-            // Find the entity that has this transform
-            // Note: In a real implementation, we'd want a more efficient way to do this
-            // For now, we'll iterate through all entities
-            // This is a limitation of our simple view system
-        }
-
-        // Alternative approach: iterate all entities with both Transform and Relationship
-        // We'll need to track entities somehow. For now, let's use a simple approach:
-        // We'll iterate through potential entity IDs and check if they exist
-
-        // Since we don't have a way to iterate entities directly, we'll need to track them
-        // This is a limitation of the current design. For now, we'll document this
-        // and potentially add entity tracking later.
-
-        // TODO: Add entity tracking or multi-component view support
-        // For now, this is a placeholder that would need to be called manually
-        // with root entity IDs, or we need to maintain a list of root entities
+        updateTransforms();
     }
 
     auto SceneGraph::updateTransforms() -> void
     {
-        // Find all root entities (those without parents) and update their transforms
-        auto* relationshipPool = m_registry.getPool<RelationshipComponent>();
-        if (!relationshipPool)
+        if (m_roots.empty())
         {
+            m_dirtyRoots.clear();
             return;
         }
 
         auto const identityMatrix = float4x4{1.0f};
 
-        // Iterate all entities with relationship components to find roots
-        for (size_t i = 0; i < relationshipPool->data().size(); ++i)
+        if (!m_dirtyRoots.empty())
         {
-            auto const entity = relationshipPool->getEntity(i);
-            auto const& relationship = relationshipPool->data()[i];
-
-            // If this entity has no parent, it's a root
-            if (relationship.parent == NullEntity)
+            if constexpr (AP_ENABLE_ASSERTS != 0)
             {
-                updateTransform(entity, identityMatrix, false);
+                for (auto [entity, transform] : m_registry.view<TransformComponent>().each())
+                {
+                    if (!transform.isDirty)
+                    {
+                        continue;
+                    }
+
+                    AP_ASSERT(
+                        isCoveredByDirtyRoots(entity),
+                        "[SceneGraph] Dirty transform not covered by dirty roots (entity={}, gen={})",
+                        entity.index,
+                        entity.generation
+                    );
+                }
             }
+
+            for (auto const& root : m_dirtyRoots)
+            {
+                if (!m_registry.valid(root))
+                {
+                    continue;
+                }
+
+                auto parentMatrix = identityMatrix;
+                if (m_registry.allOf<RelationshipComponent>(root))
+                {
+                    auto const& rel = m_registry.get<RelationshipComponent>(root);
+                    if (rel.parent != NullEntity && m_registry.allOf<TransformComponent>(rel.parent))
+                    {
+                        parentMatrix = m_registry.get<TransformComponent>(rel.parent).worldMatrix;
+                    }
+                }
+
+                updateTransform(root, parentMatrix, false);
+            }
+
+            m_dirtyRoots.clear();
+            return;
         }
+
+        for (auto const& root : m_roots)
+        {
+            if (!m_registry.valid(root))
+            {
+                continue;
+            }
+
+            updateTransform(root, identityMatrix, false);
+        }
+
+        m_dirtyRoots.clear();
+    }
+
+    auto SceneGraph::markTransformDirty(Entity e) -> void
+    {
+        if (!m_registry.valid(e) || !m_registry.allOf<TransformComponent>(e))
+        {
+            return;
+        }
+
+        m_registry.get<TransformComponent>(e).isDirty = true;
+        addDirtyRoot(e);
     }
 
     auto SceneGraph::updateCameras(uint32_t viewportWidth, uint32_t viewportHeight) -> void
@@ -324,6 +409,16 @@ namespace april::scene
         return NullEntity;
     }
 
+    auto SceneGraph::getRegistry() -> Registry&
+    {
+        return m_registry;
+    }
+
+    auto SceneGraph::getRegistry() const -> Registry const&
+    {
+        return m_registry;
+    }
+
     auto SceneGraph::updateTransform(Entity e, float4x4 const& parentMatrix, bool parentDirty) -> void
     {
         if (!m_registry.allOf<TransformComponent>(e))
@@ -350,12 +445,125 @@ namespace april::scene
 
             while (child != NullEntity)
             {
+                if (!m_registry.valid(child) || !m_registry.allOf<RelationshipComponent>(child))
+                {
+                    break;
+                }
+
                 updateTransform(child, transform.worldMatrix, shouldUpdate);
 
                 auto const& childRel = m_registry.get<RelationshipComponent>(child);
                 child = childRel.nextSibling;
             }
         }
+    }
+
+    auto SceneGraph::isDescendant(Entity maybeDescendant, Entity ancestor) const -> bool
+    {
+        if (maybeDescendant == NullEntity || ancestor == NullEntity)
+        {
+            return false;
+        }
+
+        auto current = maybeDescendant;
+        while (current != NullEntity)
+        {
+            if (current == ancestor)
+            {
+                return true;
+            }
+
+            if (!m_registry.allOf<RelationshipComponent>(current))
+            {
+                break;
+            }
+
+            auto const& rel = m_registry.get<RelationshipComponent>(current);
+            current = rel.parent;
+        }
+
+        return false;
+    }
+
+    auto SceneGraph::addRoot(Entity e) -> void
+    {
+        if (e == NullEntity)
+        {
+            return;
+        }
+
+        if (std::find(m_roots.begin(), m_roots.end(), e) != m_roots.end())
+        {
+            return;
+        }
+
+        m_roots.push_back(e);
+    }
+
+    auto SceneGraph::removeRoot(Entity e) -> void
+    {
+        auto it = std::find(m_roots.begin(), m_roots.end(), e);
+        if (it == m_roots.end())
+        {
+            return;
+        }
+
+        *it = m_roots.back();
+        m_roots.pop_back();
+    }
+
+    auto SceneGraph::addDirtyRoot(Entity e) -> void
+    {
+        if (e == NullEntity)
+        {
+            return;
+        }
+
+        if (std::find(m_dirtyRoots.begin(), m_dirtyRoots.end(), e) != m_dirtyRoots.end())
+        {
+            return;
+        }
+
+        if (isCoveredByDirtyRoots(e))
+        {
+            return;
+        }
+
+        m_dirtyRoots.erase(
+            std::remove_if(
+                m_dirtyRoots.begin(),
+                m_dirtyRoots.end(),
+                [&](Entity root) { return isDescendant(root, e); }
+            ),
+            m_dirtyRoots.end()
+        );
+
+        m_dirtyRoots.push_back(e);
+    }
+
+    auto SceneGraph::removeDirtyRoot(Entity e) -> void
+    {
+        auto it = std::find(m_dirtyRoots.begin(), m_dirtyRoots.end(), e);
+        if (it == m_dirtyRoots.end())
+        {
+            return;
+        }
+
+        *it = m_dirtyRoots.back();
+        m_dirtyRoots.pop_back();
+    }
+
+    auto SceneGraph::isCoveredByDirtyRoots(Entity e) const -> bool
+    {
+        for (auto const& root : m_dirtyRoots)
+        {
+            if (root == e || isDescendant(e, root))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
 } // namespace april::scene

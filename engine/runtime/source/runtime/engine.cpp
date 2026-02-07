@@ -3,6 +3,7 @@
 #include <core/error/assert.hpp>
 #include <core/input/input.hpp>
 #include <core/log/logger.hpp>
+#include <scene/renderer/render-extraction.hpp>
 
 #include <chrono>
 #include <iostream>
@@ -110,6 +111,17 @@ namespace april
             );
         }
 
+        if (m_renderer && m_sceneGraph)
+        {
+            auto& snapshot = m_renderer->acquireSnapshotForWrite();
+            scene::extractFrameSnapshot(
+                m_sceneGraph->getRegistry(),
+                m_renderer->getResourceRegistry(),
+                snapshot
+            );
+            m_renderer->submitSnapshot();
+        }
+
         auto targetTexture = m_offscreen ? m_offscreen : backBuffer;
         auto targetRtv = targetTexture->getRTV();
         auto targetSrv = targetTexture->getSRV();
@@ -125,9 +137,10 @@ namespace april
             m_context->clearRtv(targetRtv.get(), m_config.clearColor);
         }
 
-        if (m_renderer && m_sceneGraph)
+        if (m_renderer)
         {
-            m_renderer->render(m_context, *m_sceneGraph, m_config.clearColor);
+            auto const& snapshot = m_renderer->getSnapshotForRead();
+            m_renderer->render(m_context, snapshot, m_config.clearColor);
         }
 
         if (m_renderer && m_config.compositeSceneToOutput && !m_hooks.onRender)

@@ -1,11 +1,6 @@
 #include "scene-renderer.hpp"
 
-#include <asset/static-mesh-asset.hpp>
-#include <cmath>
 #include <core/error/assert.hpp>
-#include <core/log/logger.hpp>
-#include <filesystem>
-#include <glm/gtc/matrix_transform.hpp>
 #include <graphics/rhi/depth-stencil-state.hpp>
 
 namespace april::scene
@@ -69,10 +64,10 @@ float4 main(PSIn input) : SV_Target
 
     SceneRenderer::SceneRenderer(core::ref<graphics::Device> device, asset::AssetManager* assetManager)
         : m_device(std::move(device))
-        , m_assetManager(assetManager)
+        , m_resources(m_device, assetManager)
     {
         AP_ASSERT(m_device, "SceneRenderer requires a valid device.");
-        AP_ASSERT(m_assetManager, "SceneRenderer requires a valid asset manager.");
+        AP_ASSERT(assetManager, "SceneRenderer requires a valid asset manager.");
 
         auto bufferLayout = graphics::VertexBufferLayout::create();
         bufferLayout->addElement("POSITION", 0, graphics::ResourceFormat::RGB32Float, 1, 0);
@@ -129,7 +124,37 @@ float4 main(PSIn input) : SV_Target
         ensureTarget(m_width, m_height);
     }
 
-    auto SceneRenderer::render(graphics::CommandContext* pContext, SceneGraph const& sceneGraph, float4 const& clearColor) -> void
+    auto SceneRenderer::getSceneColorTexture() const -> core::ref<graphics::Texture>
+    {
+        return m_sceneColor;
+    }
+
+    auto SceneRenderer::getSceneColorSrv() const -> core::ref<graphics::TextureView>
+    {
+        return m_sceneColorSrv;
+    }
+
+    auto SceneRenderer::getResourceRegistry() -> RenderResourceRegistry&
+    {
+        return m_resources;
+    }
+
+    auto SceneRenderer::acquireSnapshotForWrite() -> FrameSnapshot&
+    {
+        return m_snapshotBuffer.acquireWrite();
+    }
+
+    auto SceneRenderer::submitSnapshot() -> void
+    {
+        m_snapshotBuffer.submitWrite();
+    }
+
+    auto SceneRenderer::getSnapshotForRead() const -> FrameSnapshot const&
+    {
+        return m_snapshotBuffer.getRead();
+    }
+
+    auto SceneRenderer::render(graphics::CommandContext* pContext, FrameSnapshot const& snapshot, float4 const& clearColor) -> void
     {
         if (!pContext || !m_device)
         {
@@ -141,29 +166,12 @@ float4 main(PSIn input) : SV_Target
             return;
         }
 
-        auto const& registry = sceneGraph.getRegistry();
-
-        pContext->resourceBarrier(m_sceneColor.get(), graphics::Resource::State::RenderTarget);
-        pContext->resourceBarrier(m_sceneDepth.get(), graphics::Resource::State::DepthStencil);
-
-        updateActiveCamera(sceneGraph);
-        if (!m_hasActiveCamera)
+        if (!snapshot.mainView.hasCamera)
         {
             return;
         }
 
-        auto const* meshPool = registry.getPool<MeshRendererComponent>();
-        if (meshPool)
-        {
-            for (size_t i = 0; i < meshPool->data().size(); ++i)
-            {
-                auto const& meshComp = meshPool->data()[i];
-                if (meshComp.enabled && !meshComp.meshAssetPath.empty())
-                {
-                    getMeshForPath(meshComp.meshAssetPath);
-                }
-            }
-        }
+        m_viewProjectionMatrix = snapshot.mainView.projectionMatrix * snapshot.mainView.viewMatrix;
 
         pContext->resourceBarrier(m_sceneColor.get(), graphics::Resource::State::RenderTarget);
         pContext->resourceBarrier(m_sceneDepth.get(), graphics::Resource::State::DepthStencil);
@@ -179,7 +187,7 @@ float4 main(PSIn input) : SV_Target
         encoder->setViewport(0, vp);
         encoder->setScissor(0, {0, 0, (uint32_t)vp.width, (uint32_t)vp.height});
 
-        renderMeshEntities(encoder, registry);
+        renderMeshInstances(encoder, snapshot);
 
         encoder->popDebugGroup();
         encoder->end();
@@ -187,113 +195,46 @@ float4 main(PSIn input) : SV_Target
         pContext->resourceBarrier(m_sceneColor.get(), graphics::Resource::State::ShaderResource);
     }
 
-    auto SceneRenderer::getMeshForPath(std::string const& path) -> core::ref<graphics::StaticMesh>
+    auto SceneRenderer::renderMeshInstances(core::ref<graphics::RenderPassEncoder> encoder, FrameSnapshot const& snapshot) -> void
     {
-        auto it = m_meshCache.find(path);
-        if (it != m_meshCache.end())
-        {
-            return it->second;
-        }
+        auto rootVar = m_vars->getRootVariable();
+        rootVar["perFrame"]["viewProj"].setBlob(&m_viewProjectionMatrix, sizeof(float4x4));
 
-        auto mesh = core::ref<graphics::StaticMesh>{};
-        if (std::filesystem::exists(path))
-        {
-            auto meshAsset = m_assetManager->loadAsset<asset::StaticMeshAsset>(path);
-            if (meshAsset)
+        auto drawList = [&](std::vector<MeshInstance> const& meshes) {
+            for (auto const& instance : meshes)
             {
-                mesh = m_device->createMeshFromAsset(*m_assetManager, *meshAsset);
-                if (mesh)
+                if (instance.meshId == kInvalidRenderID)
                 {
-                    AP_INFO("[SceneRenderer] Loaded mesh from asset: {} ({} submeshes)", path, mesh->getSubmeshCount());
+                    continue;
                 }
-                else
+
+                auto mesh = m_resources.getMesh(instance.meshId);
+                if (!mesh)
                 {
-                    AP_ERROR("[SceneRenderer] Failed to create mesh from asset: {}", path);
+                    continue;
+                }
+
+                rootVar["perFrame"]["model"].setBlob(&instance.worldTransform, sizeof(float4x4));
+
+                encoder->setVao(mesh->getVAO());
+                encoder->bindPipeline(m_pipeline.get(), m_vars.get());
+
+                for (size_t s = 0; s < mesh->getSubmeshCount(); ++s)
+                {
+                    auto const& submesh = mesh->getSubmesh(s);
+                    encoder->drawIndexed(submesh.indexCount, submesh.indexOffset, 0);
                 }
             }
-            else
-            {
-                AP_ERROR("[SceneRenderer] Failed to load mesh asset: {}", path);
-            }
-        }
-        else
+        };
+
+        if (!snapshot.staticMeshes.empty())
         {
-            AP_ERROR("[SceneRenderer] Mesh asset not found: {}", path);
+            drawList(snapshot.staticMeshes);
         }
 
-        if (mesh)
+        if (!snapshot.dynamicMeshes.empty())
         {
-            m_meshCache[path] = mesh;
-        }
-
-        return mesh;
-    }
-
-    auto SceneRenderer::updateActiveCamera(SceneGraph const& sceneGraph) -> void
-    {
-        auto const activeCamera = sceneGraph.getActiveCamera();
-        if (activeCamera == NullEntity)
-        {
-            AP_WARN("[SceneRenderer] No active camera found");
-            m_hasActiveCamera = false;
-            return;
-        }
-
-        auto const& registry = sceneGraph.getRegistry();
-        if (!registry.allOf<CameraComponent>(activeCamera))
-        {
-            AP_WARN("[SceneRenderer] Active camera missing CameraComponent");
-            m_hasActiveCamera = false;
-            return;
-        }
-
-        auto const& camComp = registry.get<CameraComponent>(activeCamera);
-        m_viewProjectionMatrix = camComp.viewProjectionMatrix;
-        m_hasActiveCamera = true;
-    }
-
-    auto SceneRenderer::renderMeshEntities(core::ref<graphics::RenderPassEncoder> encoder, Registry const& registry) -> void
-    {
-        auto const* meshPool = registry.getPool<MeshRendererComponent>();
-        if (!meshPool)
-        {
-            return;
-        }
-
-        for (size_t i = 0; i < meshPool->data().size(); ++i)
-        {
-            auto const entity = meshPool->getEntity(i);
-            auto const& meshComp = meshPool->data()[i];
-
-            if (!meshComp.enabled)
-            {
-                continue;
-            }
-
-            if (!registry.allOf<TransformComponent>(entity))
-            {
-                continue;
-            }
-
-            auto const& transform = registry.get<TransformComponent>(entity);
-            auto mesh = getMeshForPath(meshComp.meshAssetPath);
-            if (!mesh)
-            {
-                continue;
-            }
-
-            auto rootVar = m_vars->getRootVariable();
-            rootVar["perFrame"]["viewProj"].setBlob(&m_viewProjectionMatrix, sizeof(float4x4));
-            rootVar["perFrame"]["model"].setBlob(&transform.worldMatrix, sizeof(float4x4));
-
-            encoder->setVao(mesh->getVAO());
-            encoder->bindPipeline(m_pipeline.get(), m_vars.get());
-
-            for (size_t s = 0; s < mesh->getSubmeshCount(); ++s)
-            {
-                auto const& submesh = mesh->getSubmesh(s);
-                encoder->drawIndexed(submesh.indexCount, submesh.indexOffset, 0);
-            }
+            drawList(snapshot.dynamicMeshes);
         }
     }
 

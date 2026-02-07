@@ -5,16 +5,16 @@
 #include <core/math/type.hpp>
 #include <graphics/program/program-variables.hpp>
 #include <graphics/program/program.hpp>
-#include <graphics/resources/static-mesh.hpp>
 #include <graphics/rhi/command-context.hpp>
 #include <graphics/rhi/graphics-pipeline.hpp>
 #include <graphics/rhi/rasterizer-state.hpp>
 #include <graphics/rhi/render-device.hpp>
 #include <graphics/rhi/resource-views.hpp>
 #include <graphics/rhi/texture.hpp>
-#include <scene/scene-graph.hpp>
+#include <scene/renderer/frame-snapshot-buffer.hpp>
+#include <scene/renderer/render-resource-registry.hpp>
+#include <scene/renderer/render-types.hpp>
 
-#include <unordered_map>
 
 namespace april::scene
 {
@@ -25,19 +25,20 @@ namespace april::scene
         explicit SceneRenderer(core::ref<graphics::Device> device, asset::AssetManager* assetManager);
 
         auto setViewportSize(uint32_t width, uint32_t height) -> void;
-        auto render(graphics::CommandContext* pContext, SceneGraph const& sceneGraph, float4 const& clearColor) -> void;
+        auto render(graphics::CommandContext* pContext, FrameSnapshot const& snapshot, float4 const& clearColor) -> void;
 
-        auto getSceneColorTexture() const -> core::ref<graphics::Texture> { return m_sceneColor; }
-        auto getSceneColorSrv() const -> core::ref<graphics::TextureView> { return m_sceneColorSrv; }
+        auto getSceneColorTexture() const -> core::ref<graphics::Texture>;
+        auto getSceneColorSrv() const -> core::ref<graphics::TextureView>;
+        auto getResourceRegistry() -> RenderResourceRegistry&;
+        auto acquireSnapshotForWrite() -> FrameSnapshot&;
+        auto submitSnapshot() -> void;
+        auto getSnapshotForRead() const -> FrameSnapshot const&;
 
     private:
         auto ensureTarget(uint32_t width, uint32_t height) -> void;
-        auto getMeshForPath(std::string const& path) -> core::ref<graphics::StaticMesh>;
-        auto updateActiveCamera(SceneGraph const& sceneGraph) -> void;
-        auto renderMeshEntities(core::ref<graphics::RenderPassEncoder> encoder, Registry const& registry) -> void;
+        auto renderMeshInstances(core::ref<graphics::RenderPassEncoder> encoder, FrameSnapshot const& snapshot) -> void;
 
         core::ref<graphics::Device> m_device{};
-        asset::AssetManager* m_assetManager{};
         core::ref<graphics::Texture> m_sceneColor{};
         core::ref<graphics::Texture> m_sceneDepth{};
         core::ref<graphics::TextureView> m_sceneColorRtv{};
@@ -45,9 +46,9 @@ namespace april::scene
         core::ref<graphics::TextureView> m_sceneColorSrv{};
         core::ref<graphics::GraphicsPipeline> m_pipeline{};
         core::ref<graphics::ProgramVariables> m_vars{};
-        std::unordered_map<std::string, core::ref<graphics::StaticMesh>> m_meshCache{};
+        RenderResourceRegistry m_resources{};
+        FrameSnapshotBuffer m_snapshotBuffer{};
         float4x4 m_viewProjectionMatrix{1.0f};
-        bool m_hasActiveCamera{false};
         uint32_t m_width{0};
         uint32_t m_height{0};
         graphics::ResourceFormat m_format{graphics::ResourceFormat::RGBA16Float};

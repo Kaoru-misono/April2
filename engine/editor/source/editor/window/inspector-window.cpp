@@ -85,9 +85,14 @@ namespace april::editor
             if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 auto& transform = registry.get<scene::TransformComponent>(selected);
-                ui::PropertyUndoable(context, "Position", transform, &scene::TransformComponent::localPosition, "Move Entity", 0.1f);
-                ui::PropertyUndoable(context, "Rotation (rad)", transform, &scene::TransformComponent::localRotation, "Rotate Entity", 0.01f);
-                ui::PropertyUndoable(context, "Scale", transform, &scene::TransformComponent::localScale, "Scale Entity", 0.01f, 0.0f, 0.0f, 1.0f);
+                bool changed = false;
+                changed |= ui::PropertyUndoable(context, "Position", transform, &scene::TransformComponent::localPosition, "Move Entity", 0.1f);
+                changed |= ui::PropertyUndoable(context, "Rotation (rad)", transform, &scene::TransformComponent::localRotation, "Rotate Entity", 0.01f);
+                changed |= ui::PropertyUndoable(context, "Scale", transform, &scene::TransformComponent::localScale, "Scale Entity", 0.01f, 0.0f, 0.0f, 1.0f);
+                if (changed && sceneGraph)
+                {
+                    sceneGraph->markTransformDirty(selected);
+                }
             }
         }
 
@@ -96,7 +101,11 @@ namespace april::editor
             if (ImGui::CollapsingHeader("Mesh Renderer", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 auto& meshRenderer = registry.get<scene::MeshRendererComponent>(selected);
-                ui::PropertyUndoable(context, "Mesh Asset", meshRenderer, &scene::MeshRendererComponent::meshAssetPath, "Set Mesh Asset");
+                ui::PropertyUndoable(context, "Mesh Asset", meshRenderer.meshAssetPath, "Set Mesh Asset",
+                    [&](std::string const& value) {
+                        meshRenderer.meshAssetPath = value;
+                        meshRenderer.meshId = scene::kInvalidRenderID;
+                    });
                 ui::PropertyUndoable(context, "Enabled", meshRenderer, &scene::MeshRendererComponent::enabled, "Toggle Mesh Renderer");
                 ui::PropertyUndoable(context, "Cast Shadows", meshRenderer, &scene::MeshRendererComponent::castShadows, "Toggle Cast Shadows");
                 ui::PropertyUndoable(context, "Receive Shadows", meshRenderer, &scene::MeshRendererComponent::receiveShadows, "Toggle Receive Shadows");
@@ -127,7 +136,8 @@ namespace april::editor
         if (ImGui::CollapsingHeader("Relationship", ImGuiTreeNodeFlags_DefaultOpen))
         {
             auto const& relationship = registry.get<scene::RelationshipComponent>(selected);
-            ImGui::Text("Parent: %u", relationship.parent == scene::NullEntity ? 0u : relationship.parent);
+            auto const parentIndex = relationship.parent == scene::NullEntity ? 0u : relationship.parent.index;
+            ImGui::Text("Parent: %u", parentIndex);
             ImGui::Text("Children: %zu", relationship.childrenCount);
         }
 

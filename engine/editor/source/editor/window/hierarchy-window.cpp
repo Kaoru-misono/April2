@@ -19,7 +19,7 @@ namespace april::editor
             {
                 return registry.get<scene::TagComponent>(entity).tag;
             }
-            return std::format("Entity {}", entity);
+            return std::format("Entity {}:{}", entity.index, entity.generation);
         }
 
         auto drawEntityNode(EditorContext& context, scene::Registry const& registry, scene::Entity entity) -> void
@@ -43,7 +43,8 @@ namespace april::editor
             }
 
             auto const label = getEntityLabel(registry, entity);
-            bool opened = ImGui::TreeNodeEx(reinterpret_cast<void*>(static_cast<uintptr_t>(entity)), flags, "%s", label.c_str());
+            auto const id = static_cast<uintptr_t>(scene::toIntegral(entity));
+            bool opened = ImGui::TreeNodeEx(reinterpret_cast<void*>(id), flags, "%s", label.c_str());
 
             if (ImGui::IsItemClicked())
             {

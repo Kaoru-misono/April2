@@ -3,6 +3,7 @@
 #include "ecs-core.hpp"
 #include "core/tools/uuid.hpp"
 #include "core/math/type.hpp"
+#include "renderer/render-types.hpp"
 #include <string>
 
 namespace april::scene
@@ -34,23 +35,7 @@ namespace april::scene
         bool isDirty = true;
 
         // Helper to get local transform matrix
-        [[nodiscard]] auto getLocalMatrix() const -> float4x4
-        {
-            auto matrix = glm::mat4{1.f};
-
-            // Translation
-            matrix = glm::translate(matrix, localPosition);
-
-            // Rotation (Euler XYZ)
-            matrix = glm::rotate(matrix, localRotation.x, float3{1.f, 0.f, 0.f});
-            matrix = glm::rotate(matrix, localRotation.y, float3{0.f, 1.f, 0.f});
-            matrix = glm::rotate(matrix, localRotation.z, float3{0.f, 0.f, 1.f});
-
-            // Scale
-            matrix = glm::scale(matrix, localScale);
-
-            return matrix;
-        }
+        [[nodiscard]] auto getLocalMatrix() const -> float4x4;
     };
 
     // Hierarchy relationship component using linked list structure
@@ -68,7 +53,8 @@ namespace april::scene
     struct MeshRendererComponent
     {
         std::string meshAssetPath{};      // Path to .asset file
-        uint32_t materialId{0};           // Material index (0 = default)
+        RenderID meshId{kInvalidRenderID};     // Render resource handle
+        RenderID materialId{kInvalidRenderID}; // Render material handle
         bool castShadows{true};           // Future shadow system
         bool receiveShadows{true};
         bool enabled{true};               // Toggle rendering
