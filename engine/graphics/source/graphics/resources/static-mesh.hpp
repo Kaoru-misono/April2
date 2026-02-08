@@ -3,8 +3,8 @@
 #pragma once
 
 #include "rhi/vertex-array-object.hpp"
-#include <asset/blob-header.hpp>
 
+#include <asset/blob-header.hpp>
 #include <core/foundation/object.hpp>
 #include <vector>
 #include <array>

@@ -5,3 +5,6 @@ version = 0.1.0
 
 [dependencies]
 public = core, asset
+
+[codegen]
+cmd = python scripts/slang-codegen.py --input-dir shader/material --output-dir source/graphics/generated/material

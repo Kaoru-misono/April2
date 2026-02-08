@@ -161,6 +161,10 @@ namespace april::asset
         AssetRegistry m_registry{};
         ImporterRegistry m_importers{};
         TargetProfile m_targetProfile{};
+        std::filesystem::path m_registryPath{};
+        bool m_registryDirty{false};
+        std::filesystem::path m_assetRootResolved{};
+        bool m_registryInitialized{false};
 
         // Cache: Assets currently in memory
         std::unordered_map<core::UUID, std::shared_ptr<Asset>> m_loadedAssets{};
@@ -203,7 +207,21 @@ namespace april::asset
 
             asset->setAssetPath(assetPath.string());
 
+            initializeRegistry();
             registerAssetInternal(asset, assetPath, true);
+
+            for (auto const& ref : asset->getReferences())
+            {
+                if (ref.guid.getNative().is_nil())
+                {
+                    continue;
+                }
+
+                if (!loadAssetByGuid(ref.guid))
+                {
+                    AP_WARN("[AssetManager] Failed to load referenced asset: {}", ref.guid.toString());
+                }
+            }
 
             AP_INFO("[AssetManager] Loaded asset: {} ({})", assetPath.string(), asset->getHandle().toString());
 
@@ -215,6 +233,10 @@ namespace april::asset
             std::filesystem::path const& assetPath,
             bool cacheAsset
         ) -> void;
+
+        auto loadAssetByGuid(core::UUID const& guid) -> std::shared_ptr<Asset>;
+        auto initializeRegistry() -> void;
+        auto saveRegistry() -> void;
 
         auto importAssetInternal(
             std::filesystem::path const& sourcePath,

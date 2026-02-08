@@ -211,6 +211,15 @@ namespace april
         m_renderer->setViewportSize(width, height);
     }
 
+    auto Engine::getRenderResourceRegistry() -> scene::RenderResourceRegistry*
+    {
+        if (!m_renderer)
+        {
+            return nullptr;
+        }
+        return &m_renderer->getResourceRegistry();
+    }
+
 
     auto Engine::init() -> void
     {

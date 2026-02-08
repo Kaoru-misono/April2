@@ -1,12 +1,24 @@
 #include "render-resource-registry.hpp"
 
+#include <asset/texture-asset.hpp>
+#include <filesystem>
+
 namespace april::scene
 {
     RenderResourceRegistry::RenderResourceRegistry(core::ref<graphics::Device> device, asset::AssetManager* assetManager)
         : m_device(std::move(device))
         , m_assetManager(assetManager)
     {
+        // Reserve slot 0 for invalid
         m_meshes.resize(1);
+        m_meshMaterialIds.resize(1);
+        m_materials.resize(1);
+
+        // Create material system
+        if (m_device)
+        {
+            m_materialSystem = core::make_ref<graphics::MaterialSystem>(m_device);
+        }
     }
 
     auto RenderResourceRegistry::setDevice(core::ref<graphics::Device> device) -> void
@@ -19,17 +31,11 @@ namespace april::scene
         m_assetManager = assetManager;
     }
 
-    auto RenderResourceRegistry::getOrCreateMeshId(std::string const& assetPath) -> RenderID
+    auto RenderResourceRegistry::registerMesh(std::string const& assetPath) -> RenderID
     {
         if (assetPath.empty())
         {
             return kInvalidRenderID;
-        }
-
-        auto it = m_meshIdsByPath.find(assetPath);
-        if (it != m_meshIdsByPath.end())
-        {
-            return it->second;
         }
 
         if (!m_device || !m_assetManager)
@@ -39,29 +45,56 @@ namespace april::scene
         }
 
         core::ref<graphics::StaticMesh> mesh{};
+        std::shared_ptr<asset::StaticMeshAsset> meshAsset{};
         if (std::filesystem::exists(assetPath))
         {
-            auto meshAsset = m_assetManager->loadAsset<asset::StaticMeshAsset>(assetPath);
-            if (meshAsset)
-            {
-                mesh = m_device->createMeshFromAsset(*m_assetManager, *meshAsset);
-                if (mesh)
-                {
-                    AP_INFO("[RenderResourceRegistry] Loaded mesh: {} ({} submeshes)", assetPath, mesh->getSubmeshCount());
-                }
-                else
-                {
-                    AP_ERROR("[RenderResourceRegistry] Failed to create mesh from asset: {}", assetPath);
-                }
-            }
-            else
-            {
-                AP_ERROR("[RenderResourceRegistry] Failed to load mesh asset: {}", assetPath);
-            }
+            meshAsset = m_assetManager->loadAsset<asset::StaticMeshAsset>(assetPath);
         }
         else
         {
             AP_ERROR("[RenderResourceRegistry] Mesh asset not found: {}", assetPath);
+        }
+
+        if (!meshAsset)
+        {
+            AP_ERROR("[RenderResourceRegistry] Failed to load mesh asset: {}", assetPath);
+            return kInvalidRenderID;
+        }
+
+        auto const meshGuid = meshAsset->getHandle();
+        auto existing = m_meshIdsByGuid.find(meshGuid);
+        if (existing != m_meshIdsByGuid.end())
+        {
+            auto const id = existing->second;
+            if (id < m_meshMaterialIds.size() && m_meshMaterialIds[id].empty())
+            {
+                auto const slotCount = meshAsset->m_materialSlots.size();
+                m_meshMaterialIds[id].resize(slotCount, kInvalidRenderID);
+                for (size_t i = 0; i < slotCount; ++i)
+                {
+                    auto const& slot = meshAsset->m_materialSlots[i];
+                    if (slot.materialRef.guid.getNative().is_nil())
+                    {
+                        continue;
+                    }
+
+                    auto materialAsset = m_assetManager->getAsset<asset::MaterialAsset>(slot.materialRef.guid);
+                    auto materialId = registerMaterialAsset(materialAsset);
+                    m_meshMaterialIds[id][i] = materialId;
+                }
+            }
+
+            return id;
+        }
+
+        mesh = m_device->createMeshFromAsset(*m_assetManager, *meshAsset);
+        if (mesh)
+        {
+            AP_INFO("[RenderResourceRegistry] Loaded mesh: {} ({} submeshes)", assetPath, mesh->getSubmeshCount());
+        }
+        else
+        {
+            AP_ERROR("[RenderResourceRegistry] Failed to create mesh from asset: {}", assetPath);
         }
 
         if (!mesh)
@@ -71,7 +104,28 @@ namespace april::scene
 
         auto const id = static_cast<RenderID>(m_meshes.size());
         m_meshes.push_back(mesh);
-        m_meshIdsByPath[assetPath] = id;
+        m_meshMaterialIds.emplace_back();
+        m_meshIdsByGuid[meshGuid] = id;
+
+        if (meshAsset)
+        {
+            auto const slotCount = meshAsset->m_materialSlots.size();
+            m_meshMaterialIds[id].resize(slotCount, kInvalidRenderID);
+
+            for (size_t i = 0; i < slotCount; ++i)
+            {
+                auto const& slot = meshAsset->m_materialSlots[i];
+                if (slot.materialRef.guid.getNative().is_nil())
+                {
+                    continue;
+                }
+
+                auto materialAsset = m_assetManager->getAsset<asset::MaterialAsset>(slot.materialRef.guid);
+                auto materialId = registerMaterialAsset(materialAsset);
+                m_meshMaterialIds[id][i] = materialId;
+            }
+        }
+
         return id;
     }
 
@@ -97,5 +151,151 @@ namespace april::scene
         outMin = float3{minBounds[0], minBounds[1], minBounds[2]};
         outMax = float3{maxBounds[0], maxBounds[1], maxBounds[2]};
         return true;
+    }
+
+    auto RenderResourceRegistry::getMeshMaterialId(RenderID meshId, size_t slotIndex) const -> RenderID
+    {
+        if (meshId == kInvalidRenderID || meshId >= m_meshMaterialIds.size())
+        {
+            return kInvalidRenderID;
+        }
+
+        auto const& slots = m_meshMaterialIds[meshId];
+        if (slotIndex >= slots.size())
+        {
+            return kInvalidRenderID;
+        }
+
+        return slots[slotIndex];
+    }
+
+    auto RenderResourceRegistry::getMaterialSystem() -> graphics::MaterialSystem*
+    {
+        return m_materialSystem.get();
+    }
+
+    auto RenderResourceRegistry::getOrCreateMaterialId(std::string const& assetPath) -> RenderID
+    {
+        if (assetPath.empty())
+        {
+            return kInvalidRenderID;
+        }
+
+        if (!m_device || !m_assetManager || !m_materialSystem)
+        {
+            AP_WARN("[RenderResourceRegistry] Missing device, asset manager, or material system; cannot load material: {}", assetPath);
+            return kInvalidRenderID;
+        }
+
+        std::shared_ptr<asset::MaterialAsset> materialAsset{};
+        if (std::filesystem::exists(assetPath))
+        {
+            materialAsset = m_assetManager->loadAsset<asset::MaterialAsset>(assetPath);
+        }
+        else
+        {
+            AP_ERROR("[RenderResourceRegistry] Material asset not found: {}", assetPath);
+        }
+
+        if (!materialAsset)
+        {
+            AP_ERROR("[RenderResourceRegistry] Failed to load material asset: {}", assetPath);
+            return kInvalidRenderID;
+        }
+
+        return registerMaterialAsset(materialAsset);
+    }
+
+    auto RenderResourceRegistry::registerMaterialAsset(
+        std::shared_ptr<asset::MaterialAsset> const& materialAsset
+    ) -> RenderID
+    {
+        if (!materialAsset)
+        {
+            return kInvalidRenderID;
+        }
+
+        if (!m_device || !m_assetManager || !m_materialSystem)
+        {
+            AP_WARN("[RenderResourceRegistry] Missing device, asset manager, or material system; cannot load material.");
+            return kInvalidRenderID;
+        }
+
+        auto const assetGuid = materialAsset->getHandle();
+        if (!assetGuid.getNative().is_nil())
+        {
+            auto it = m_materialIdsByGuid.find(assetGuid);
+            if (it != m_materialIdsByGuid.end())
+            {
+                return it->second;
+            }
+        }
+
+        auto const& assetPath = materialAsset->getAssetPath();
+        auto material = graphics::StandardMaterial::createFromAsset(m_device, *materialAsset);
+        if (!material)
+        {
+            AP_ERROR("[RenderResourceRegistry] Failed to create material from asset: {}", assetPath);
+            return kInvalidRenderID;
+        }
+
+        loadMaterialTextures(material, materialAsset->textures);
+        m_materialSystem->addMaterial(material);
+
+        auto const id = static_cast<RenderID>(m_materials.size());
+        m_materials.push_back(material);
+        if (!assetGuid.getNative().is_nil())
+        {
+            m_materialIdsByGuid[assetGuid] = id;
+        }
+        return id;
+    }
+
+    auto RenderResourceRegistry::getMaterial(RenderID id) const -> core::ref<graphics::IMaterial>
+    {
+        if (id == kInvalidRenderID || id >= m_materials.size())
+        {
+            return nullptr;
+        }
+        return m_materials[id];
+    }
+
+    auto RenderResourceRegistry::loadMaterialTextures(
+        core::ref<graphics::StandardMaterial> material,
+        asset::MaterialTextures const& textures
+    ) -> void
+    {
+        if (!material || !m_device || !m_assetManager)
+        {
+            return;
+        }
+
+        auto loadTexture = [&](std::optional<asset::TextureReference> const& ref) -> core::ref<graphics::Texture> {
+            if (!ref.has_value() || ref->asset.guid.getNative().is_nil())
+            {
+                return nullptr;
+            }
+
+            auto const& guid = ref->asset.guid;
+            auto textureAsset = m_assetManager->getAsset<asset::TextureAsset>(guid);
+            if (!textureAsset)
+            {
+                AP_WARN("[RenderResourceRegistry] Failed to load texture asset by GUID: {}", guid.toString());
+                return nullptr;
+            }
+
+            auto texture = m_device->createTextureFromAsset(*m_assetManager, *textureAsset);
+            if (!texture)
+            {
+                AP_WARN("[RenderResourceRegistry] Failed to create texture from asset: {}", guid.toString());
+            }
+            return texture;
+        };
+
+        material->baseColorTexture = loadTexture(textures.baseColorTexture);
+        material->metallicRoughnessTexture = loadTexture(textures.metallicRoughnessTexture);
+        material->normalTexture = loadTexture(textures.normalTexture);
+        material->occlusionTexture = loadTexture(textures.occlusionTexture);
+        material->emissiveTexture = loadTexture(textures.emissiveTexture);
     }
 }

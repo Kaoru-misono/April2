@@ -1,73 +1,20 @@
 #include "scene-renderer.hpp"
 
 #include <core/error/assert.hpp>
+#include <graphics/material/standard-material.hpp>
 #include <graphics/rhi/depth-stencil-state.hpp>
 
 namespace april::scene
 {
-    namespace
-    {
-        constexpr char const* kMeshVs = R"(
-struct VSIn
-{
-    float3 position : POSITION;
-    float3 normal : NORMAL;
-    float4 tangent : TANGENT;
-    float2 texCoord : TEXCOORD;
-};
-
-struct VSOut
-{
-    float4 pos : SV_Position;
-    float3 normal : NORMAL;
-    float2 texCoord : TEXCOORD;
-};
-
-struct PerFrame
-{
-    float4x4 viewProj;
-    float4x4 model;
-    float time;
-};
-ParameterBlock<PerFrame> perFrame;
-
-VSOut main(VSIn input)
-{
-    VSOut output;
-    float4 worldPos = mul(perFrame.model, float4(input.position, 1.0));
-    output.pos = mul(perFrame.viewProj, worldPos);
-    output.normal = mul((float3x3)perFrame.model, input.normal);
-    output.texCoord = input.texCoord;
-    return output;
-}
-)";
-
-        constexpr char const* kMeshPs = R"(
-struct PSIn
-{
-    float4 pos : SV_Position;
-    float3 normal : NORMAL;
-    float2 texCoord : TEXCOORD;
-};
-
-float4 main(PSIn input) : SV_Target
-{
-    float3 normal = normalize(input.normal);
-    float3 lightDir = normalize(float3(1.0, 1.0, 1.0));
-    float diffuse = max(dot(normal, lightDir), 0.0) * 0.8 + 0.2;
-
-    float3 baseColor = float3(0.8, 0.3, 0.3);
-    return float4(baseColor * diffuse, 1.0);
-}
-)";
-    }
-
     SceneRenderer::SceneRenderer(core::ref<graphics::Device> device, asset::AssetManager* assetManager)
         : m_device(std::move(device))
         , m_resources(m_device, assetManager)
     {
         AP_ASSERT(m_device, "SceneRenderer requires a valid device.");
         AP_ASSERT(assetManager, "SceneRenderer requires a valid asset manager.");
+
+        // Create default/fallback resources
+        createDefaultResources();
 
         auto bufferLayout = graphics::VertexBufferLayout::create();
         bufferLayout->addElement("POSITION", 0, graphics::ResourceFormat::RGB32Float, 1, 0);
@@ -78,17 +25,17 @@ float4 main(PSIn input) : SV_Target
         auto vertexLayout = graphics::VertexLayout::create();
         vertexLayout->addBufferLayout(0, bufferLayout);
 
+        // Create program from shader file
         graphics::ProgramDesc progDesc;
-        progDesc.addShaderModule("SceneMeshVS").addString(kMeshVs, "SceneMeshVS.slang");
-        progDesc.vsEntryPoint("main");
-        progDesc.addShaderModule("SceneMeshPS").addString(kMeshPs, "SceneMeshPS.slang");
-        progDesc.psEntryPoint("main");
+        progDesc.addShaderLibrary("graphics/scene/scene-mesh.slang");
+        progDesc.vsEntryPoint("vsMain");
+        progDesc.psEntryPoint("psMain");
 
-        auto program = graphics::Program::create(m_device, progDesc);
-        m_vars = graphics::ProgramVariables::create(m_device, program.get());
+        m_program = graphics::Program::create(m_device, progDesc);
+        m_vars = graphics::ProgramVariables::create(m_device, m_program.get());
 
         graphics::GraphicsPipelineDesc pipelineDesc;
-        pipelineDesc.programKernels = program->getActiveVersion()->getKernels(m_device.get(), nullptr);
+        pipelineDesc.programKernels = m_program->getActiveVersion()->getKernels(m_device.get(), nullptr);
         pipelineDesc.vertexLayout = vertexLayout;
         pipelineDesc.renderTargetCount = 1;
         pipelineDesc.renderTargetFormats[0] = graphics::ResourceFormat::RGBA16Float;
@@ -105,6 +52,38 @@ float4 main(PSIn input) : SV_Target
         pipelineDesc.depthStencilState = graphics::DepthStencilState::create(dsDesc);
 
         m_pipeline = m_device->createGraphicsPipeline(pipelineDesc);
+    }
+
+    auto SceneRenderer::createDefaultResources() -> void
+    {
+        // Create 1x1 white texture for missing textures
+        auto constexpr whitePixel = uint32_t{0xFFFFFFFF};
+        m_defaultWhiteTexture = m_device->createTexture2D(
+            1, 1,
+            graphics::ResourceFormat::RGBA8Unorm,
+            1, 1,
+            &whitePixel,
+            graphics::TextureUsage::ShaderResource
+        );
+        m_defaultWhiteTexture->setName("SceneRenderer.DefaultWhite");
+
+        // Create default sampler with linear filtering and wrap addressing
+        graphics::Sampler::Desc samplerDesc;
+        samplerDesc.setFilterMode(
+            graphics::TextureFilteringMode::Linear,
+            graphics::TextureFilteringMode::Linear,
+            graphics::TextureFilteringMode::Linear
+        );
+        samplerDesc.setAddressingMode(
+            graphics::TextureAddressingMode::Wrap,
+            graphics::TextureAddressingMode::Wrap,
+            graphics::TextureAddressingMode::Wrap
+        );
+        samplerDesc.setMaxAnisotropy(8);
+        m_defaultSampler = m_device->createSampler(samplerDesc);
+
+        // Create default material (white, non-metallic, medium roughness)
+        m_defaultMaterial = core::make_ref<graphics::StandardMaterial>();
     }
 
     auto SceneRenderer::setViewportSize(uint32_t width, uint32_t height) -> void
@@ -172,6 +151,14 @@ float4 main(PSIn input) : SV_Target
         }
 
         m_viewProjectionMatrix = snapshot.mainView.projectionMatrix * snapshot.mainView.viewMatrix;
+        m_cameraPosition = snapshot.mainView.cameraPosition;
+
+        // Update material GPU buffers
+        auto* materialSystem = m_resources.getMaterialSystem();
+        if (materialSystem)
+        {
+            materialSystem->updateGpuBuffers();
+        }
 
         pContext->resourceBarrier(m_sceneColor.get(), graphics::Resource::State::RenderTarget);
         pContext->resourceBarrier(m_sceneDepth.get(), graphics::Resource::State::DepthStencil);
@@ -198,7 +185,20 @@ float4 main(PSIn input) : SV_Target
     auto SceneRenderer::renderMeshInstances(core::ref<graphics::RenderPassEncoder> encoder, FrameSnapshot const& snapshot) -> void
     {
         auto rootVar = m_vars->getRootVariable();
+
+        // Set per-frame data
         rootVar["perFrame"]["viewProj"].setBlob(&m_viewProjectionMatrix, sizeof(float4x4));
+        rootVar["perFrame"]["cameraPos"].setBlob(&m_cameraPosition, sizeof(float3));
+
+        // Bind material data buffer
+        auto* materialSystem = m_resources.getMaterialSystem();
+        if (materialSystem && materialSystem->getMaterialDataBuffer())
+        {
+            rootVar["materials"].setBuffer(materialSystem->getMaterialDataBuffer());
+        }
+
+        // Bind default sampler
+        rootVar["materialSampler"].setSampler(m_defaultSampler);
 
         auto drawList = [&](std::vector<MeshInstance> const& meshes) {
             for (auto const& instance : meshes)
@@ -214,7 +214,32 @@ float4 main(PSIn input) : SV_Target
                     continue;
                 }
 
-                rootVar["perFrame"]["model"].setBlob(&instance.worldTransform, sizeof(float4x4));
+                // Set per-instance data
+                rootVar["perInstance"]["model"].setBlob(&instance.worldTransform, sizeof(float4x4));
+
+                // Set material index (RenderID starts at 1, material indices start at 0)
+                auto materialIndex = uint32_t{0};
+                if (instance.materialId != kInvalidRenderID)
+                {
+                    materialIndex = instance.materialId - 1;
+                }
+                rootVar["perInstance"]["materialIndex"].set(materialIndex);
+
+                // Bind material textures (or defaults)
+                auto material = m_resources.getMaterial(instance.materialId);
+                if (material && material->hasTextures())
+                {
+                    material->bindTextures(rootVar);
+                }
+                else
+                {
+                    // Bind default white textures
+                    rootVar["baseColorTexture"].setTexture(m_defaultWhiteTexture);
+                    rootVar["metallicRoughnessTexture"].setTexture(m_defaultWhiteTexture);
+                    rootVar["normalTexture"].setTexture(m_defaultWhiteTexture);
+                    rootVar["occlusionTexture"].setTexture(m_defaultWhiteTexture);
+                    rootVar["emissiveTexture"].setTexture(m_defaultWhiteTexture);
+                }
 
                 encoder->setVao(mesh->getVAO());
                 encoder->bindPipeline(m_pipeline.get(), m_vars.get());

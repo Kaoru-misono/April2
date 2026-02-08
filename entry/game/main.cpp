@@ -66,14 +66,28 @@ int main()
         auto cube = scene->createEntity("Cube");
         testState.cubeRoot = cube;
         auto& meshRenderer = registry.emplace<april::scene::MeshRendererComponent>(cube);
-        meshRenderer.meshAssetPath = "E:/github/April2/content/model/cube.gltf.asset";
+        if (auto* resources = engine.getRenderResourceRegistry())
+        {
+            meshRenderer.meshId = resources->registerMesh("E:/github/April2/content/model/cube.gltf.asset");
+            if (meshRenderer.materialId == april::scene::kInvalidRenderID)
+            {
+                meshRenderer.materialId = resources->getMeshMaterialId(meshRenderer.meshId, 0);
+            }
+        }
         meshRenderer.enabled = true;
 
         // Create a second cube entity
         auto cube2 = scene->createEntity("Cube2");
         testState.cubeChild = cube2;
         auto& meshRenderer2 = registry.emplace<april::scene::MeshRendererComponent>(cube2);
-        meshRenderer2.meshAssetPath = "E:/github/April2/content/model/cube.gltf.asset";
+        if (auto* resources = engine.getRenderResourceRegistry())
+        {
+            meshRenderer2.meshId = resources->registerMesh("E:/github/April2/content/model/cube.gltf.asset");
+            if (meshRenderer2.materialId == april::scene::kInvalidRenderID)
+            {
+                meshRenderer2.materialId = resources->getMeshMaterialId(meshRenderer2.meshId, 0);
+            }
+        }
         meshRenderer2.enabled = true;
 
         auto& cube2Transform = registry.get<april::scene::TransformComponent>(cube2);

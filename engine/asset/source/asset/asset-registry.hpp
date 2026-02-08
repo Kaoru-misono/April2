@@ -19,6 +19,7 @@ namespace april::asset
     {
         core::UUID guid{};
         std::string assetPath{};
+        std::string sourcePath{};
         AssetType type{AssetType::None};
 
         std::vector<Dependency> deps{};
@@ -38,6 +39,7 @@ namespace april::asset
         auto updateRecord(AssetRecord record) -> void;
         [[nodiscard]] auto findRecord(core::UUID const& guid) const -> std::optional<AssetRecord>;
         [[nodiscard]] auto getDependents(core::UUID const& guid) const -> std::vector<core::UUID>;
+        auto clear() -> void;
 
         auto load(std::filesystem::path const& path) -> bool;
         auto save(std::filesystem::path const& path) const -> bool;

@@ -52,7 +52,6 @@ namespace april::scene
     // Mesh renderer component for entity-based rendering
     struct MeshRendererComponent
     {
-        std::string meshAssetPath{};      // Path to .asset file
         RenderID meshId{kInvalidRenderID};     // Render resource handle
         RenderID materialId{kInvalidRenderID}; // Render material handle
         bool castShadows{true};           // Future shadow system

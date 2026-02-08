@@ -52,10 +52,12 @@ namespace april::asset
         m_importers.registerImporter(std::make_unique<TextureImporter>());
         m_importers.registerImporter(std::make_unique<GltfImporter>());
         m_importers.registerImporter(std::make_unique<MaterialImporter>());
+        initializeRegistry();
     }
 
     AssetManager::~AssetManager()
     {
+        saveRegistry();
         AP_INFO("[AssetManager] Shutdown.");
     }
 
@@ -246,11 +248,13 @@ namespace april::asset
                 auto record = recordOpt.value_or(AssetRecord{});
                 record.guid = asset->getHandle();
                 record.assetPath = asset->getAssetPath();
+                record.sourcePath = asset->getSourcePath();
                 record.type = asset->getType();
 
                 record.lastSourceHash = hashFileContents(asset->getSourcePath());
 
                 m_registry.updateRecord(std::move(record));
+                m_registryDirty = true;
             }
         }
 
@@ -266,6 +270,7 @@ namespace april::asset
         AssetType type
     ) -> std::shared_ptr<Asset>
     {
+        initializeRegistry();
         auto assetPathFromIndex = std::optional<std::filesystem::path>{};
         auto handleFromIndex = std::optional<core::UUID>{};
         auto normalizedPath = normalizePath(sourcePath);
@@ -605,6 +610,113 @@ namespace april::asset
             }
         }
         m_registry.registerAsset(*asset, assetPath.string());
+        m_registryDirty = true;
+    }
+
+    auto AssetManager::loadAssetByGuid(core::UUID const& guid) -> std::shared_ptr<Asset>
+    {
+        if (guid.getNative().is_nil())
+        {
+            return nullptr;
+        }
+
+        initializeRegistry();
+        {
+            auto lock = std::scoped_lock{m_mutex};
+            if (auto it = m_loadedAssets.find(guid); it != m_loadedAssets.end())
+            {
+                return it->second;
+            }
+        }
+
+        auto recordOpt = m_registry.findRecord(guid);
+        if (!recordOpt.has_value())
+        {
+            AP_WARN("[AssetManager] Asset UUID not found in registry: {}", guid.toString());
+            return nullptr;
+        }
+
+        auto const& record = *recordOpt;
+        if (record.assetPath.empty())
+        {
+            AP_WARN("[AssetManager] Asset record missing path for UUID: {}", guid.toString());
+            return nullptr;
+        }
+
+        if (record.type == AssetType::Texture)
+        {
+            return std::static_pointer_cast<Asset>(loadAssetFromFile<TextureAsset>(record.assetPath));
+        }
+        if (record.type == AssetType::Material)
+        {
+            return std::static_pointer_cast<Asset>(loadAssetFromFile<MaterialAsset>(record.assetPath));
+        }
+        if (record.type == AssetType::Mesh)
+        {
+            return std::static_pointer_cast<Asset>(loadAssetFromFile<StaticMeshAsset>(record.assetPath));
+        }
+
+        AP_WARN("[AssetManager] Unsupported asset type for UUID {}: {}", guid.toString(), static_cast<int>(record.type));
+        return nullptr;
+    }
+
+    auto AssetManager::initializeRegistry() -> void
+    {
+        auto resolvedRoot = VFS::resolvePath(m_assetRoot.string());
+        if (m_registryInitialized && resolvedRoot == m_assetRootResolved)
+        {
+            return;
+        }
+
+        if (m_registryInitialized)
+        {
+            m_registry.clear();
+            m_sourcePathIndex.clear();
+            m_dirtyAssets.clear();
+        }
+
+        m_assetRootResolved = resolvedRoot;
+        m_registryPath = m_assetRootResolved / "library/asset-db/registry.json";
+        m_registryInitialized = true;
+
+        auto registryDir = m_registryPath.parent_path();
+        if (!registryDir.empty())
+        {
+            VFS::createDirectories(registryDir.string());
+        }
+
+        if (m_registry.load(m_registryPath))
+        {
+            AP_INFO("[AssetManager] Loaded asset registry: {}", m_registryPath.string());
+            return;
+        }
+
+        auto count = scanDirectory(m_assetRootResolved);
+        if (count > 0)
+        {
+            AP_INFO("[AssetManager] Scanned assets: {} entries", count);
+            saveRegistry();
+        }
+    }
+
+    auto AssetManager::saveRegistry() -> void
+    {
+        if (!m_registryDirty || m_registryPath.empty())
+        {
+            return;
+        }
+
+        auto registryDir = m_registryPath.parent_path();
+        if (!registryDir.empty())
+        {
+            VFS::createDirectories(registryDir.string());
+        }
+
+        if (m_registry.save(m_registryPath))
+        {
+            m_registryDirty = false;
+            AP_INFO("[AssetManager] Saved asset registry: {}", m_registryPath.string());
+        }
     }
 
     auto AssetManager::markDependentsDirty(core::UUID const& guid) -> void
@@ -773,6 +885,7 @@ namespace april::asset
         auto record = recordOpt.value_or(AssetRecord{});
         record.guid = asset.getHandle();
         record.assetPath = asset.getAssetPath();
+        record.sourcePath = asset.getSourcePath();
         record.type = asset.getType();
 
         auto result = importer->cook(context);
@@ -787,6 +900,7 @@ namespace april::asset
             record.lastImportFailed = true;
             record.lastErrorSummary = result.errors.front();
             m_registry.updateRecord(std::move(record));
+            m_registryDirty = true;
 
             auto existing = record.ddcKeys.find(targetId);
             if (existing != record.ddcKeys.end() && !existing->second.empty())
@@ -811,6 +925,7 @@ namespace april::asset
         }
 
         m_registry.updateRecord(std::move(record));
+        m_registryDirty = true;
 
         if (!result.producedKeys.empty() && record.lastFingerprint[targetId] != previousFingerprint)
         {

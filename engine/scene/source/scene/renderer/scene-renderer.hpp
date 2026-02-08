@@ -3,6 +3,7 @@
 #include <asset/asset-manager.hpp>
 #include <core/foundation/object.hpp>
 #include <core/math/type.hpp>
+#include <graphics/material/i-material.hpp>
 #include <graphics/program/program-variables.hpp>
 #include <graphics/program/program.hpp>
 #include <graphics/rhi/command-context.hpp>
@@ -10,6 +11,7 @@
 #include <graphics/rhi/rasterizer-state.hpp>
 #include <graphics/rhi/render-device.hpp>
 #include <graphics/rhi/resource-views.hpp>
+#include <graphics/rhi/sampler.hpp>
 #include <graphics/rhi/texture.hpp>
 #include <scene/renderer/frame-snapshot-buffer.hpp>
 #include <scene/renderer/render-resource-registry.hpp>
@@ -36,6 +38,7 @@ namespace april::scene
 
     private:
         auto ensureTarget(uint32_t width, uint32_t height) -> void;
+        auto createDefaultResources() -> void;
         auto renderMeshInstances(core::ref<graphics::RenderPassEncoder> encoder, FrameSnapshot const& snapshot) -> void;
 
         core::ref<graphics::Device> m_device{};
@@ -45,12 +48,19 @@ namespace april::scene
         core::ref<graphics::TextureView> m_sceneDepthDsv{};
         core::ref<graphics::TextureView> m_sceneColorSrv{};
         core::ref<graphics::GraphicsPipeline> m_pipeline{};
+        core::ref<graphics::Program> m_program{};
         core::ref<graphics::ProgramVariables> m_vars{};
         RenderResourceRegistry m_resources{};
         FrameSnapshotBuffer m_snapshotBuffer{};
         float4x4 m_viewProjectionMatrix{1.0f};
+        float3 m_cameraPosition{0.0f, 0.0f, 0.0f};
         uint32_t m_width{0};
         uint32_t m_height{0};
         graphics::ResourceFormat m_format{graphics::ResourceFormat::RGBA16Float};
+
+        // Default/fallback resources
+        core::ref<graphics::Texture> m_defaultWhiteTexture{};
+        core::ref<graphics::Sampler> m_defaultSampler{};
+        core::ref<graphics::IMaterial> m_defaultMaterial{};
     };
 }

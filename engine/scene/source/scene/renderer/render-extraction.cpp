@@ -102,11 +102,6 @@ namespace april::scene
                 continue;
             }
 
-            if (mesh.meshId == kInvalidRenderID && !mesh.meshAssetPath.empty())
-            {
-                mesh.meshId = resources.getOrCreateMeshId(mesh.meshAssetPath);
-            }
-
             if (mesh.meshId == kInvalidRenderID)
             {
                 continue;

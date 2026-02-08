@@ -61,10 +61,8 @@ namespace april::editor
                 m_tagBuffer.clear();
             }
 
-            if (registry.allOf<scene::MeshRendererComponent>(selected))
-            {
-                // No cached string needed; we edit the component directly.
-            }
+            m_meshAssetBuffer.clear();
+            m_materialAssetBuffer.clear();
         }
 
         if (registry.allOf<scene::TagComponent>(selected))
@@ -101,11 +99,37 @@ namespace april::editor
             if (ImGui::CollapsingHeader("Mesh Renderer", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 auto& meshRenderer = registry.get<scene::MeshRendererComponent>(selected);
-                ui::PropertyUndoable(context, "Mesh Asset", meshRenderer.meshAssetPath, "Set Mesh Asset",
-                    [&](std::string const& value) {
-                        meshRenderer.meshAssetPath = value;
-                        meshRenderer.meshId = scene::kInvalidRenderID;
-                    });
+                if (auto* resources = Engine::get().getRenderResourceRegistry())
+                {
+                    ui::PropertyUndoable(context, "Mesh Asset", m_meshAssetBuffer, "Set Mesh Asset",
+                        [&](std::string const& value) {
+                            m_meshAssetBuffer = value;
+                            if (value.empty())
+                            {
+                                meshRenderer.meshId = scene::kInvalidRenderID;
+                                return;
+                            }
+                            meshRenderer.meshId = resources->registerMesh(value);
+                            if (meshRenderer.materialId == scene::kInvalidRenderID)
+                            {
+                                meshRenderer.materialId = resources->getMeshMaterialId(meshRenderer.meshId, 0);
+                            }
+                        });
+
+                    ui::PropertyUndoable(context, "Material Asset", m_materialAssetBuffer, "Set Material Asset",
+                        [&](std::string const& value) {
+                            m_materialAssetBuffer = value;
+                            if (value.empty())
+                            {
+                                meshRenderer.materialId = scene::kInvalidRenderID;
+                                return;
+                            }
+                            meshRenderer.materialId = resources->getOrCreateMaterialId(value);
+                        });
+                }
+
+                ImGui::Text("Mesh ID: %u", meshRenderer.meshId);
+                ImGui::Text("Material ID: %u", meshRenderer.materialId);
                 ui::PropertyUndoable(context, "Enabled", meshRenderer, &scene::MeshRendererComponent::enabled, "Toggle Mesh Renderer");
                 ui::PropertyUndoable(context, "Cast Shadows", meshRenderer, &scene::MeshRendererComponent::castShadows, "Toggle Cast Shadows");
                 ui::PropertyUndoable(context, "Receive Shadows", meshRenderer, &scene::MeshRendererComponent::receiveShadows, "Toggle Receive Shadows");

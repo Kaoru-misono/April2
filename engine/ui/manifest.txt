@@ -1,8 +1,0 @@
-[module]
-name = ui
-type = library
-version = 0.1.0
-
-[dependencies]
-public = core
-public = graphics

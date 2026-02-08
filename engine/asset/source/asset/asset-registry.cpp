@@ -13,6 +13,7 @@ namespace april::asset
         auto record = AssetRecord{};
         record.guid = asset.getHandle();
         record.assetPath = resolvedPath;
+        record.sourcePath = asset.getSourcePath();
         record.type = asset.getType();
 
         auto lock = std::scoped_lock{m_mutex};
@@ -21,6 +22,7 @@ namespace april::asset
             record = it->second;
             record.guid = asset.getHandle();
             record.assetPath = std::move(resolvedPath);
+            record.sourcePath = asset.getSourcePath();
             record.type = asset.getType();
         }
 
@@ -62,6 +64,13 @@ namespace april::asset
         }
 
         return dependents;
+    }
+
+    auto AssetRegistry::clear() -> void
+    {
+        auto lock = std::scoped_lock{m_mutex};
+        m_records.clear();
+        m_dependents.clear();
     }
 
     auto AssetRegistry::load(std::filesystem::path const& path) -> bool
@@ -124,6 +133,10 @@ namespace april::asset
     {
         j["guid"] = record.guid.toString();
         j["assetPath"] = record.assetPath;
+        if (!record.sourcePath.empty())
+        {
+            j["sourcePath"] = record.sourcePath;
+        }
         j["type"] = record.type;
         j["deps"] = record.deps;
         if (!record.lastSourceHash.empty())
@@ -145,6 +158,10 @@ namespace april::asset
         if (j.contains("assetPath"))
         {
             record.assetPath = j.at("assetPath").get<std::string>();
+        }
+        if (j.contains("sourcePath"))
+        {
+            record.sourcePath = j.at("sourcePath").get<std::string>();
         }
         if (j.contains("type"))
         {

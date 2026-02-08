@@ -18,5 +18,7 @@ namespace april::editor
     private:
         scene::Entity m_lastEntity{scene::NullEntity};
         std::string m_tagBuffer{};
+        std::string m_meshAssetBuffer{};
+        std::string m_materialAssetBuffer{};
     };
 }

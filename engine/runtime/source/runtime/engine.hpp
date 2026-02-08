@@ -59,6 +59,7 @@ namespace april
         auto isRunning() const -> bool { return m_running; }
         auto getSceneGraph() -> scene::SceneGraph* { return m_sceneGraph.get(); }
         auto getAssetManager() -> asset::AssetManager* { return m_assetManager.get(); }
+        auto getRenderResourceRegistry() -> scene::RenderResourceRegistry*;
 
         auto addHooks(EngineHooks hooks) -> void;
 

@@ -23,6 +23,12 @@ namespace april::graphics
     {
         auto getShaderDirectoriesList() -> std::vector<std::filesystem::path>
         {
+            // Include the graphics shader directory for import resolution
+            auto graphicsShaderPath = VFS::resolvePath("shader/graphics");
+            if (std::filesystem::exists(graphicsShaderPath))
+            {
+                return {graphicsShaderPath};
+            }
             return {};
         }
 

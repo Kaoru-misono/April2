@@ -62,7 +62,14 @@ namespace april::editor
         {
             auto cube = scene->createEntity("Cube");
             auto& meshRenderer = registry.emplace<scene::MeshRendererComponent>(cube);
-            meshRenderer.meshAssetPath = "E:/github/April2/content/model/cube.gltf.asset";
+            if (auto* resources = Engine::get().getRenderResourceRegistry())
+            {
+                meshRenderer.meshId = resources->registerMesh("E:/github/April2/content/model/cube.gltf.asset");
+                if (meshRenderer.materialId == scene::kInvalidRenderID)
+                {
+                    meshRenderer.materialId = resources->getMeshMaterialId(meshRenderer.meshId, 0);
+                }
+            }
             meshRenderer.enabled = true;
 
             auto& cubeTransform = registry.get<scene::TransformComponent>(cube);
@@ -72,7 +79,14 @@ namespace april::editor
 
             auto cubeChild = scene->createEntity("CubeChild");
             auto& childRenderer = registry.emplace<scene::MeshRendererComponent>(cubeChild);
-            childRenderer.meshAssetPath = "E:/github/April2/content/model/cube.gltf.asset";
+            if (auto* resources = Engine::get().getRenderResourceRegistry())
+            {
+                childRenderer.meshId = resources->registerMesh("E:/github/April2/content/model/cube.gltf.asset");
+                if (childRenderer.materialId == scene::kInvalidRenderID)
+                {
+                    childRenderer.materialId = resources->getMeshMaterialId(childRenderer.meshId, 0);
+                }
+            }
             childRenderer.enabled = true;
 
             auto& childTransform = registry.get<scene::TransformComponent>(cubeChild);
