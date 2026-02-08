@@ -25,6 +25,8 @@ namespace april::asset
 {
     namespace
     {
+        auto sanitizeAssetName(std::string name) -> std::string;
+
         auto loadModel(std::filesystem::path const& sourcePath, tinygltf::Model& outModel) -> bool
         {
             auto loader = tinygltf::TinyGLTF{};
@@ -160,11 +162,60 @@ namespace april::asset
             return true;
         }
 
+        auto writeEmbeddedTexture(
+            tinygltf::Image const& image,
+            std::filesystem::path const& sourcePath,
+            int textureIndex
+        ) -> std::optional<std::filesystem::path>
+        {
+            if (image.image.empty() || image.width <= 0 || image.height <= 0)
+            {
+                AP_WARN("[GltfImporter] Embedded texture data missing for index {}", textureIndex);
+                return std::nullopt;
+            }
+
+            if (image.component < 1 || image.component > 4)
+            {
+                AP_WARN("[GltfImporter] Unsupported embedded texture components: {}", image.component);
+                return std::nullopt;
+            }
+
+            auto name = image.name.empty()
+                ? std::format("{}_image{}", sourcePath.stem().string(), textureIndex)
+                : image.name;
+            name = sanitizeAssetName(name);
+
+            auto embeddedDir = sourcePath.parent_path() / "_embedded";
+            VFS::createDirectories(embeddedDir.string());
+
+            auto outputPath = embeddedDir / (name + ".png");
+            if (!VFS::existsFile(outputPath.string()))
+            {
+                auto const stride = image.width * image.component;
+                auto const ok = stbi_write_png(
+                    outputPath.string().c_str(),
+                    image.width,
+                    image.height,
+                    image.component,
+                    image.image.data(),
+                    stride
+                );
+                if (ok == 0)
+                {
+                    AP_WARN("[GltfImporter] Failed to write embedded texture: {}", outputPath.string());
+                    return std::nullopt;
+                }
+            }
+
+            return outputPath;
+        }
+
         template <typename T>
         auto resolveTextureSource(
             tinygltf::Model const& model,
             T const& textureInfo,
-            std::filesystem::path const& baseDir
+            std::filesystem::path const& baseDir,
+            std::filesystem::path const& sourcePath
         ) -> std::optional<GltfTextureSource>
         {
             if (textureInfo.index < 0)
@@ -186,26 +237,30 @@ namespace april::asset
             }
 
             auto const& image = model.images[texture.source];
-            if (image.uri.empty())
+            if (!image.uri.empty() && !image.uri.starts_with("data:"))
             {
-                AP_WARN("[GltfImporter] Embedded texture not supported for import");
-                return std::nullopt;
+                auto texturePath = baseDir / image.uri;
+                if (VFS::existsFile(texturePath.string()))
+                {
+                    return GltfTextureSource{texturePath, textureInfo.texCoord};
+                }
+
+                AP_WARN("[GltfImporter] Texture file not found: {}", texturePath.string());
+            }
+
+            if (auto embedded = writeEmbeddedTexture(image, sourcePath, texture.source))
+            {
+                return GltfTextureSource{*embedded, textureInfo.texCoord};
             }
 
             if (image.uri.starts_with("data:"))
             {
-                AP_WARN("[GltfImporter] Data URI texture not supported for import");
+                AP_WARN("[GltfImporter] Data URI texture could not be decoded for import");
                 return std::nullopt;
             }
 
-            auto texturePath = baseDir / image.uri;
-            if (!VFS::existsFile(texturePath.string()))
-            {
-                AP_WARN("[GltfImporter] Texture file not found: {}", texturePath.string());
-                return std::nullopt;
-            }
-
-            return GltfTextureSource{texturePath, textureInfo.texCoord};
+            AP_WARN("[GltfImporter] Embedded texture not supported for import");
+            return std::nullopt;
         }
 
         auto sanitizeAssetName(std::string name) -> std::string
@@ -746,16 +801,55 @@ namespace april::asset
                 remap.data()
             );
 
-            auto vcacheOptIndices = std::vector<unsigned int>(indexCount);
-            meshopt_optimizeVertexCache(
-                vcacheOptIndices.data(),
-                remappedIndices.data(),
-                indexCount,
-                uniqueVertexCount
-            );
+            // Keep per-submesh index ranges stable so material slots stay aligned on GPU draws.
+            auto optimizedIndices = std::vector<unsigned int>(indexCount);
+            std::copy(remappedIndices.begin(), remappedIndices.end(), optimizedIndices.begin());
+
+            auto optimizeSubmeshRange = [&](size_t begin, size_t count) -> void
+            {
+                if (count == 0 || begin + count > indexCount)
+                {
+                    return;
+                }
+
+                auto vcacheLocal = std::vector<unsigned int>(count);
+                meshopt_optimizeVertexCache(
+                    vcacheLocal.data(),
+                    remappedIndices.data() + begin,
+                    count,
+                    uniqueVertexCount
+                );
+
+                auto overdrawLocal = std::vector<unsigned int>(count);
+                meshopt_optimizeOverdraw(
+                    overdrawLocal.data(),
+                    vcacheLocal.data(),
+                    count,
+                    reinterpret_cast<float const*>(remappedVertices.data()),
+                    uniqueVertexCount,
+                    vertexSize,
+                    1.05f
+                );
+
+                std::copy(overdrawLocal.begin(), overdrawLocal.end(), optimizedIndices.begin() + begin);
+            };
+
+            if (!submeshes.empty())
+            {
+                for (auto const& submesh : submeshes)
+                {
+                    auto const begin = static_cast<size_t>(submesh.indexOffset);
+                    auto const count = static_cast<size_t>(submesh.indexCount);
+                    optimizeSubmeshRange(begin, count);
+                }
+            }
+            else
+            {
+                optimizeSubmeshRange(0, indexCount);
+            }
 
             auto const vcacheStats = meshopt_analyzeVertexCache(
-                vcacheOptIndices.data(),
+                optimizedIndices.data(),
                 indexCount,
                 uniqueVertexCount,
                 32, 32, 32
@@ -763,19 +857,8 @@ namespace april::asset
             AP_INFO("[GltfImporter]   - Vertex cache: ACMR={:.2f}, ATVR={:.2f}",
                     vcacheStats.acmr, vcacheStats.atvr);
 
-            auto overdrawOptIndices = std::vector<unsigned int>(indexCount);
-            meshopt_optimizeOverdraw(
-                overdrawOptIndices.data(),
-                vcacheOptIndices.data(),
-                indexCount,
-                reinterpret_cast<float const*>(remappedVertices.data()),
-                uniqueVertexCount,
-                vertexSize,
-                1.05f
-            );
-
             auto const overdrawStats = meshopt_analyzeOverdraw(
-                overdrawOptIndices.data(),
+                optimizedIndices.data(),
                 indexCount,
                 reinterpret_cast<float const*>(remappedVertices.data()),
                 uniqueVertexCount,
@@ -786,7 +869,7 @@ namespace april::asset
 
             auto finalVertices = std::vector<float>(uniqueVertexCount * vertexStrideFloats);
             auto finalIndices = std::vector<unsigned int>(indexCount);
-            std::copy(overdrawOptIndices.begin(), overdrawOptIndices.end(), finalIndices.begin());
+            std::copy(optimizedIndices.begin(), optimizedIndices.end(), finalIndices.begin());
 
             auto const finalVertexCount = meshopt_optimizeVertexFetch(
                 finalVertices.data(),
@@ -850,9 +933,9 @@ namespace april::asset
         return result;
     }
 
-    auto GltfImporter::importMaterials(
-        std::filesystem::path const& sourcePath
-    ) const -> std::optional<std::vector<GltfMaterialData>>
+        auto GltfImporter::importMaterials(
+            std::filesystem::path const& sourcePath
+        ) const -> std::optional<std::vector<GltfMaterialData>>
     {
         auto model = tinygltf::Model{};
         if (!loadModel(sourcePath, model))
@@ -898,11 +981,11 @@ namespace april::asset
             auto materialData = GltfMaterialData{};
             materialData.name = materialName;
             materialData.parameters = parameters;
-            materialData.baseColorTexture = resolveTextureSource(model, pbr.baseColorTexture, baseDir);
-            materialData.metallicRoughnessTexture = resolveTextureSource(model, pbr.metallicRoughnessTexture, baseDir);
-            materialData.normalTexture = resolveTextureSource(model, gltfMaterial.normalTexture, baseDir);
-            materialData.occlusionTexture = resolveTextureSource(model, gltfMaterial.occlusionTexture, baseDir);
-            materialData.emissiveTexture = resolveTextureSource(model, gltfMaterial.emissiveTexture, baseDir);
+            materialData.baseColorTexture = resolveTextureSource(model, pbr.baseColorTexture, baseDir, sourcePath);
+            materialData.metallicRoughnessTexture = resolveTextureSource(model, pbr.metallicRoughnessTexture, baseDir, sourcePath);
+            materialData.normalTexture = resolveTextureSource(model, gltfMaterial.normalTexture, baseDir, sourcePath);
+            materialData.occlusionTexture = resolveTextureSource(model, gltfMaterial.occlusionTexture, baseDir, sourcePath);
+            materialData.emissiveTexture = resolveTextureSource(model, gltfMaterial.emissiveTexture, baseDir, sourcePath);
 
             materials.push_back(std::move(materialData));
         }

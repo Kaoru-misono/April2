@@ -200,6 +200,20 @@ namespace april::scene
         // Bind default sampler
         rootVar["materialSampler"].setSampler(m_defaultSampler);
 
+        auto warnMissingSlot = [&](RenderID meshId, uint32_t slotIndex)
+        {
+            if (meshId == kInvalidRenderID)
+            {
+                return;
+            }
+
+            auto const key = (static_cast<uint64_t>(meshId) << 32) | slotIndex;
+            if (m_missingMaterialSlots.insert(key).second)
+            {
+                AP_WARN("[SceneRenderer] Mesh {} missing material slot {}", meshId, slotIndex);
+            }
+        };
+
         auto drawList = [&](std::vector<MeshInstance> const& meshes) {
             for (auto const& instance : meshes)
             {
@@ -217,36 +231,55 @@ namespace april::scene
                 // Set per-instance data
                 rootVar["perInstance"]["model"].setBlob(&instance.worldTransform, sizeof(float4x4));
 
-                // Set material index (RenderID starts at 1, material indices start at 0)
-                auto materialIndex = uint32_t{0};
-                if (instance.materialId != kInvalidRenderID)
-                {
-                    materialIndex = instance.materialId - 1;
-                }
-                rootVar["perInstance"]["materialIndex"].set(materialIndex);
-
-                // Bind material textures (or defaults)
-                auto material = m_resources.getMaterial(instance.materialId);
-                if (material && material->hasTextures())
-                {
-                    material->bindTextures(rootVar);
-                }
-                else
-                {
-                    // Bind default white textures
-                    rootVar["baseColorTexture"].setTexture(m_defaultWhiteTexture);
-                    rootVar["metallicRoughnessTexture"].setTexture(m_defaultWhiteTexture);
-                    rootVar["normalTexture"].setTexture(m_defaultWhiteTexture);
-                    rootVar["occlusionTexture"].setTexture(m_defaultWhiteTexture);
-                    rootVar["emissiveTexture"].setTexture(m_defaultWhiteTexture);
-                }
-
                 encoder->setVao(mesh->getVAO());
                 encoder->bindPipeline(m_pipeline.get(), m_vars.get());
 
                 for (size_t s = 0; s < mesh->getSubmeshCount(); ++s)
                 {
                     auto const& submesh = mesh->getSubmesh(s);
+                    auto materialId = instance.materialId;
+                    if (materialId == kInvalidRenderID)
+                    {
+                        materialId = m_resources.getMeshMaterialId(instance.meshId, submesh.materialIndex);
+                        if (materialId == kInvalidRenderID)
+                        {
+                            warnMissingSlot(instance.meshId, submesh.materialIndex);
+                        }
+                    }
+
+                    // Resolve explicit GPU material buffer index for this render material.
+                    auto materialIndex = m_resources.getMaterialBufferIndex(materialId);
+                    if (materialSystem)
+                    {
+                        auto const materialCount = materialSystem->getMaterialCount();
+                        if (materialCount == 0 || materialIndex >= materialCount)
+                        {
+                            auto const warningKey = (static_cast<uint64_t>(instance.meshId) << 32) |
+                                                    static_cast<uint64_t>(submesh.materialIndex);
+                            if (m_invalidMaterialIndices.insert(warningKey).second)
+                            {
+                                AP_WARN("[SceneRenderer] Invalid GPU material index {} (count={}) for mesh {}, slot {}",
+                                        materialIndex, materialCount, instance.meshId, submesh.materialIndex);
+                            }
+                            materialIndex = m_resources.getMaterialBufferIndex(kInvalidRenderID);
+                        }
+                    }
+                    rootVar["perInstance"]["materialIndex"].set(materialIndex);
+
+                    // Always bind defaults first to avoid stale textures leaking from previous draws.
+                    rootVar["baseColorTexture"].setTexture(m_defaultWhiteTexture);
+                    rootVar["metallicRoughnessTexture"].setTexture(m_defaultWhiteTexture);
+                    rootVar["normalTexture"].setTexture(m_defaultWhiteTexture);
+                    rootVar["occlusionTexture"].setTexture(m_defaultWhiteTexture);
+                    rootVar["emissiveTexture"].setTexture(m_defaultWhiteTexture);
+
+                    // Override with bound material textures when present.
+                    auto material = m_resources.getMaterial(materialId);
+                    if (material)
+                    {
+                        material->bindTextures(rootVar);
+                    }
+
                     encoder->drawIndexed(submesh.indexCount, submesh.indexOffset, 0);
                 }
             }

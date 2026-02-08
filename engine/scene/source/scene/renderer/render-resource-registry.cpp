@@ -13,11 +13,16 @@ namespace april::scene
         m_meshes.resize(1);
         m_meshMaterialIds.resize(1);
         m_materials.resize(1);
+        m_materialBufferIndices.resize(1, 0);
 
         // Create material system
         if (m_device)
         {
             m_materialSystem = core::make_ref<graphics::MaterialSystem>(m_device);
+
+            // Reserve GPU material slot 0 as a deterministic fallback.
+            auto defaultMaterial = core::make_ref<graphics::StandardMaterial>();
+            m_defaultMaterialBufferIndex = m_materialSystem->addMaterial(defaultMaterial);
         }
     }
 
@@ -240,10 +245,11 @@ namespace april::scene
         }
 
         loadMaterialTextures(material, materialAsset->textures);
-        m_materialSystem->addMaterial(material);
+        auto const materialBufferIndex = m_materialSystem->addMaterial(material);
 
         auto const id = static_cast<RenderID>(m_materials.size());
         m_materials.push_back(material);
+        m_materialBufferIndices.push_back(materialBufferIndex);
         if (!assetGuid.getNative().is_nil())
         {
             m_materialIdsByGuid[assetGuid] = id;
@@ -258,6 +264,16 @@ namespace april::scene
             return nullptr;
         }
         return m_materials[id];
+    }
+
+    auto RenderResourceRegistry::getMaterialBufferIndex(RenderID id) const -> uint32_t
+    {
+        if (id == kInvalidRenderID || id >= m_materialBufferIndices.size())
+        {
+            return m_defaultMaterialBufferIndex;
+        }
+
+        return m_materialBufferIndices[id];
     }
 
     auto RenderResourceRegistry::loadMaterialTextures(

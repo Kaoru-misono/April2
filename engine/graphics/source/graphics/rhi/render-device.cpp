@@ -602,8 +602,12 @@ namespace april::graphics
             return nullptr;
         }
 
-        // Determine mip levels
-        auto mipLevels = generateMips ? header.mipLevels : 1u;
+        // Determine mip levels (note: texture init data currently uploads only one subresource).
+        auto mipLevels = 1u;
+        if (generateMips && header.mipLevels > 1)
+        {
+            AP_WARN("[Device] Mip upload not supported yet; using base mip only for {}", asset.getSourcePath());
+        }
 
         // Create the texture with initial data
         auto texture = createTexture2D(

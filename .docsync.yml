@@ -1,0 +1,26 @@
+# Example:
+rules:
+  - name: core-public-api
+    when_changed:
+      - "engine/core/include/**"
+      - "engine/core/public/**"
+    must_also_change:
+      - "engine/core/agent/interfaces.md"
+      - "engine/core/agent/changelog.md"
+
+  - name: render-public-api
+    when_changed:
+      - "engine/render/include/**"
+      - "engine/render/public/**"
+      - "engine/render/rhi/**"
+    must_also_change:
+      - "engine/render/agent/interfaces.md"
+      - "engine/render/agent/changelog.md"
+
+  - name: editor-rpc-contract
+    when_changed:
+      - "engine/editor/**"
+      - "entry/editor/**"
+      - "schemas/editor_rpc/**"
+    must_also_change:
+      - "agent/integration/editor-rpc.md"

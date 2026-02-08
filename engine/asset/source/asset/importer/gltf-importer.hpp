@@ -51,7 +51,7 @@ namespace april::asset
     {
     public:
         auto id() const -> std::string_view override { return "GltfImporter"; }
-        auto version() const -> int override { return 1; }
+        auto version() const -> int override { return 2; }
         auto supportsExtension(std::string_view extension) const -> bool override;
         auto primaryType() const -> AssetType override { return AssetType::Mesh; }
         auto import(ImportSourceContext const& context) -> ImportSourceResult override;

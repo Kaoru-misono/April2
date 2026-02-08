@@ -4,6 +4,8 @@
 #include <editor/ui/ui.hpp>
 #include <asset/asset-manager.hpp>
 #include <core/file/vfs.hpp>
+#include <runtime/engine.hpp>
+#include <scene/scene.hpp>
 #include <imgui.h>
 
 #include "font/fonts.hpp"
@@ -37,6 +39,46 @@ namespace april::editor
             return lowerHaystack.find(lowerNeedle) != std::string::npos;
         }
 
+        auto getLowerExtension(std::filesystem::path const& path) -> std::string
+        {
+            auto ext = path.extension().string();
+            std::transform(ext.begin(), ext.end(), ext.begin(),
+                [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            return ext;
+        }
+
+        auto buildDisplayName(std::filesystem::path const& path, bool isDirectory) -> std::string
+        {
+            if (isDirectory)
+            {
+                return path.filename().string();
+            }
+
+            auto name = path.filename();
+            while (name.has_extension())
+            {
+                name = name.stem();
+            }
+            return name.string();
+        }
+
+        auto getHiddenSuffix(std::filesystem::path const& path, bool isDirectory) -> std::string
+        {
+            if (isDirectory)
+            {
+                return {};
+            }
+
+            auto const fileName = path.filename().string();
+            auto const displayName = buildDisplayName(path, false);
+            if (displayName.size() >= fileName.size())
+            {
+                return {};
+            }
+
+            return fileName.substr(displayName.size());
+        }
+
         constexpr auto kTypeFilterNames = std::array{
             "All",
             "Folders",
@@ -56,6 +98,8 @@ namespace april::editor
         {
             return;
         }
+
+        m_assetManager = context.assetManager;
 
         if (context.assetManager)
         {
@@ -94,7 +138,9 @@ namespace april::editor
                 auto path = *m_selectedPaths.begin();
                 m_renaming = true;
                 m_renamingPath = path;
-                auto name = path.filename().string();
+                auto const physicalPath = resolvePhysicalPath(path);
+                auto const isDirectory = std::filesystem::is_directory(physicalPath);
+                auto name = buildDisplayName(path, isDirectory);
                 std::copy(name.begin(), name.end(), m_renameBuffer.begin());
                 m_renameBuffer[name.size()] = '\0';
             },
@@ -141,6 +187,11 @@ namespace april::editor
         );
     }
 
+    auto ContentBrowserWindow::requestRefresh() -> void
+    {
+        m_refreshPending = true;
+    }
+
     auto ContentBrowserWindow::refreshEntries() -> void
     {
         m_entries.clear();
@@ -171,11 +222,17 @@ namespace april::editor
 
         for (auto const& entry : m_entries)
         {
+            auto const isDirectory = entry.is_directory();
+            if (!isDirectory && getLowerExtension(entry.path()) != ".asset")
+            {
+                continue;
+            }
+
             auto item = ContentItem{};
             item.physicalPath = entry.path();
             item.virtualPath = toVirtualPath(entry.path());
-            item.displayName = entry.path().filename().string();
-            item.isDirectory = entry.is_directory();
+            item.displayName = buildDisplayName(entry.path(), isDirectory);
+            item.isDirectory = isDirectory;
             item.type = item.isDirectory ? ContentItemType::Folder : getItemType(entry.path());
             m_contentItems.push_back(std::move(item));
         }
@@ -211,11 +268,25 @@ namespace april::editor
         }
     }
 
-    auto ContentBrowserWindow::getItemType(std::filesystem::path const& path) -> ContentItemType
+    auto ContentBrowserWindow::getItemType(std::filesystem::path const& path) const -> ContentItemType
     {
-        auto ext = path.extension().string();
-        std::transform(ext.begin(), ext.end(), ext.begin(),
-            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        auto ext = getLowerExtension(path);
+
+        if (ext == ".asset" && m_assetManager)
+        {
+            auto asset = m_assetManager->loadAssetMetadata(path);
+            if (asset)
+            {
+                switch (asset->getType())
+                {
+                    case asset::AssetType::Texture: return ContentItemType::Texture;
+                    case asset::AssetType::Mesh: return ContentItemType::Mesh;
+                    case asset::AssetType::Material: return ContentItemType::Material;
+                    case asset::AssetType::Shader: return ContentItemType::Shader;
+                    default: break;
+                }
+            }
+        }
 
         // Textures
         if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" ||
@@ -527,6 +598,14 @@ namespace april::editor
             ++itemIndex;
         }
 
+        if (m_hasPendingNavigation)
+        {
+            auto target = m_pendingNavigation;
+            m_hasPendingNavigation = false;
+            navigateTo(target);
+            return;
+        }
+
         // Context menu for empty space
         if (ImGui::BeginPopupContextWindow("ContentBrowserContextMenu", ImGuiPopupFlags_NoOpenOverItems | ImGuiPopupFlags_MouseButtonRight))
         {
@@ -662,7 +741,12 @@ namespace april::editor
         {
             if (item.isDirectory)
             {
-                navigateTo(item.virtualPath);
+                m_pendingNavigation = item.virtualPath;
+                m_hasPendingNavigation = true;
+            }
+            else if (item.type == ContentItemType::Mesh)
+            {
+                spawnMeshAsset(context, item);
             }
         }
 
@@ -711,6 +795,37 @@ namespace april::editor
             ImGui::EndDragDropSource();
         }
 
+    }
+
+    auto ContentBrowserWindow::spawnMeshAsset(EditorContext& context, ContentItem const& item) -> void
+    {
+        if (item.physicalPath.extension() != ".asset")
+        {
+            return;
+        }
+
+        auto* sceneGraph = Engine::get().getSceneGraph();
+        if (!sceneGraph)
+        {
+            return;
+        }
+
+        auto name = item.physicalPath.stem().string();
+        if (name.empty())
+        {
+            name = item.displayName;
+        }
+
+        auto entity = sceneGraph->createEntity(name);
+        auto& registry = sceneGraph->getRegistry();
+        auto& meshRenderer = registry.emplace<scene::MeshRendererComponent>(entity);
+
+        if (auto* resources = Engine::get().getRenderResourceRegistry())
+        {
+            meshRenderer.meshId = resources->registerMesh(item.physicalPath.string());
+        }
+        meshRenderer.enabled = true;
+        context.selection.entity = entity;
     }
 
     auto ContentBrowserWindow::drawContextMenu(EditorContext& context) -> void
@@ -792,7 +907,21 @@ namespace april::editor
 
     auto ContentBrowserWindow::renameItem(EditorContext& context, std::filesystem::path const& path) -> void
     {
-        auto newName = std::string{m_renameBuffer.data()};
+        auto enteredName = std::string{m_renameBuffer.data()};
+        auto oldPath = path;
+        auto oldPhysicalPath = resolvePhysicalPath(oldPath);
+        auto const isDirectory = std::filesystem::is_directory(oldPhysicalPath);
+
+        auto newName = enteredName;
+        if (!isDirectory)
+        {
+            auto const hiddenSuffix = getHiddenSuffix(path, false);
+            if (!hiddenSuffix.empty() && !newName.ends_with(hiddenSuffix))
+            {
+                newName += hiddenSuffix;
+            }
+        }
+
         if (newName.empty() || newName == path.filename().string())
         {
             m_renaming = false;
@@ -801,8 +930,6 @@ namespace april::editor
         }
 
         auto newPath = path.parent_path() / newName;
-        auto oldPath = path;
-        auto oldPhysicalPath = resolvePhysicalPath(oldPath);
         auto newPhysicalPath = resolvePhysicalPath(newPath);
 
         context.commandStack.execute(
@@ -885,12 +1012,19 @@ namespace april::editor
             return;
         }
 
+        m_assetManager = context.assetManager;
         ensureInitialized(context);
 
         ui::ScopedWindow window{title(), &open};
         if (!window)
         {
             return;
+        }
+
+        if (m_refreshPending)
+        {
+            m_refreshPending = false;
+            refreshContentItems();
         }
 
         // Toolbar

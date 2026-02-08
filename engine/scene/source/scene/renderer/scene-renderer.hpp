@@ -16,6 +16,8 @@
 #include <scene/renderer/frame-snapshot-buffer.hpp>
 #include <scene/renderer/render-resource-registry.hpp>
 #include <scene/renderer/render-types.hpp>
+#include <unordered_set>
+#include <cstdint>
 
 
 namespace april::scene
@@ -62,5 +64,9 @@ namespace april::scene
         core::ref<graphics::Texture> m_defaultWhiteTexture{};
         core::ref<graphics::Sampler> m_defaultSampler{};
         core::ref<graphics::IMaterial> m_defaultMaterial{};
+
+        // Track missing material slots to avoid log spam.
+        std::unordered_set<uint64_t> m_missingMaterialSlots{};
+        std::unordered_set<uint64_t> m_invalidMaterialIndices{};
     };
 }

@@ -9,6 +9,11 @@
 #include <string>
 #include <vector>
 
+namespace april::asset
+{
+    class AssetManager;
+}
+
 namespace april::editor
 {
     enum class ContentItemType
@@ -40,6 +45,7 @@ namespace april::editor
 
         [[nodiscard]] auto title() const -> char const* override { return "Content Browser"; }
         auto onUIRender(EditorContext& context) -> void override;
+        auto requestRefresh() -> void;
 
     private:
         auto ensureInitialized(EditorContext& context) -> void;
@@ -64,9 +70,10 @@ namespace april::editor
         auto renameItem(EditorContext& context, std::filesystem::path const& path) -> void;
         auto deleteItem(EditorContext& context, std::filesystem::path const& path) -> void;
         auto openInExplorer(std::filesystem::path const& path) -> void;
+        auto spawnMeshAsset(EditorContext& context, ContentItem const& item) -> void;
 
         // Utility
-        [[nodiscard]] static auto getItemType(std::filesystem::path const& path) -> ContentItemType;
+        [[nodiscard]] auto getItemType(std::filesystem::path const& path) const -> ContentItemType;
         [[nodiscard]] static auto getItemIcon(ContentItemType type) -> char const*;
         [[nodiscard]] auto isPathInCurrentDir(std::filesystem::path const& virtualPath) const -> bool;
         [[nodiscard]] auto resolvePhysicalPath(std::filesystem::path const& virtualPath) const -> std::filesystem::path;
@@ -79,6 +86,8 @@ namespace april::editor
         std::filesystem::path m_currentPhysical{};
         std::vector<std::filesystem::directory_entry> m_entries{};
         bool m_initialized{false};
+        bool m_refreshPending{false};
+        asset::AssetManager* m_assetManager{};
 
         // Selection
         std::set<std::filesystem::path> m_selectedPaths{};
@@ -112,5 +121,9 @@ namespace april::editor
 
         ui::ActionManager m_actionManager{};
         bool m_actionsRegistered{false};
+
+        // Deferred navigation to avoid mutating lists during iteration.
+        std::filesystem::path m_pendingNavigation{};
+        bool m_hasPendingNavigation{false};
     };
 }

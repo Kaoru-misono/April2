@@ -5,6 +5,9 @@
 #include <fstream>
 #include <cstring>
 #include <cmath>
+#include <cctype>
+#include <algorithm>
+#include <array>
 
 #include <core/tools/uuid.hpp>
 #include <asset/asset.hpp>
@@ -15,6 +18,7 @@
 #include <asset/ddc/ddc-key.hpp>
 #include <asset/ddc/ddc-utils.hpp>
 #include <asset/asset-manager.hpp>
+#include <asset/importer/gltf-importer.hpp>
 
 namespace fs = std::filesystem;
 
@@ -211,6 +215,68 @@ auto readBinaryFile(std::string const& path) -> std::vector<std::byte>
     file.seekg(0, std::ios::beg);
     file.read(reinterpret_cast<char*>(buffer.data()), size);
     return buffer;
+}
+
+auto normalizePathForCompare(std::filesystem::path const& path) -> std::string
+{
+    auto ec = std::error_code{};
+    auto normalized = std::filesystem::absolute(path, ec).lexically_normal().generic_string();
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+        [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return normalized;
+}
+
+auto findSponzaSourcePath() -> std::filesystem::path
+{
+    auto candidateSuffixes = std::array{
+        fs::path{"content/model/Sponza/glTF/Sponza.gltf"},
+        fs::path{"content/model/sponza/glTF/Sponza.gltf"}
+    };
+
+    auto findFromAncestorChain = [&](std::filesystem::path const& start) -> std::filesystem::path
+    {
+        auto ec = std::error_code{};
+        auto current = fs::absolute(start, ec);
+        if (ec)
+        {
+            return {};
+        }
+
+        while (true)
+        {
+            for (auto const& suffix : candidateSuffixes)
+            {
+                auto const candidate = current / suffix;
+                if (fs::exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            auto const parent = current.parent_path();
+            if (parent.empty() || parent == current)
+            {
+                break;
+            }
+            current = parent;
+        }
+
+        return {};
+    };
+
+    auto found = findFromAncestorChain(fs::current_path());
+    if (!found.empty())
+    {
+        return found;
+    }
+
+    found = findFromAncestorChain(fs::path{__FILE__}.parent_path());
+    if (!found.empty())
+    {
+        return found;
+    }
+
+    return {};
 }
 
 // Helper: Create a dummy text file (for error testing)
@@ -1212,5 +1278,127 @@ TEST_SUITE("Asset System - Stage 3 & 4")
 
         fs::remove_all(testDir);
         fs::remove_all("TestCache_Material");
+    }
+
+    TEST_CASE("GltfImporter - Sponza material slots and texture bindings")
+    {
+        using namespace april::asset;
+
+        auto const sponzaSource = findSponzaSourcePath();
+        REQUIRE(!sponzaSource.empty());
+        REQUIRE(fs::exists(sponzaSource));
+
+        auto const testRoot = fs::path{"TestAssets_SponzaImport"};
+        auto const cacheRoot = fs::path{"TestCache_SponzaImport"};
+        auto const copiedSourceDir = testRoot / "Sponza" / "glTF";
+        auto const copiedSource = copiedSourceDir / sponzaSource.filename();
+
+        fs::remove_all(testRoot);
+        fs::remove_all(cacheRoot);
+        fs::create_directories(copiedSourceDir.parent_path());
+
+        fs::copy(
+            sponzaSource.parent_path(),
+            copiedSourceDir,
+            fs::copy_options::recursive | fs::copy_options::overwrite_existing
+        );
+
+        for (auto const& entry : fs::recursive_directory_iterator{copiedSourceDir})
+        {
+            if (!entry.is_regular_file())
+            {
+                continue;
+            }
+
+            if (entry.path().extension() == ".asset")
+            {
+                fs::remove(entry.path());
+            }
+        }
+
+        auto manager = AssetManager{testRoot, cacheRoot};
+        auto importConfig = AssetManager::ImportConfig{};
+        importConfig.policy = AssetManager::ImportPolicy::Reimport;
+        importConfig.subAssetPolicy = AssetManager::ImportPolicy::Reimport;
+        importConfig.forceReimport = true;
+        importConfig.reuseExistingAssets = false;
+
+        auto importedPrimary = manager.importAsset(copiedSource, importConfig);
+        auto importedMesh = std::dynamic_pointer_cast<StaticMeshAsset>(importedPrimary);
+        REQUIRE(importedMesh != nullptr);
+
+        auto gltfImporter = GltfImporter{};
+        auto expectedMaterialsOpt = gltfImporter.importMaterials(copiedSource);
+        REQUIRE(expectedMaterialsOpt.has_value());
+        auto const& expectedMaterials = *expectedMaterialsOpt;
+
+        REQUIRE(importedMesh->m_materialSlots.size() == expectedMaterials.size());
+
+        for (size_t i = 0; i < expectedMaterials.size(); ++i)
+        {
+            auto const& expected = expectedMaterials[i];
+            auto const& slot = importedMesh->m_materialSlots[i];
+            CAPTURE(i);
+            CAPTURE(expected.name);
+            CAPTURE(slot.name);
+            CHECK(slot.name == expected.name);
+        }
+
+        auto meshBlob = std::vector<std::byte>{};
+        auto meshPayload = manager.getMeshData(*importedMesh, meshBlob);
+        REQUIRE(meshPayload.isValid());
+        REQUIRE(meshPayload.submeshes.size() > 0);
+
+        for (auto const& submesh : meshPayload.submeshes)
+        {
+            CAPTURE(submesh.materialIndex);
+            CAPTURE(importedMesh->m_materialSlots.size());
+            CHECK(submesh.materialIndex < importedMesh->m_materialSlots.size());
+        }
+
+        auto validateTexture = [&](
+            size_t materialIndex,
+            char const* label,
+            std::optional<GltfTextureSource> const& expectedSource,
+            std::optional<TextureReference> const& actualRef
+        ) -> void
+        {
+            CAPTURE(materialIndex);
+            CAPTURE(label);
+
+            if (!expectedSource.has_value())
+            {
+                CHECK_FALSE(actualRef.has_value());
+                return;
+            }
+
+            REQUIRE(actualRef.has_value());
+            CHECK(actualRef->texCoord == expectedSource->texCoord);
+
+            auto textureAsset = manager.getAsset<TextureAsset>(actualRef->asset.guid);
+            REQUIRE(textureAsset != nullptr);
+
+            auto const expectedPath = normalizePathForCompare(expectedSource->path);
+            auto const actualPath = normalizePathForCompare(textureAsset->getSourcePath());
+            CHECK(actualPath == expectedPath);
+        };
+
+        for (size_t i = 0; i < expectedMaterials.size(); ++i)
+        {
+            auto const& expected = expectedMaterials[i];
+            auto const& slot = importedMesh->m_materialSlots[i];
+
+            auto materialAsset = manager.getAsset<MaterialAsset>(slot.materialRef.guid);
+            REQUIRE(materialAsset != nullptr);
+
+            validateTexture(i, "baseColorTexture", expected.baseColorTexture, materialAsset->textures.baseColorTexture);
+            validateTexture(i, "metallicRoughnessTexture", expected.metallicRoughnessTexture, materialAsset->textures.metallicRoughnessTexture);
+            validateTexture(i, "normalTexture", expected.normalTexture, materialAsset->textures.normalTexture);
+            validateTexture(i, "occlusionTexture", expected.occlusionTexture, materialAsset->textures.occlusionTexture);
+            validateTexture(i, "emissiveTexture", expected.emissiveTexture, materialAsset->textures.emissiveTexture);
+        }
+
+        fs::remove_all(testRoot);
+        fs::remove_all(cacheRoot);
     }
 }

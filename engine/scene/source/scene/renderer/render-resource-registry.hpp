@@ -39,6 +39,7 @@ namespace april::scene
         auto getMaterialSystem() -> graphics::MaterialSystem*;
         auto getOrCreateMaterialId(std::string const& assetPath) -> RenderID;
         auto getMaterial(RenderID id) const -> core::ref<graphics::IMaterial>;
+        auto getMaterialBufferIndex(RenderID id) const -> uint32_t;
 
     private:
         auto loadMaterialTextures(
@@ -57,7 +58,9 @@ namespace april::scene
         // Material storage
         core::ref<graphics::MaterialSystem> m_materialSystem{};
         std::vector<core::ref<graphics::IMaterial>> m_materials{};
+        std::vector<uint32_t> m_materialBufferIndices{};
         std::unordered_map<core::UUID, RenderID> m_materialIdsByGuid{};
+        uint32_t m_defaultMaterialBufferIndex{0};
 
         auto registerMaterialAsset(std::shared_ptr<asset::MaterialAsset> const& materialAsset) -> RenderID;
     };

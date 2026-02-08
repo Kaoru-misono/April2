@@ -567,6 +567,16 @@ namespace april::asset
             auto asset = loadAssetMetadata(assetFilePath);
             if (asset)
             {
+                if (auto recordOpt = m_registry.findRecord(asset->getHandle()); recordOpt.has_value())
+                {
+                    auto recordedPath = normalizePath(recordOpt->assetPath);
+                    auto currentPath = normalizePath(assetFilePath);
+                    if (recordedPath == currentPath)
+                    {
+                        continue;
+                    }
+                }
+
                 registerAssetInternal(asset, assetFilePath, false);
                 ++count;
             }
@@ -688,6 +698,13 @@ namespace april::asset
         if (m_registry.load(m_registryPath))
         {
             AP_INFO("[AssetManager] Loaded asset registry: {}", m_registryPath.string());
+
+            auto count = scanDirectory(m_assetRootResolved);
+            if (count > 0)
+            {
+                AP_INFO("[AssetManager] Scanned assets: {} entries", count);
+                saveRegistry();
+            }
             return;
         }
 

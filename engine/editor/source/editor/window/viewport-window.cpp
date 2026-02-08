@@ -192,7 +192,7 @@ namespace april::editor
                     if (!inputActive && selected)
                     {
                         m_camera->setPosition(transform.localPosition);
-                        m_camera->setRotation(transform.localRotation.x, transform.localRotation.y);
+                        m_camera->setRotation(transform.localRotation.x, -transform.localRotation.y);
                     }
                     else
                     {
@@ -203,7 +203,7 @@ namespace april::editor
                         auto const pitch = std::asin(std::clamp(direction.y, -0.99f, 0.99f));
 
                         transform.localPosition = position;
-                        transform.localRotation = {pitch, yaw, 0.0f};
+                        transform.localRotation = {pitch, -yaw, 0.0f};
                         transform.isDirty = true;
                         scene->markTransformDirty(m_cameraEntity);
                     }

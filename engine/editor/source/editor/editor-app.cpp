@@ -211,7 +211,17 @@ namespace april::editor
                 {
                     if (context.assetManager)
                     {
-                        context.assetManager->importAsset(std::filesystem::path{m_importBuffer.data()});
+                        auto asset = context.assetManager->importAsset(std::filesystem::path{m_importBuffer.data()});
+                        if (asset)
+                        {
+                            if (auto* window = m_windows.findByTitle("Content Browser"))
+                            {
+                                if (auto* contentBrowser = dynamic_cast<ContentBrowserWindow*>(window))
+                                {
+                                    contentBrowser->requestRefresh();
+                                }
+                            }
+                        }
                     }
                 }
             }
