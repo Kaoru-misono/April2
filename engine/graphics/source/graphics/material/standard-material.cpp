@@ -73,6 +73,14 @@ auto StandardMaterial::writeData(generated::StandardMaterialData& data) const ->
     data.normalScale = normalScale;
     data.occlusionStrength = occlusionStrength;
     data._padding = float2{0.0f, 0.0f};
+    data.baseColorTextureHandle = m_baseColorTextureHandle;
+    data.metallicRoughnessTextureHandle = m_metallicRoughnessTextureHandle;
+    data.normalTextureHandle = m_normalTextureHandle;
+    data.occlusionTextureHandle = m_occlusionTextureHandle;
+    data.emissiveTextureHandle = m_emissiveTextureHandle;
+    data.samplerHandle = m_samplerHandle;
+    data.bufferHandle = m_bufferHandle;
+    data.reservedDescriptorHandle = 0;
 }
 
 auto StandardMaterial::getTypeConformances() const -> TypeConformanceList
@@ -150,6 +158,25 @@ auto StandardMaterial::setDoubleSided(bool doubleSided) -> void
 auto StandardMaterial::isDoubleSided() const -> bool
 {
     return m_doubleSided;
+}
+
+auto StandardMaterial::setDescriptorHandles(
+    uint32_t baseColorTextureHandle,
+    uint32_t metallicRoughnessTextureHandle,
+    uint32_t normalTextureHandle,
+    uint32_t occlusionTextureHandle,
+    uint32_t emissiveTextureHandle,
+    uint32_t samplerHandle,
+    uint32_t bufferHandle
+) -> void
+{
+    m_baseColorTextureHandle = baseColorTextureHandle;
+    m_metallicRoughnessTextureHandle = metallicRoughnessTextureHandle;
+    m_normalTextureHandle = normalTextureHandle;
+    m_occlusionTextureHandle = occlusionTextureHandle;
+    m_emissiveTextureHandle = emissiveTextureHandle;
+    m_samplerHandle = samplerHandle;
+    m_bufferHandle = bufferHandle;
 }
 
 auto StandardMaterial::updateFlags() const -> uint32_t

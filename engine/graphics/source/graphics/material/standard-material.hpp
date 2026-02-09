@@ -53,6 +53,16 @@ namespace april::graphics
         auto setDoubleSided(bool doubleSided) -> void override;
         auto isDoubleSided() const -> bool override;
 
+        auto setDescriptorHandles(
+            uint32_t baseColorTextureHandle,
+            uint32_t metallicRoughnessTextureHandle,
+            uint32_t normalTextureHandle,
+            uint32_t occlusionTextureHandle,
+            uint32_t emissiveTextureHandle,
+            uint32_t samplerHandle,
+            uint32_t bufferHandle
+        ) -> void;
+
         // PBR Parameters (matches generated::StandardMaterialData)
         float4 baseColor{1.0f, 1.0f, 1.0f, 1.0f};
         float metallic{0.0f};
@@ -82,6 +92,13 @@ namespace april::graphics
     private:
         bool m_doubleSided{false};
         uint32_t m_activeLobes{0};
+        uint32_t m_baseColorTextureHandle{0};
+        uint32_t m_metallicRoughnessTextureHandle{0};
+        uint32_t m_normalTextureHandle{0};
+        uint32_t m_occlusionTextureHandle{0};
+        uint32_t m_emissiveTextureHandle{0};
+        uint32_t m_samplerHandle{0};
+        uint32_t m_bufferHandle{0};
 
         auto updateFlags() const -> uint32_t;
         auto updateActiveLobes() const -> uint32_t;

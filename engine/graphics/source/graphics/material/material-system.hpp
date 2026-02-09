@@ -4,6 +4,8 @@
 
 #include "i-material.hpp"
 #include "rhi/buffer.hpp"
+#include "rhi/sampler.hpp"
+#include "rhi/texture.hpp"
 #include "generated/material/material-data.generated.hpp"
 
 #include <vector>
@@ -78,6 +80,17 @@ namespace april::graphics
          */
         auto getTypeConformances() const -> TypeConformanceList;
 
+        using DescriptorHandle = uint32_t;
+        static constexpr DescriptorHandle kInvalidDescriptorHandle = 0;
+
+        auto registerTextureDescriptor(core::ref<Texture> texture) -> DescriptorHandle;
+        auto registerSamplerDescriptor(core::ref<Sampler> sampler) -> DescriptorHandle;
+        auto registerBufferDescriptor(core::ref<Buffer> buffer) -> DescriptorHandle;
+
+        auto getTextureDescriptorResource(DescriptorHandle handle) const -> core::ref<Texture>;
+        auto getSamplerDescriptorResource(DescriptorHandle handle) const -> core::ref<Sampler>;
+        auto getBufferDescriptorResource(DescriptorHandle handle) const -> core::ref<Buffer>;
+
         /**
          * Mark the system as needing an update.
          * Called automatically when materials are added/removed.
@@ -96,6 +109,13 @@ namespace april::graphics
 
         core::ref<Buffer> m_materialDataBuffer;
         std::vector<generated::StandardMaterialData> m_cpuMaterialData;
+
+        std::vector<core::ref<Texture>> m_textureDescriptors;
+        std::vector<core::ref<Sampler>> m_samplerDescriptors;
+        std::vector<core::ref<Buffer>> m_bufferDescriptors;
+        std::unordered_map<Texture*, DescriptorHandle> m_textureDescriptorIndices;
+        std::unordered_map<Sampler*, DescriptorHandle> m_samplerDescriptorIndices;
+        std::unordered_map<Buffer*, DescriptorHandle> m_bufferDescriptorIndices;
 
         bool m_dirty{true};
 

@@ -39,4 +39,13 @@ struct StandardMaterialData
     float normalScale;
     float occlusionStrength;
     float2 _padding;
+
+    uint baseColorTextureHandle;
+    uint metallicRoughnessTextureHandle;
+    uint normalTextureHandle;
+    uint occlusionTextureHandle;
+    uint emissiveTextureHandle;
+    uint samplerHandle;
+    uint bufferHandle;
+    uint reservedDescriptorHandle;
 };

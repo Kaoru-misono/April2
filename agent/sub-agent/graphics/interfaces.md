@@ -68,11 +68,12 @@ Include: `#include <graphics/material/material-system.hpp>`
 Purpose: Material registry and GPU buffer manager.
 
 Key Types: `Device`, `ShaderVariable`, `MaterialSystem`
-Key APIs: `MaterialSystem::addMaterial()`, `MaterialSystem::updateGpuBuffers()`, `MaterialSystem::bindToShader()`, `MaterialSystem::getTypeConformances()`
+Key APIs: `MaterialSystem::addMaterial()`, `MaterialSystem::updateGpuBuffers()`, `MaterialSystem::bindToShader()`, `MaterialSystem::getTypeConformances()`, `MaterialSystem::registerTextureDescriptor()`, `MaterialSystem::registerSamplerDescriptor()`, `MaterialSystem::registerBufferDescriptor()`
 
 Usage Notes:
 - Call `updateGpuBuffers()` after modifying material data.
 - Material GPU ABI uses `generated::MaterialHeader` with `abiVersion` and reserved words for forward-compatible layout growth.
+- Descriptor handles use `MaterialSystem::DescriptorHandle`, with `kInvalidDescriptorHandle` as the fallback for missing resources.
 
 Used By: `scene`
 

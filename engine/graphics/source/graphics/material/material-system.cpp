@@ -1,6 +1,7 @@
 // MaterialSystem implementation.
 
 #include "material-system.hpp"
+#include "standard-material.hpp"
 #include "program/shader-variable.hpp"
 #include "rhi/render-device.hpp"
 
@@ -14,6 +15,10 @@ MaterialSystem::MaterialSystem(core::ref<Device> device)
 {
     m_materials.reserve(kInitialBufferCapacity);
     m_cpuMaterialData.reserve(kInitialBufferCapacity);
+
+    m_textureDescriptors.emplace_back();
+    m_samplerDescriptors.emplace_back();
+    m_bufferDescriptors.emplace_back();
 }
 
 auto MaterialSystem::addMaterial(core::ref<IMaterial> material) -> uint32_t
@@ -130,6 +135,93 @@ auto MaterialSystem::getTypeConformances() const -> TypeConformanceList
     return conformances;
 }
 
+auto MaterialSystem::registerTextureDescriptor(core::ref<Texture> texture) -> DescriptorHandle
+{
+    if (!texture)
+    {
+        return kInvalidDescriptorHandle;
+    }
+
+    auto const iter = m_textureDescriptorIndices.find(texture.get());
+    if (iter != m_textureDescriptorIndices.end())
+    {
+        return iter->second;
+    }
+
+    auto const handle = static_cast<DescriptorHandle>(m_textureDescriptors.size());
+    m_textureDescriptors.push_back(texture);
+    m_textureDescriptorIndices[texture.get()] = handle;
+    return handle;
+}
+
+auto MaterialSystem::registerSamplerDescriptor(core::ref<Sampler> sampler) -> DescriptorHandle
+{
+    if (!sampler)
+    {
+        return kInvalidDescriptorHandle;
+    }
+
+    auto const iter = m_samplerDescriptorIndices.find(sampler.get());
+    if (iter != m_samplerDescriptorIndices.end())
+    {
+        return iter->second;
+    }
+
+    auto const handle = static_cast<DescriptorHandle>(m_samplerDescriptors.size());
+    m_samplerDescriptors.push_back(sampler);
+    m_samplerDescriptorIndices[sampler.get()] = handle;
+    return handle;
+}
+
+auto MaterialSystem::registerBufferDescriptor(core::ref<Buffer> buffer) -> DescriptorHandle
+{
+    if (!buffer)
+    {
+        return kInvalidDescriptorHandle;
+    }
+
+    auto const iter = m_bufferDescriptorIndices.find(buffer.get());
+    if (iter != m_bufferDescriptorIndices.end())
+    {
+        return iter->second;
+    }
+
+    auto const handle = static_cast<DescriptorHandle>(m_bufferDescriptors.size());
+    m_bufferDescriptors.push_back(buffer);
+    m_bufferDescriptorIndices[buffer.get()] = handle;
+    return handle;
+}
+
+auto MaterialSystem::getTextureDescriptorResource(DescriptorHandle handle) const -> core::ref<Texture>
+{
+    if (handle == kInvalidDescriptorHandle || handle >= m_textureDescriptors.size())
+    {
+        return nullptr;
+    }
+
+    return m_textureDescriptors[handle];
+}
+
+auto MaterialSystem::getSamplerDescriptorResource(DescriptorHandle handle) const -> core::ref<Sampler>
+{
+    if (handle == kInvalidDescriptorHandle || handle >= m_samplerDescriptors.size())
+    {
+        return nullptr;
+    }
+
+    return m_samplerDescriptors[handle];
+}
+
+auto MaterialSystem::getBufferDescriptorResource(DescriptorHandle handle) const -> core::ref<Buffer>
+{
+    if (handle == kInvalidDescriptorHandle || handle >= m_bufferDescriptors.size())
+    {
+        return nullptr;
+    }
+
+    return m_bufferDescriptors[handle];
+}
+
 auto MaterialSystem::markDirty() -> void
 {
     m_dirty = true;
@@ -185,6 +277,19 @@ auto MaterialSystem::rebuildMaterialData() -> void
         auto const& material = m_materials[i];
         if (material)
         {
+            if (auto standardMaterial = core::dynamic_ref_cast<StandardMaterial>(material))
+            {
+                standardMaterial->setDescriptorHandles(
+                    registerTextureDescriptor(standardMaterial->baseColorTexture),
+                    registerTextureDescriptor(standardMaterial->metallicRoughnessTexture),
+                    registerTextureDescriptor(standardMaterial->normalTexture),
+                    registerTextureDescriptor(standardMaterial->occlusionTexture),
+                    registerTextureDescriptor(standardMaterial->emissiveTexture),
+                    kInvalidDescriptorHandle,
+                    kInvalidDescriptorHandle
+                );
+            }
+
             material->writeData(m_cpuMaterialData[i]);
         }
         else
