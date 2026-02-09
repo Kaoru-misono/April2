@@ -24,6 +24,7 @@ Use this skill whenever work maps to a tracked task card.
 - Never keep multiple active tasks for one sub-agent execution.
 - Do not silently change public contracts.
 - Keep tasks mergeable and bounded to clear files.
+- Do not manually edit files marked `AUTO-GENERATED`; update generator inputs and regenerate.
 
 ## Outputs
 - updated task card status

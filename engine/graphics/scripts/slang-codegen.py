@@ -129,17 +129,18 @@ def parse_slang_enums(content: str) -> list[EnumDef]:
     for cpp_name, slang_name, backing_type, body in matches:
         if not cpp_name:
             cpp_name = slang_name
+        backing_type_cpp: str
         if not backing_type:
-            backing_type = 'uint32_t'
+            backing_type_cpp = 'uint32_t'
         else:
-            backing_type = SLANG_TO_CPP_TYPES.get(backing_type, backing_type)
+            backing_type_cpp = SLANG_TO_CPP_TYPES.get(backing_type, str(backing_type))
 
         values = parse_enum_values(body)
         enums.append(EnumDef(
             cpp_name=cpp_name,
             slang_name=slang_name,
             values=values,
-            backing_type=backing_type
+            backing_type=backing_type_cpp
         ))
 
     return enums
@@ -156,13 +157,13 @@ def parse_struct_fields(body: str) -> list[Field]:
         if not line or line.startswith('//'):
             continue
 
-        # Skip functions/methods
-        if '(' in line:
-            continue
-
         # Remove inline comments (// ...)
         if '//' in line:
             line = line[:line.index('//')].strip()
+
+        # Skip functions/methods
+        if '(' in line:
+            continue
 
         # Remove trailing semicolon
         line = line.rstrip(';').strip()
@@ -212,16 +213,30 @@ def parse_slang_structs(content: str) -> list[StructDef]:
     return structs
 
 
-def calculate_struct_size(fields: list[Field]) -> int:
-    """Calculate the size of a struct based on its fields (simplified, assumes 16-byte alignment)."""
+def get_field_size(field: Field, type_sizes: dict[str, int]) -> int:
+    """Return field size in bytes using known scalar/vector/struct sizes."""
+    size = type_sizes.get(field.type, 4)
+    if field.array_size:
+        size *= field.array_size
+    return size
+
+
+def calculate_struct_size(fields: list[Field], type_sizes: dict[str, int]) -> int:
+    """Calculate struct size in bytes using a simple linear packing model."""
     total = 0
     for field in fields:
-        size = TYPE_SIZES.get(field.type, 4)
-        if field.array_size:
-            size *= field.array_size
-        total += size
-    # Round up to 16-byte alignment
+        total += get_field_size(field, type_sizes)
     return ((total + 15) // 16) * 16
+
+
+def calculate_field_offsets(fields: list[Field], type_sizes: dict[str, int]) -> list[int]:
+    """Calculate byte offsets for fields using the same packing model as calculate_struct_size()."""
+    offsets: list[int] = []
+    current_offset = 0
+    for field in fields:
+        offsets.append(current_offset)
+        current_offset += get_field_size(field, type_sizes)
+    return offsets
 
 
 def is_flags_enum(enum: EnumDef) -> bool:
@@ -242,6 +257,8 @@ def generate_cpp_header(enums: list[EnumDef], structs: list[StructDef], source_f
         '',
         '#include <core/math/type.hpp>',
         '#include <core/tools/enum-flags.hpp>',
+        '#include <cstddef>',
+        '#include <cstdint>',
         '',
         'namespace april::graphics::inline generated',
         '{',
@@ -265,9 +282,36 @@ def generate_cpp_header(enums: list[EnumDef], structs: list[StructDef], source_f
 
         lines.append('')
 
+    # Resolve struct sizes/offsets, including nested struct fields.
+    type_sizes = dict(TYPE_SIZES)
+    struct_layouts: dict[str, tuple[int, list[int]]] = {}
+    unresolved = list(structs)
+
+    while unresolved:
+        remaining: list[StructDef] = []
+        progressed = False
+
+        for s in unresolved:
+            field_types_known = all((field.type in type_sizes) or (field.type == s.cpp_name) for field in s.fields)
+            if not field_types_known:
+                remaining.append(s)
+                continue
+
+            size = calculate_struct_size(s.fields, type_sizes)
+            offsets = calculate_field_offsets(s.fields, type_sizes)
+            struct_layouts[s.cpp_name] = (size, offsets)
+            type_sizes[s.cpp_name] = size
+            progressed = True
+
+        if not progressed:
+            unresolved_names = ', '.join(s.cpp_name for s in remaining)
+            raise ValueError(f'Unable to resolve struct sizes for: {unresolved_names}')
+
+        unresolved = remaining
+
     # Generate structs
     for s in structs:
-        size = calculate_struct_size(s.fields)
+        size, offsets = struct_layouts[s.cpp_name]
         lines.append(f'    struct alignas(16) {s.cpp_name}')
         lines.append('    {')
         for f in s.fields:
@@ -277,6 +321,10 @@ def generate_cpp_header(enums: list[EnumDef], structs: list[StructDef], source_f
                 lines.append(f'        {f.type} {f.name};')
         lines.append('    };')
         lines.append(f'    static_assert(sizeof({s.cpp_name}) == {size}, "Size mismatch for {s.cpp_name}");')
+        for field, offset in zip(s.fields, offsets):
+            lines.append(
+                f'    static_assert(offsetof({s.cpp_name}, {field.name}) == {offset}, "Offset mismatch for {s.cpp_name}::{field.name}");'
+            )
         lines.append('')
 
     lines.append('} // namespace april::graphics::inline generated')

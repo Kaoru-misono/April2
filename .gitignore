@@ -45,6 +45,9 @@ build/
 .cache/
 .vscode/
 
+# Auto-generated headers
+engine/graphics/source/graphics/generated/
+
 # ==============================================================================
 # Exceptions (Whitelist)
 # ==============================================================================

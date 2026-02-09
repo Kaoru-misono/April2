@@ -25,6 +25,7 @@ Use this guide to run the new workflow in daily development.
 1. Select exactly one task card in `agent/sub-agent/<module>/tasks/`.
 2. Set `status: in_progress` and update `updated_at`.
 3. Implement a mergeable slice and verify with build/test/demo.
+   - For generated artifacts: do not edit `AUTO-GENERATED` files directly. Edit source inputs and regenerate in the same change.
 4. Set `status: done` and fill `evidence`.
 
 ## 5) DocSync gate
