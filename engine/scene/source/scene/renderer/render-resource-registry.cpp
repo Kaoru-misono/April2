@@ -1,6 +1,8 @@
 #include "render-resource-registry.hpp"
 
 #include <asset/texture-asset.hpp>
+#include <algorithm>
+#include <cctype>
 #include <filesystem>
 
 namespace april::scene
@@ -237,14 +239,35 @@ namespace april::scene
         }
 
         auto const& assetPath = materialAsset->getAssetPath();
-        auto material = graphics::StandardMaterial::createFromAsset(m_device, *materialAsset);
+        auto materialPathLower = assetPath.string();
+        std::transform(materialPathLower.begin(), materialPathLower.end(), materialPathLower.begin(), [](unsigned char c) {
+            return static_cast<char>(std::tolower(c));
+        });
+
+        core::ref<graphics::IMaterial> material{};
+        if (materialPathLower.find("unlit") != std::string::npos)
+        {
+            auto unlit = core::make_ref<graphics::UnlitMaterial>();
+            unlit->color = materialAsset->parameters.baseColorFactor;
+            unlit->emissive = materialAsset->parameters.emissiveFactor;
+            unlit->setDoubleSided(materialAsset->parameters.doubleSided);
+            material = unlit;
+        }
+        else
+        {
+            material = graphics::StandardMaterial::createFromAsset(m_device, *materialAsset);
+        }
+
         if (!material)
         {
             AP_ERROR("[RenderResourceRegistry] Failed to create material from asset: {}", assetPath);
             return kInvalidRenderID;
         }
 
-        loadMaterialTextures(material, materialAsset->textures);
+        if (auto standard = core::dynamic_ref_cast<graphics::StandardMaterial>(material))
+        {
+            loadMaterialTextures(standard, materialAsset->textures);
+        }
         auto const materialBufferIndex = m_materialSystem->addMaterial(material);
 
         auto const id = static_cast<RenderID>(m_materials.size());

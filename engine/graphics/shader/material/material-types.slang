@@ -41,6 +41,7 @@ enum class MaterialType : uint
 {
     Unknown  = 0,
     Standard = 1,
+    Unlit    = 2,
 };
 
 // @export-cpp

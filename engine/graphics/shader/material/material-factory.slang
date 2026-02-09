@@ -5,6 +5,7 @@ import material.material_data;
 import material.material_system;
 import material.shading_data;
 import material.standard_material;
+import material.unlit_material;
 
 struct MaterialFactory
 {
@@ -47,6 +48,13 @@ struct MaterialFactory
 
 IMaterialInstance getMaterialInstance(MaterialFactory factory, uint materialID, ShadingData sd)
 {
+    StandardMaterialData mtl = getMaterial(factory.ms, materialID);
+    if (MaterialType(mtl.header.materialType) == MaterialType::Unlit)
+    {
+        UnlitMaterialInstance unlit = UnlitMaterialInstance(mtl);
+        return createDynamicObject<IMaterialInstance>(unlit);
+    }
+
     StandardMaterialInstance standard = factory.getStandardMaterialInstance(materialID, sd);
     return createDynamicObject<IMaterialInstance>(standard);
 }

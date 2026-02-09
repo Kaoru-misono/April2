@@ -2,6 +2,7 @@
 
 #include "material-system.hpp"
 #include "standard-material.hpp"
+#include "unlit-material.hpp"
 #include "program/shader-variable.hpp"
 #include "rhi/render-device.hpp"
 
@@ -340,6 +341,10 @@ auto MaterialSystem::rebuildMaterialData() -> void
             if (core::dynamic_ref_cast<StandardMaterial>(material))
             {
                 data.header.materialType = m_materialTypeRegistry.resolveTypeId("Standard");
+            }
+            else if (core::dynamic_ref_cast<UnlitMaterial>(material))
+            {
+                data.header.materialType = m_materialTypeRegistry.resolveTypeId("Unlit");
             }
 
             auto const textureCount = static_cast<uint32_t>(m_textureDescriptors.size());
