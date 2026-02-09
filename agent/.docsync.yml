@@ -1,21 +1,21 @@
-# Example:
 rules:
   - name: core-public-api
     when_changed:
       - "engine/core/include/**"
       - "engine/core/public/**"
+      - "engine/core/source/core/**"
     must_also_change:
-      - "sub-agent/core/interfaces.md"
-      - "sub-agent/core/changelog.md"
+      - "agent/sub-agent/core/interfaces.md"
+      - "agent/sub-agent/core/changelog.md"
 
-  - name: render-public-api
+  - name: graphics-public-api
     when_changed:
-      - "engine/render/include/**"
-      - "engine/render/public/**"
-      - "engine/render/rhi/**"
+      - "engine/graphics/include/**"
+      - "engine/graphics/public/**"
+      - "engine/graphics/source/graphics/**"
     must_also_change:
-      - "sub-agent/render/interfaces.md"
-      - "sub-agent/render/changelog.md"
+      - "agent/sub-agent/graphics/interfaces.md"
+      - "agent/sub-agent/graphics/changelog.md"
 
   - name: editor-rpc-contract
     when_changed:
@@ -23,4 +23,4 @@ rules:
       - "entry/editor/**"
       - "schemas/editor_rpc/**"
     must_also_change:
-      - "agent/integration/editor-rpc.md"
+      - "agent/integration/editor-rpc-mode.md"

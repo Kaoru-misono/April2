@@ -1,40 +1,13 @@
 # Asset Tasks
 
-> Every task must be independently mergeable. Avoid big-bang PRs.
+Task cards are now file-based and follow `agent/sub-agent/task-schema.md`.
 
-## Task Template
-- ID: ASSET-000
-- Goal: Define the asset handle/load API contract.
-- Dependencies: (none)
-- Scope: Document asset public headers in `sub-agent/asset/interfaces.md`.
-- Out of scope: No asset pipeline changes.
-- Acceptance Criteria:
-- `sub-agent/asset/interfaces.md` lists all public headers
-- `changelog.md` updated if APIs change
-- Test Plan: N/A (docs only)
-- Expected files touched:
-- `sub-agent/asset/interfaces.md`
-- `sub-agent/asset/changelog.md`
-- Risk: Low
-- Owner: TBD
-
----
+## Active
+- `agent/sub-agent/asset/tasks/ASSET-003-support-embedded-textures-in-gltf.md`
 
 ## Backlog
-- ASSET-001 Document import configuration options
-- ASSET-002 Add importer regression test
+- `agent/sub-agent/asset/tasks/ASSET-001-document-import-configuration-options.md`
+- `agent/sub-agent/asset/tasks/ASSET-002-add-importer-regression-test.md`
 
-## In Progress
-- ID: ASSET-003
-- Goal: Extend glTF import to support embedded textures (GLB bufferView / data URI).
-- Dependencies: `engine/asset/source/asset/importer/gltf-importer.cpp`.
-- Scope: Resolve embedded texture sources into texture assets; improve diagnostics.
-- Out of scope: Editor UI and renderer changes.
-- Acceptance Criteria:
-- Importing embedded-texture glTF produces texture assets referenced by materials.
-- Logs distinguish missing/unsupported/failed decode cases.
-- Test Plan: Import a GLB with embedded textures and verify material textures are bound.
-- Expected files touched:
-- `engine/asset/source/asset/importer/gltf-importer.cpp`
-- Risk: Medium (image decoding and import path).
-- Owner: Agent
+## New Task Template
+- `agent/templates/tasks/RND-001.md`

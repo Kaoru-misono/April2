@@ -6,7 +6,7 @@ owner: codex
 priority: p1
 deps: []
 updated_at: 2026-02-09
-evidence: "sub-agent/graphics/plan/2026-02-09-slang-material-architecture.md"
+evidence: "agent/sub-agent/graphics/plan/2026-02-09-slang-material-architecture.md"
 ---
 
 ## Goal
@@ -16,7 +16,7 @@ Produce an implementation-ready migration plan to move scene material rendering 
 - [x] Plan includes target architecture and phased milestones.
 - [x] Plan references Falcor material system files placed in repo root.
 - [x] Plan lists verification strategy and cross-module requests.
-- [x] Milestones are decomposed into detailed task cards under `sub-agent/graphics/tasks/`.
+- [x] Milestones are decomposed into detailed task cards under `agent/sub-agent/graphics/tasks/`.
 
 ## Test Plan
 - docs-only task.

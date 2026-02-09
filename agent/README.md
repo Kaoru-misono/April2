@@ -1,61 +1,57 @@
-# Agent Workflow (April2)
+# Skill + Sub-Agent Workflow (April2)
 
-This repository uses Markdown to drive multi-agent parallel development. The goals:
+This repository now treats `agent/` as the source of truth for a Skill-first workflow with module sub-agents.
+
+## Goals
 - stable collaboration boundaries
-- low coupling
-- prevent knowledge loss
-- reduce rework
+- low coupling across modules
+- reusable execution playbooks (skills)
+- less context loss between coding sessions
 
-## Document Layers (important)
-- **integration/**: cross-module contracts (protocols/formats/threading/error model). Single source of truth.
-- **<module>/agent/interfaces.md**: module public interface docs aggregated per module (one file listing all public headers).
-  - Public headers are those included via `#include <module/...>` from other engine modules (excluding `entry/` and `engine/test`).
-- **<module>/agent/knowledge.md**: pitfalls, debugging, performance, platform notes.
-- **<module>/agent/tasks.md**: actionable task cards to drive agents.
-- **decisions/**: ADRs (why we decided X).
+## Layout
+- `agent/sub-agent/<module>/` module knowledge base and task cards.
+  - `role.md`: ownership and boundaries.
+  - `knowledge.md`: pitfalls, debugging, performance notes.
+  - `interfaces.md`: public API contract index.
+  - `changelog.md`: public behavior changes.
+  - `plan/` + `tasks/` or `tasks.md`: mergeable work items.
+- `agent/sub-agent/task-schema.md` canonical frontmatter schema for task cards.
+- `agent/integration/` cross-module protocol and runtime contracts.
+- `agent/decisions/` architecture decision records.
+- `.agents/skills/` reusable skills (Codex-compatible Agent Skills).
+- `.claude/agents/` project sub-agents (Claude Code-compatible agents).
 
-## Change Rules
-1. Any PR that changes **public behavior / API / protocol / format** must update the corresponding docs:
-   - module public API: update `<module>/agent/interfaces.md` and `<module>/agent/changelog.md`
-   - cross-module protocol/format: update `/agent/integration/*` and reference it from affected modules
-2. **DocSync (anti-drift)**: CI blocks PRs that change public API without updating the required docs.
-3. Prefer small PRs: **stub-first** (contract + stub + buildable runnable demo/test), then incrementally implement.
+## Core Rules
+1. Any PR that changes public behavior/API/protocol/format must update docs in the same change.
+2. DocSync (`agent/.docsync.yml`) is the anti-drift gate.
+3. Prefer small, mergeable increments: contract + stub + validation first, then implementation.
 
-## Multi-Agent Work Rules
-1. **Read first**: before coding, every agent must read its module's `role.md` and `knowledge.md`.
-2. **Understand the module**: scan the module's current structure (source layout, key headers, and build files) to ground the work.
-3. **Plan-driven work**:
-   - Start from the module's `plan/` and break the plan into concrete items in `tasks.md`.
-   - Each task should be independently mergeable and mapped to clear output files.
-4. **Cross-module changes**:
-   - If your task requires changes in another module, add a **specific request** to that module's `plan/` (do not block your own work).
-   - The request must define the interface contract (names, parameters, return types, error behavior, threading expectations).
-   - Assume the other module will implement the request correctly; continue your own work against the contract.
-5. **Execution and handoff**:
-   - Complete your tasks and then wait.
-   - A test agent will run tests. If failures occur, create a new plan item for the responsible module and let that module's agent fix and refine.
+## Skill-Driven Execution
+1. Load the relevant workflow skills first (task lifecycle, docsync, cross-module contracts).
+2. Route work to the matching module sub-agent.
+3. The sub-agent reads `role.md` + `knowledge.md` before editing code.
+4. The sub-agent updates exactly one active task card while executing.
+5. On completion, the sub-agent updates evidence and hands off to test validation.
 
-## Mandatory Housekeeping (MUST)
+## Task Lifecycle (MUST)
 Before coding:
-1) Pick exactly ONE task file in `agent/tasks/`.
-2) Set `status: in_progress`, update `updated_at`.
-3) If the task depends on missing contracts/APIs, set `status: blocked` and write what is missing.
+1) Select exactly one task card for active work.
+2) Set `status: in_progress` and refresh `updated_at`.
+3) If required contracts are missing, set `status: blocked` and document the missing contract.
 
 After coding:
-1) Update the same task file:
-   - if completed: `status: done`
-   - fill `evidence` with PR link / commit hash + how to run the demo/test
-2) If follow-up work is discovered, create NEW task file(s) (do not bloat the current one).
+1) Update the same task card:
+   - completed work -> `status: done`
+   - add `evidence` (commit hash/PR + verification command)
+2) Create new task cards for follow-up work; do not overload the current card.
 
+## Definition of Done
+- build passes
+- tests (or one demo path) pass
+- docs updated (`interfaces`/`integration`/`changelog`)
+- no hidden cross-module dependency beyond declared contracts
 
-## Definition of Done (DoD)
-- ✅ build passes
-- ✅ tests or at least one demo path passes
-- ✅ docs updated (interfaces/protocols/changelog)
-- ✅ no hidden cross-module dependencies (only contract-level interaction)
-
-## Suggested commit granularity
-- commit 1: contract + stub + demo/test
-- commit 2: implementation A
-- commit 3: implementation B
-- final: rebase + cleanups + docs polish
+## Suggested Commit Granularity
+- commit 1: contract + stub + test/demo path
+- commit 2+: implementation slices
+- final: cleanup + docs polish

@@ -56,7 +56,7 @@
 - deliverables:
 - Add host-side material type registry and type-conformance aggregation at program build time.
 - Add at least one non-standard material stub path (can be compile-time disabled).
-- Document extension process in `sub-agent/graphics/interfaces.md`.
+- Document extension process in `agent/sub-agent/graphics/interfaces.md`.
 - acceptance:
 - Adding a material implementation requires no edits in core scene shader entrypoint logic.
 
