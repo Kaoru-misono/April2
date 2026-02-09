@@ -239,7 +239,7 @@ namespace april::scene
         }
 
         auto const& assetPath = materialAsset->getAssetPath();
-        auto materialPathLower = assetPath.string();
+        auto materialPathLower = assetPath;
         std::transform(materialPathLower.begin(), materialPathLower.end(), materialPathLower.begin(), [](unsigned char c) {
             return static_cast<char>(std::tolower(c));
         });
