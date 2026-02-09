@@ -500,6 +500,7 @@ namespace april::graphics
         friend class ParameterBlockReflection;
 
         auto validateEntryPoints() const -> bool;
+        auto validateConformancesPreflight() const -> bool;
         auto link() const -> bool;
 
         core::BreakableReference<Device> mp_device;

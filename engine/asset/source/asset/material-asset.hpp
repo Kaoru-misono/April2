@@ -52,6 +52,9 @@ namespace april::asset
     public:
         MaterialAsset() : Asset(AssetType::Material) {}
 
+        // Material type name (e.g., "Standard", "Unlit") - explicit metadata, not path-derived.
+        std::string materialType{"Standard"};
+
         MaterialParameters parameters{};
         MaterialTextures textures{};
 

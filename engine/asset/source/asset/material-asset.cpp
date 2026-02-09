@@ -73,6 +73,7 @@ namespace april::asset
         rebuildReferences();
         Asset::serializeJson(outJson);
 
+        outJson["materialType"] = materialType;
         outJson["parameters"] = parameters;
         outJson["textures"] = textures;
     }
@@ -80,6 +81,11 @@ namespace april::asset
     auto MaterialAsset::deserializeJson(nlohmann::json const& inJson) -> bool
     {
         if (!Asset::deserializeJson(inJson)) return false;
+
+        if (inJson.contains("materialType"))
+        {
+            materialType = inJson["materialType"].get<std::string>();
+        }
 
         if (inJson.contains("parameters"))
         {

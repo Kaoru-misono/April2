@@ -1,8 +1,6 @@
 #include "render-resource-registry.hpp"
 
 #include <asset/texture-asset.hpp>
-#include <algorithm>
-#include <cctype>
 #include <filesystem>
 
 namespace april::scene
@@ -239,13 +237,12 @@ namespace april::scene
         }
 
         auto const& assetPath = materialAsset->getAssetPath();
-        auto materialPathLower = assetPath;
-        std::transform(materialPathLower.begin(), materialPathLower.end(), materialPathLower.begin(), [](unsigned char c) {
-            return static_cast<char>(std::tolower(c));
-        });
+
+        // Use explicit materialType from asset metadata (no path-based heuristics).
+        auto const& materialTypeName = materialAsset->materialType;
 
         core::ref<graphics::IMaterial> material{};
-        if (materialPathLower.find("unlit") != std::string::npos)
+        if (materialTypeName == "Unlit")
         {
             auto unlit = core::make_ref<graphics::UnlitMaterial>();
             unlit->color = materialAsset->parameters.baseColorFactor;
@@ -255,6 +252,12 @@ namespace april::scene
         }
         else
         {
+            // Default to Standard material for "Standard" or unknown types.
+            if (materialTypeName != "Standard" && !materialTypeName.empty())
+            {
+                AP_WARN("[RenderResourceRegistry] Unknown material type '{}' in asset: {}; defaulting to Standard",
+                    materialTypeName, assetPath);
+            }
             material = graphics::StandardMaterial::createFromAsset(m_device, *materialAsset);
         }
 

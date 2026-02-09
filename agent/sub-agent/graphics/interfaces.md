@@ -123,11 +123,12 @@ Include: `#include <graphics/program/program.hpp>`
 Purpose: Shader program description, compilation, and management (Falcor-style).
 
 Key Types: `RayTracingPipeline`, `RtProgramVariables`, `TypeConformance`, `HashFunction`, `TypeConformanceList`, `SlangCompilerFlags`, `ProgramDesc`, `ShaderID`, `ShaderSource`, `Type`, `ShaderModule`, `EntryPoint`, `EntryPointGroup`, `Program`, `ProgramManager`, `ProgramVersion`, `ParameterBlockReflection`, `ProgramVersionKey`
-Key APIs: `ProgramDesc`, `Program`, `ProgramManager`, `TypeConformanceList`
+Key APIs: `ProgramDesc`, `Program`, `ProgramManager`, `TypeConformanceList`, `Program::validateConformancesPreflight()`
 
 Usage Notes:
 - Build `ProgramDesc` with modules/entry points; compile via `ProgramManager`.
 - Use `TypeConformanceList` to select interface implementations.
+- Preflight conformance validation warns if material-related shaders are missing `IMaterialInstance` conformance.
 
 Used By: `scene`
 

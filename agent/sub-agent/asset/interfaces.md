@@ -56,10 +56,11 @@ Include: `#include <asset/material-asset.hpp>`
 Purpose: Material asset schema (PBR parameters + texture references) with JSON serialization.
 
 Key Types: `MaterialParameters`, `TextureReference`, `MaterialTextures`, `MaterialAsset`
-Key APIs: `MaterialAsset::serializeJson(...)`, `MaterialAsset::deserializeJson(...)`, `to_json/from_json for MaterialParameters/TextureReference/MaterialTextures`
+Key APIs: `MaterialAsset::serializeJson(...)`, `MaterialAsset::deserializeJson(...)`, `MaterialAsset::materialType`, `to_json/from_json for MaterialParameters/TextureReference/MaterialTextures`
 
 Usage Notes:
 - Populate `MaterialParameters`/`MaterialTextures` and serialize to `.asset` JSON.
+- Set `materialType` to control material class selection (e.g., "Standard", "Unlit"); defaults to "Standard".
 - Used by material importers and runtime material creation.
 
 Used By: `graphics`, `scene`
