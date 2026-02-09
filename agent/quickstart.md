@@ -26,8 +26,10 @@ Use this guide to run the new workflow in daily development.
 2. Set `status: in_progress` and update `updated_at`.
 3. Implement a mergeable slice and verify with build/test/demo.
    - For generated artifacts: do not edit `AUTO-GENERATED` files directly. Edit source inputs and regenerate in the same change.
-4. When the task is complete, create a dedicated commit for that task.
-5. Set `status: done` and fill `evidence` including the commit id and verification command(s).
+4. When the task is complete, create one dedicated commit containing both code changes and task-card updates for that task.
+   - Commit message must include the task id (example: `GRAPHICS-MATERIAL-201: ...`).
+5. Set `status: done` and fill `evidence` with verification command(s) and result notes (no commit id required).
+6. After all tasks in the batch are complete, update the task commit tracker document with `task id -> commit id` mappings.
 
 ## 5) DocSync gate
 - If public API/behavior/contracts changed, update docs in the same change:

@@ -6,7 +6,7 @@ owner: codex
 priority: p2
 deps: [GRAPHICS-MATERIAL-401, GRAPHICS-MATERIAL-303]
 updated_at: 2026-02-09
-evidence: "Implemented in commit `3ed7c8f`: added host-side `UnlitMaterial` and Slang `UnlitMaterialInstance`, extended material factory to create unlit/standard instances through the same `IMaterialInstance` path, added `MaterialType::Unlit`, and wired render-resource registry to instantiate unlit materials via asset-path heuristic (`*unlit*`) without adding scene shader branching. Registry + type-conformance paths participate through MaterialSystem type-id assignment and `UnlitMaterialInstance -> IMaterialInstance` conformance. Verification attempted with `cmake --build build/x64-debug --target April_graphics April_scene` (environment toolchain failure: missing standard headers `cmath`/`string`/`cstdint`)."
+evidence: "Implemented: added host-side `UnlitMaterial` and Slang `UnlitMaterialInstance`, extended material factory to create unlit/standard instances through the same `IMaterialInstance` path, added `MaterialType::Unlit`, and wired render-resource registry to instantiate unlit materials via asset-path heuristic (`*unlit*`) without adding scene shader branching. Registry + type-conformance paths participate through MaterialSystem type-id assignment and `UnlitMaterialInstance -> IMaterialInstance` conformance. Verification attempted with `cmake --build build/x64-debug --target April_graphics April_scene` (environment toolchain failure: missing standard headers `cmath`/`string`/`cstdint`)."
 ---
 
 ## Goal

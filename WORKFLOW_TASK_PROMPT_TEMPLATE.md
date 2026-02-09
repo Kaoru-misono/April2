@@ -8,7 +8,9 @@ Before coding, set status to in_progress and updated_at to today.
 Implement the requested change within module ownership boundaries.
 Never hand-edit `AUTO-GENERATED` files; update source/generator inputs and regenerate.
 After changes, run relevant build/test/manual verification.
-When a task is complete, create a commit for that task and record the commit id in `evidence`, then set status to done.
+When a task is complete, create one commit that contains both code changes and task-card updates for that task.
+Use the task id in commit message (for example `GRAPHICS-MATERIAL-201: ...`).
+`evidence` should record verification details; commit id tracking is done in the task tracker document.
 If public API/contract changed, update docs with docsync guard.
 ```
 

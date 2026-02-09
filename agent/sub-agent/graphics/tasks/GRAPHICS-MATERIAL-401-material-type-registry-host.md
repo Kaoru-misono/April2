@@ -6,7 +6,7 @@ owner: codex
 priority: p2
 deps: [GRAPHICS-MATERIAL-302]
 updated_at: 2026-02-09
-evidence: "Implemented in commit `e95b3a3`: added host-side `MaterialTypeRegistry` (`typeName <-> typeId`) with built-in reserved ids (`Unknown=0`, `Standard=1`, `Unlit=2`) and deterministic extension-id generation; integrated registry into `MaterialSystem`, exposed lookup APIs, and routed Standard material header type id through registry-backed assignment during material-data rebuild. Verification attempted with `cmake --build build/x64-debug --target April_graphics` (environment toolchain failure: missing standard headers like `cmath`/`cstdint`)."
+evidence: "Implemented: added host-side `MaterialTypeRegistry` (`typeName <-> typeId`) with built-in reserved ids (`Unknown=0`, `Standard=1`, `Unlit=2`) and deterministic extension-id generation; integrated registry into `MaterialSystem`, exposed lookup APIs, and routed Standard material header type id through registry-backed assignment during material-data rebuild. Verification attempted with `cmake --build build/x64-debug --target April_graphics` (environment toolchain failure: missing standard headers like `cmath`/`cstdint`)."
 ---
 
 ## Goal

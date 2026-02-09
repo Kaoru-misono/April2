@@ -6,7 +6,7 @@ owner: codex
 priority: p2
 deps: [GRAPHICS-MATERIAL-401]
 updated_at: 2026-02-09
-evidence: "Implemented in commit `5954a72`: updated graphics interfaces/changelog docs for material extension architecture and onboarding workflow; added render-resource registry debug APIs (`getMaterialTypeId()`, `getMaterialTypeName()`) and surfaced GPU material index + material type (name/id) in editor inspector Mesh Renderer panel. Verification attempted via `cmake --build build/x64-debug --target April_editor April_scene April_graphics` (environment toolchain failure: missing standard headers e.g. `cmath`, `string`, `functional`)."
+evidence: "Implemented: updated graphics interfaces/changelog docs for material extension architecture and onboarding workflow; added render-resource registry debug APIs (`getMaterialTypeId()`, `getMaterialTypeName()`) and surfaced GPU material index + material type (name/id) in editor inspector Mesh Renderer panel. Verification attempted via `cmake --build build/x64-debug --target April_editor April_scene April_graphics` (environment toolchain failure: missing standard headers e.g. `cmath`, `string`, `functional`)."
 ---
 
 ## Goal

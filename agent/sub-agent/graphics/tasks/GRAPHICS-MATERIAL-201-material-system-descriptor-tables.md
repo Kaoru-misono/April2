@@ -6,7 +6,7 @@ owner: codex
 priority: p1
 deps: [GRAPHICS-MATERIAL-101]
 updated_at: 2026-02-09
-evidence: "Implemented descriptor-table host path in commit `ccdca3f` by adding texture/sampler/buffer descriptor registration and lookup APIs in MaterialSystem plus StandardMaterial descriptor-handle serialization in GPU data. Verification attempted with `cmake --build build/x64-debug --target April_graphics` (environment toolchain failure: missing standard header `cmath`)."
+evidence: "Implemented descriptor-table host path by adding texture/sampler/buffer descriptor registration and lookup APIs in MaterialSystem plus StandardMaterial descriptor-handle serialization in GPU data. Verification attempted with `cmake --build build/x64-debug --target April_graphics` (environment toolchain failure: missing standard header `cmath`)."
 ---
 
 ## Goal

@@ -6,7 +6,7 @@ owner: codex
 priority: p1
 deps: [GRAPHICS-MATERIAL-301]
 updated_at: 2026-02-09
-evidence: "Implemented in commit `8d2e34b`: MaterialSystem-provided type conformances are injected into scene shader program creation; Standard material now contributes `StandardMaterialInstance -> IMaterialInstance` conformance; program link failures now print active type-conformance summary for clearer missing-conformance diagnostics. Program cache key already includes `TypeConformanceList` in `ProgramVersionKey`, so conformance changes trigger distinct program versions. Verification attempted with `cmake --build build/x64-debug --target April_graphics April_scene` (environment toolchain failure: missing standard headers `cmath`/`string`)."
+evidence: "Implemented: MaterialSystem-provided type conformances are injected into scene shader program creation; Standard material now contributes `StandardMaterialInstance -> IMaterialInstance` conformance; program link failures now print active type-conformance summary for clearer missing-conformance diagnostics. Program cache key already includes `TypeConformanceList` in `ProgramVersionKey`, so conformance changes trigger distinct program versions. Verification attempted with `cmake --build build/x64-debug --target April_graphics April_scene` (environment toolchain failure: missing standard headers `cmath`/`string`)."
 ---
 
 ## Goal

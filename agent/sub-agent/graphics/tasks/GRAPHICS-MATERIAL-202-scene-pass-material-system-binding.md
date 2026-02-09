@@ -6,7 +6,7 @@ owner: codex
 priority: p1
 deps: [GRAPHICS-MATERIAL-201]
 updated_at: 2026-02-09
-evidence: "Implemented in commit `22b83b6`: scene pass now binds material texture/sampler tables once per pass (`materialTextures[]`, `materialSamplers[]`) and per-draw texture globals/bind calls were removed; draw-time work is limited to instance/material indices. Verification attempted with `cmake --build build/x64-debug --target April_scene April_graphics` (environment toolchain failure: missing standard headers `cmath`/`string`)."
+evidence: "Implemented: scene pass now binds material texture/sampler tables once per pass (`materialTextures[]`, `materialSamplers[]`) and per-draw texture globals/bind calls were removed; draw-time work is limited to instance/material indices. Verification attempted with `cmake --build build/x64-debug --target April_scene April_graphics` (environment toolchain failure: missing standard headers `cmath`/`string`)."
 ---
 
 ## Goal

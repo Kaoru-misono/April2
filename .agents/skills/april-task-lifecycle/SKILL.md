@@ -17,16 +17,18 @@ Use this skill whenever work maps to a tracked task card.
 3. Move task to `in_progress` before coding.
 4. Implement the smallest mergeable slice.
 5. Validate with at least one build/test/demo command.
-6. Create a commit dedicated to the completed task.
-7. Mark task `done` and record evidence including commit id (hash) and command used.
-8. If additional work is discovered, create a new task card.
+6. Create one commit dedicated to the completed task, including both code and task-card updates.
+7. Use the task id in the commit message (for example `GRAPHICS-MATERIAL-201: ...`).
+8. Mark task `done` and record evidence with verification command(s) and result notes.
+9. After all tasks in the execution batch are done, update task tracker doc with `task id -> commit id` mappings.
+10. If additional work is discovered, create a new task card.
 
 ## Rules
 - Never keep multiple active tasks for one sub-agent execution.
 - Do not silently change public contracts.
 - Keep tasks mergeable and bounded to clear files.
 - Do not manually edit files marked `AUTO-GENERATED`; update generator inputs and regenerate.
-- Every completed task must have a commit record, and that commit id must be written in task `evidence`.
+- Every completed task must have a single task-scoped commit, and commit id tracking belongs in task tracker doc (not task `evidence`).
 
 ## Outputs
 - updated task card status

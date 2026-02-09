@@ -6,7 +6,7 @@ owner: codex
 priority: p1
 deps: [GRAPHICS-MATERIAL-402, GRAPHICS-MATERIAL-403]
 updated_at: 2026-02-09
-evidence: "Implemented in commit `f943c4f`: fixed registry path-lowercasing bug (`assetPath` is already `std::string`, removed erroneous `.string()` call), added regression-prevention notes to graphics knowledge, and regenerated `engine/graphics/source/graphics/generated/material/material-types.generated.hpp` locally using `python engine/graphics/scripts/slang-codegen.py --input engine/graphics/shader/material/material-types.slang --output engine/graphics/source/graphics/generated/material/material-types.generated.hpp` to sync `MaterialType::Unlit`. Verification command `cmake --build build/x64-debug --` now no longer reports prior `Unlit`/`std::transform` compile errors; build still fails due environment/toolchain standard header resolution (`cmath`/`string`/`functional`)."
+evidence: "Implemented: fixed registry path-lowercasing bug (`assetPath` is already `std::string`, removed erroneous `.string()` call), added regression-prevention notes to graphics knowledge, and regenerated `engine/graphics/source/graphics/generated/material/material-types.generated.hpp` locally using `python engine/graphics/scripts/slang-codegen.py --input engine/graphics/shader/material/material-types.slang --output engine/graphics/source/graphics/generated/material/material-types.generated.hpp` to sync `MaterialType::Unlit`. Verification command `cmake --build build/x64-debug --` now no longer reports prior `Unlit`/`std::transform` compile errors; build still fails due environment/toolchain standard header resolution (`cmath`/`string`/`functional`)."
 ---
 
 ## Goal
