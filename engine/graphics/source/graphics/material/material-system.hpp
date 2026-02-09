@@ -3,6 +3,7 @@
 #pragma once
 
 #include "i-material.hpp"
+#include "material-type-registry.hpp"
 #include "rhi/buffer.hpp"
 #include "rhi/sampler.hpp"
 #include "rhi/texture.hpp"
@@ -90,6 +91,8 @@ namespace april::graphics
         auto getTextureDescriptorResource(DescriptorHandle handle) const -> core::ref<Texture>;
         auto getSamplerDescriptorResource(DescriptorHandle handle) const -> core::ref<Sampler>;
         auto getBufferDescriptorResource(DescriptorHandle handle) const -> core::ref<Buffer>;
+        auto getMaterialTypeRegistry() const -> MaterialTypeRegistry const&;
+        auto getMaterialTypeId(uint32_t materialIndex) const -> uint32_t;
 
         /**
          * Mark the system as needing an update.
@@ -109,6 +112,7 @@ namespace april::graphics
 
         core::ref<Buffer> m_materialDataBuffer;
         std::vector<generated::StandardMaterialData> m_cpuMaterialData;
+        MaterialTypeRegistry m_materialTypeRegistry{};
 
         std::vector<core::ref<Texture>> m_textureDescriptors;
         std::vector<core::ref<Sampler>> m_samplerDescriptors;

@@ -44,6 +44,9 @@ MaterialSystem::MaterialSystem(core::ref<Device> device)
     m_textureDescriptors.emplace_back();
     m_samplerDescriptors.emplace_back();
     m_bufferDescriptors.emplace_back();
+
+    m_materialTypeRegistry.registerBuiltIn("Standard", 1);
+    m_materialTypeRegistry.registerBuiltIn("Unlit", 2);
 }
 
 auto MaterialSystem::addMaterial(core::ref<IMaterial> material) -> uint32_t
@@ -247,6 +250,21 @@ auto MaterialSystem::getBufferDescriptorResource(DescriptorHandle handle) const 
     return m_bufferDescriptors[handle];
 }
 
+auto MaterialSystem::getMaterialTypeRegistry() const -> MaterialTypeRegistry const&
+{
+    return m_materialTypeRegistry;
+}
+
+auto MaterialSystem::getMaterialTypeId(uint32_t materialIndex) const -> uint32_t
+{
+    if (materialIndex >= m_cpuMaterialData.size())
+    {
+        return MaterialTypeRegistry::kInvalidMaterialTypeId;
+    }
+
+    return m_cpuMaterialData[materialIndex].header.materialType;
+}
+
 auto MaterialSystem::markDirty() -> void
 {
     m_dirty = true;
@@ -318,6 +336,12 @@ auto MaterialSystem::rebuildMaterialData() -> void
             material->writeData(m_cpuMaterialData[i]);
 
             auto& data = m_cpuMaterialData[i];
+
+            if (core::dynamic_ref_cast<StandardMaterial>(material))
+            {
+                data.header.materialType = m_materialTypeRegistry.resolveTypeId("Standard");
+            }
+
             auto const textureCount = static_cast<uint32_t>(m_textureDescriptors.size());
             auto const samplerCount = static_cast<uint32_t>(m_samplerDescriptors.size());
             auto const bufferCount = static_cast<uint32_t>(m_bufferDescriptors.size());
