@@ -12,6 +12,7 @@ Rendering and RHI abstractions plus materials and shader program support.
 ## Public Header Index
 - `graphics/camera/camera.hpp` — ICamera base class with view/projection matrices and viewport management.
 - `graphics/material/i-material.hpp` — Material interface for GPU data and texture bindings.
+- `graphics/material/basic-material.hpp` — Falcor-style host base abstraction for shared non-layered material data/texture semantics.
 - `graphics/material/material-system.hpp` — Material registry and GPU buffer manager.
 - `graphics/material/standard-material.hpp` — Default PBR material implementation.
 - `graphics/program/program-variables.hpp` — Program variable binding and ray tracing variable management.
@@ -63,6 +64,21 @@ Usage Notes:
 
 Used By: `scene`
 
+### graphics/material/basic-material.hpp
+Location: `engine/graphics/source/graphics/material/basic-material.hpp`
+Include: `#include <graphics/material/basic-material.hpp>`
+
+Purpose: Shared host-side base implementation for non-layered material behavior (flags, texture slots, descriptor handles, and common serialization) aligned with Falcor BasicMaterial architecture.
+
+Key Types: `BasicMaterial`
+Key APIs: `BasicMaterial::bindTextures(...)`, `BasicMaterial::setDescriptorHandles(...)`, `BasicMaterial::writeCommonData(...)`, `BasicMaterial::serializeCommonParameters(...)`, `BasicMaterial::deserializeCommonParameters(...)`
+
+Usage Notes:
+- Derive concrete materials (for example `StandardMaterial`) from this base instead of duplicating common payload/texture logic.
+- This is a host abstraction only; it is not a standalone runtime `MaterialType` enum value.
+
+Used By: `scene`
+
 ### graphics/material/material-system.hpp
 Location: `engine/graphics/source/graphics/material/material-system.hpp`
 Include: `#include <graphics/material/material-system.hpp>`
@@ -89,7 +105,7 @@ Steps:
 - Add host material class implementing `IMaterial` (example: `UnlitMaterial`).
 - Register/resolve stable type id through `MaterialTypeRegistry` in `MaterialSystem`.
 - Add Slang material instance implementing `IMaterialInstance`.
-- Update `material-factory.slang` to return the new instance via `createDynamicObject<IMaterialInstance>()`.
+- Update `material-factory.slang` to return the new concrete instance as `IMaterialInstance` (direct interface return).
 - Ensure host `getTypeConformances()` contributes `<TypeInstance, IMaterialInstance>` mapping.
 
 ### graphics/material/standard-material.hpp
@@ -132,7 +148,7 @@ Key APIs: `ProgramDesc`, `Program`, `ProgramManager`, `TypeConformanceList`, `Pr
 Usage Notes:
 - Build `ProgramDesc` with modules/entry points; compile via `ProgramManager`.
 - Use `TypeConformanceList` to select interface implementations.
-- Preflight conformance validation warns if material-related shaders are missing `IMaterialInstance` conformance.
+- Preflight conformance validation hard-fails link if material-related shaders are missing `IMaterialInstance` conformance and emits actionable diagnostics.
 
 Used By: `scene`
 

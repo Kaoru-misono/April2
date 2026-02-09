@@ -24,3 +24,11 @@ Use this document to track `task id -> commit id` mappings after completing a ta
 | GRAPHICS-MATERIAL-407 | d4b93ab | descriptor scalability and material diagnostics |
 | GRAPHICS-MATERIAL-408 | 61efbee | per-material update flags and parameter serialization |
 | GRAPHICS-MATERIAL-501 | 84b3939 | material factory import fix + task update |
+| GRAPHICS-MATERIAL-601 | 6564b35 | Slang-exported ABI constant wiring |
+| GRAPHICS-MATERIAL-602 | e8b1a73 | IMaterialInstance/IBSDF interface alignment |
+| GRAPHICS-MATERIAL-603 | 5d6bf59 | selective MaterialSystem uploads |
+| GRAPHICS-MATERIAL-604 | e1f2acd | Falcor-style BasicMaterial host base refactor |
+| GRAPHICS-MATERIAL-605 | 59fda6c | Standard BSDF IoR-derived F0 parity |
+| GRAPHICS-MATERIAL-606 | 06c8ca5 | scene shader IMaterialInstance contract wiring |
+| GRAPHICS-PROGRAM-607 | e2f1e13 | conformance preflight + link diagnostics hardening |
+| GRAPHICS-MATERIAL-609 | b7ec0c1 | explicit BasicMaterial-architecture alignment closure |
