@@ -4,6 +4,7 @@ import material.material_types;
 import material.material_data;
 import material.material_system;
 import material.material_factory;
+import material.i_material;
 import material.shading_data;
 
 // Descriptor table capacities - host-provided via defines, with defaults.
