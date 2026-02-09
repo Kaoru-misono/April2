@@ -7,7 +7,8 @@ Use april-<module> to execute <task-card-path>.
 Before coding, set status to in_progress and updated_at to today.
 Implement the requested change within module ownership boundaries.
 Never hand-edit `AUTO-GENERATED` files; update source/generator inputs and regenerate.
-After changes, run relevant build/test/manual verification, update evidence, then set status to done.
+After changes, run relevant build/test/manual verification.
+When a task is complete, create a commit for that task and record the commit id in `evidence`, then set status to done.
 If public API/contract changed, update docs with docsync guard.
 ```
 

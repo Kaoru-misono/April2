@@ -26,7 +26,8 @@ Use this guide to run the new workflow in daily development.
 2. Set `status: in_progress` and update `updated_at`.
 3. Implement a mergeable slice and verify with build/test/demo.
    - For generated artifacts: do not edit `AUTO-GENERATED` files directly. Edit source inputs and regenerate in the same change.
-4. Set `status: done` and fill `evidence`.
+4. When the task is complete, create a dedicated commit for that task.
+5. Set `status: done` and fill `evidence` including the commit id and verification command(s).
 
 ## 5) DocSync gate
 - If public API/behavior/contracts changed, update docs in the same change:
