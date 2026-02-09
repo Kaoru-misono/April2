@@ -99,6 +99,8 @@ auto StandardMaterial::getTypeConformances() const -> TypeConformanceList
         break;
     }
 
+    conformances.add("StandardMaterialInstance", "IMaterialInstance");
+
     return conformances;
 }
 

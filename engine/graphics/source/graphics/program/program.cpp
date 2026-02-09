@@ -14,6 +14,7 @@
 #include <core/tools/enum.hpp>
 
 #include <slang.h>
+#include <format>
 #include <set>
 #include <utility>
 
@@ -297,7 +298,23 @@ namespace april::graphics
 
             if (pVersion == nullptr)
             {
-                std::string msg = "Failed to link program:\n" + getProgramDescString() + "\n\n" + log;
+                std::string conformanceSummary;
+                for (auto const& [conformance, id] : m_typeConformanceList)
+                {
+                    conformanceSummary += std::format(
+                        "  - {} -> {} (id={})\n",
+                        conformance.interfaceName,
+                        conformance.typeName,
+                        id
+                    );
+                }
+                if (conformanceSummary.empty())
+                {
+                    conformanceSummary = "  (none)\n";
+                }
+
+                std::string msg = "Failed to link program:\n" + getProgramDescString() +
+                    "\n\nType conformances:\n" + conformanceSummary + "\n" + log;
                 // reportErrorAndAllowRetry logic omitted
                 AP_ERROR("{}", msg);
                 return false;

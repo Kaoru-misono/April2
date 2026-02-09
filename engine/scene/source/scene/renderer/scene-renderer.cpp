@@ -36,6 +36,28 @@ namespace april::scene
         progDesc.vsEntryPoint("vsMain");
         progDesc.psEntryPoint("psMain");
 
+        if (auto* materialSystem = m_resources.getMaterialSystem())
+        {
+            auto const typeConformances = materialSystem->getTypeConformances();
+            progDesc.addTypeConformances(typeConformances);
+
+            auto hasMaterialInstanceConformance = false;
+            for (auto const& [conformance, id] : typeConformances)
+            {
+                (void)id;
+                if (conformance.interfaceName == "IMaterialInstance")
+                {
+                    hasMaterialInstanceConformance = true;
+                    break;
+                }
+            }
+
+            if (!hasMaterialInstanceConformance)
+            {
+                AP_WARN("[SceneRenderer] No IMaterialInstance type conformance registered; using shader defaults.");
+            }
+        }
+
         m_program = graphics::Program::create(m_device, progDesc);
         m_vars = graphics::ProgramVariables::create(m_device, m_program.get());
 
