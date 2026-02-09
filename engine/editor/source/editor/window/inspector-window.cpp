@@ -173,6 +173,46 @@ namespace april::editor
             ImGui::Text("Children: %zu", relationship.childrenCount);
         }
 
+        // Material System diagnostics section.
+        if (auto* resources = Engine::get().getRenderResourceRegistry())
+        {
+            if (auto* materialSystem = resources->getMaterialSystem())
+            {
+                if (ImGui::CollapsingHeader("Material System"))
+                {
+                    auto const diag = materialSystem->getDiagnostics();
+
+                    ImGui::Text("Materials: %u total", diag.totalMaterialCount);
+                    ImGui::Text("  Standard: %u", diag.standardMaterialCount);
+                    ImGui::Text("  Unlit: %u", diag.unlitMaterialCount);
+                    if (diag.otherMaterialCount > 0)
+                    {
+                        ImGui::Text("  Other: %u", diag.otherMaterialCount);
+                    }
+
+                    ImGui::Separator();
+                    ImGui::Text("Textures: %u / %u", diag.textureDescriptorCount, diag.textureDescriptorCapacity);
+                    ImGui::Text("Samplers: %u / %u", diag.samplerDescriptorCount, diag.samplerDescriptorCapacity);
+                    ImGui::Text("Buffers: %u / %u", diag.bufferDescriptorCount, diag.bufferDescriptorCapacity);
+
+                    if (diag.textureOverflowCount > 0 || diag.samplerOverflowCount > 0 ||
+                        diag.bufferOverflowCount > 0 || diag.invalidHandleCount > 0)
+                    {
+                        ImGui::Separator();
+                        ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "Overflow Warnings:");
+                        if (diag.textureOverflowCount > 0)
+                            ImGui::Text("  Texture overflows: %u", diag.textureOverflowCount);
+                        if (diag.samplerOverflowCount > 0)
+                            ImGui::Text("  Sampler overflows: %u", diag.samplerOverflowCount);
+                        if (diag.bufferOverflowCount > 0)
+                            ImGui::Text("  Buffer overflows: %u", diag.bufferOverflowCount);
+                        if (diag.invalidHandleCount > 0)
+                            ImGui::Text("  Invalid handles: %u", diag.invalidHandleCount);
+                    }
+                }
+            }
+        }
+
         ImGui::Separator();
         ImGui::Text("Project: %s", context.projectName.c_str());
     }

@@ -8,6 +8,7 @@
 #include "rhi/sampler.hpp"
 #include "rhi/texture.hpp"
 #include "generated/material/material-data.generated.hpp"
+#include "program/define-list.hpp"
 
 #include <vector>
 #include <unordered_map>
@@ -16,6 +17,40 @@ namespace april::graphics
 {
     class Device;
     class ShaderVariable;
+
+    /**
+     * Descriptor table configuration for the material system.
+     * These values must match between host and shader.
+     */
+    struct MaterialSystemConfig
+    {
+        uint32_t textureTableSize = 128;
+        uint32_t samplerTableSize = 8;
+        uint32_t bufferTableSize = 16;
+    };
+
+    /**
+     * Material system diagnostics for debugging and profiling.
+     */
+    struct MaterialSystemDiagnostics
+    {
+        uint32_t totalMaterialCount = 0;
+        uint32_t standardMaterialCount = 0;
+        uint32_t unlitMaterialCount = 0;
+        uint32_t otherMaterialCount = 0;
+
+        uint32_t textureDescriptorCount = 0;
+        uint32_t textureDescriptorCapacity = 0;
+        uint32_t samplerDescriptorCount = 0;
+        uint32_t samplerDescriptorCapacity = 0;
+        uint32_t bufferDescriptorCount = 0;
+        uint32_t bufferDescriptorCapacity = 0;
+
+        uint32_t textureOverflowCount = 0;
+        uint32_t samplerOverflowCount = 0;
+        uint32_t bufferOverflowCount = 0;
+        uint32_t invalidHandleCount = 0;
+    };
 
     /**
      * Material system for managing materials and their GPU data.
@@ -30,8 +65,24 @@ namespace april::graphics
     {
         APRIL_OBJECT(MaterialSystem)
     public:
-        explicit MaterialSystem(core::ref<Device> device);
+        explicit MaterialSystem(core::ref<Device> device, MaterialSystemConfig config = {});
         ~MaterialSystem() override = default;
+
+        /**
+         * Get shader defines for descriptor table capacities.
+         * Pass these to shader compilation to synchronize host/shader limits.
+         */
+        auto getShaderDefines() const -> DefineList;
+
+        /**
+         * Get configuration for this material system.
+         */
+        auto getConfig() const -> MaterialSystemConfig const& { return m_config; }
+
+        /**
+         * Get current diagnostics snapshot.
+         */
+        auto getDiagnostics() const -> MaterialSystemDiagnostics;
 
         /**
          * Add a material to the system.
@@ -107,6 +158,8 @@ namespace april::graphics
 
     private:
         core::ref<Device> m_device;
+        MaterialSystemConfig m_config{};
+
         std::vector<core::ref<IMaterial>> m_materials;
         std::unordered_map<IMaterial*, uint32_t> m_materialIndices;
 
@@ -121,12 +174,25 @@ namespace april::graphics
         std::unordered_map<Sampler*, DescriptorHandle> m_samplerDescriptorIndices;
         std::unordered_map<Buffer*, DescriptorHandle> m_bufferDescriptorIndices;
 
+        // Overflow tracking for diagnostics.
+        mutable uint32_t m_textureOverflowCount{0};
+        mutable uint32_t m_samplerOverflowCount{0};
+        mutable uint32_t m_bufferOverflowCount{0};
+        mutable uint32_t m_invalidHandleCount{0};
+
         bool m_dirty{true};
 
         static constexpr uint32_t kInitialBufferCapacity = 64;
 
         auto ensureBufferCapacity(uint32_t requiredCount) -> void;
         auto rebuildMaterialData() -> void;
+        auto validateAndClampDescriptorHandle(
+            uint32_t& handle,
+            uint32_t maxCount,
+            uint32_t& overflowCounter,
+            uint32_t materialIndex,
+            char const* slotName
+        ) const -> void;
     };
 
 } // namespace april::graphics

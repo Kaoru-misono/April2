@@ -6,6 +6,15 @@ import material.material_system;
 import material.material_factory;
 import material.shading_data;
 
+// Descriptor table capacities - host-provided via defines, with defaults.
+#ifndef MATERIAL_TEXTURE_TABLE_SIZE
+#define MATERIAL_TEXTURE_TABLE_SIZE 128
+#endif
+
+#ifndef MATERIAL_SAMPLER_TABLE_SIZE
+#define MATERIAL_SAMPLER_TABLE_SIZE 8
+#endif
+
 struct VSIn
 {
     float3 position : POSITION;
@@ -40,8 +49,6 @@ ParameterBlock<PerFrame> perFrame;
 ParameterBlock<PerInstance> perInstance;
 StructuredBuffer<StandardMaterialData> materials;
 
-static const uint kMaterialTextureTableSize = 128;
-static const uint kMaterialSamplerTableSize = 8;
 Texture2D materialTextures[kMaterialTextureTableSize];
 SamplerState materialSamplers[kMaterialSamplerTableSize];
 

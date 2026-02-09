@@ -67,14 +67,16 @@ Include: `#include <graphics/material/material-system.hpp>`
 
 Purpose: Material registry and GPU buffer manager.
 
-Key Types: `Device`, `ShaderVariable`, `MaterialSystem`
-Key APIs: `MaterialSystem::addMaterial()`, `MaterialSystem::updateGpuBuffers()`, `MaterialSystem::bindToShader()`, `MaterialSystem::getTypeConformances()`, `MaterialSystem::registerTextureDescriptor()`, `MaterialSystem::registerSamplerDescriptor()`, `MaterialSystem::registerBufferDescriptor()`
+Key Types: `Device`, `ShaderVariable`, `MaterialSystem`, `MaterialSystemConfig`, `MaterialSystemDiagnostics`
+Key APIs: `MaterialSystem::addMaterial()`, `MaterialSystem::updateGpuBuffers()`, `MaterialSystem::bindToShader()`, `MaterialSystem::getTypeConformances()`, `MaterialSystem::registerTextureDescriptor()`, `MaterialSystem::registerSamplerDescriptor()`, `MaterialSystem::registerBufferDescriptor()`, `MaterialSystem::getShaderDefines()`, `MaterialSystem::getDiagnostics()`
 
 Usage Notes:
 - Call `updateGpuBuffers()` after modifying material data.
 - Material GPU ABI uses `generated::MaterialHeader` with `abiVersion` and reserved words for forward-compatible layout growth.
 - Descriptor handles use `MaterialSystem::DescriptorHandle`, with `kInvalidDescriptorHandle` as the fallback for missing resources.
 - Material type metadata is exposed through `MaterialTypeRegistry` (`resolveTypeId()`, `resolveTypeName()`) and per-material lookup via `MaterialSystem::getMaterialTypeId()`.
+- Constructor accepts optional `MaterialSystemConfig` to set descriptor table capacities; call `getShaderDefines()` when compiling material-aware shaders to synchronize capacities.
+- Use `getDiagnostics()` to retrieve material counts by type, descriptor usage/capacity, and overflow statistics.
 
 Used By: `scene`
 

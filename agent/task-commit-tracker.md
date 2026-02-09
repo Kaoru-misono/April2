@@ -19,3 +19,5 @@ Use this document to track `task id -> commit id` mappings after completing a ta
 | GRAPHICS-MATERIAL-402 | 2410ec7 | unlit material full path + task update |
 | GRAPHICS-MATERIAL-403 | 8260281 | docs and editor debug surface + task update |
 | GRAPHICS-MATERIAL-404 | 8f912f3 | post-migration build regressions + task update |
+| GRAPHICS-MATERIAL-405 | ebc6a7e | Falcor vs April material architecture gap analysis |
+| GRAPHICS-MATERIAL-406 | 126d81a | explicit material type metadata + conformance preflight |

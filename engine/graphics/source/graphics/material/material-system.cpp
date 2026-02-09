@@ -7,37 +7,15 @@
 #include "rhi/render-device.hpp"
 
 #include <core/log/logger.hpp>
+#include <core/error/assert.hpp>
+#include <format>
 
 namespace april::graphics
 {
-namespace
-{
-    auto validateDescriptorHandle(
-        uint32_t& handle,
-        uint32_t maxCount,
-        uint32_t materialIndex,
-        char const* slotName
-    ) -> void
-    {
-        if (handle < maxCount)
-        {
-            return;
-        }
 
-        AP_WARN(
-            "MaterialSystem: invalid descriptor handle {} for material {} slot '{}' (max={}), using fallback 0",
-            handle,
-            materialIndex,
-            slotName,
-            maxCount
-        );
-        handle = MaterialSystem::kInvalidDescriptorHandle;
-    }
-}
-
-
-MaterialSystem::MaterialSystem(core::ref<Device> device)
+MaterialSystem::MaterialSystem(core::ref<Device> device, MaterialSystemConfig config)
     : m_device(std::move(device))
+    , m_config(config)
 {
     m_materials.reserve(kInitialBufferCapacity);
     m_cpuMaterialData.reserve(kInitialBufferCapacity);
@@ -48,6 +26,87 @@ MaterialSystem::MaterialSystem(core::ref<Device> device)
 
     m_materialTypeRegistry.registerBuiltIn("Standard", 1);
     m_materialTypeRegistry.registerBuiltIn("Unlit", 2);
+
+    AP_INFO("MaterialSystem: initialized with texture={}, sampler={}, buffer={} table capacities",
+        m_config.textureTableSize, m_config.samplerTableSize, m_config.bufferTableSize);
+}
+
+auto MaterialSystem::getShaderDefines() const -> DefineList
+{
+    auto defines = DefineList{};
+    defines["MATERIAL_TEXTURE_TABLE_SIZE"] = std::to_string(m_config.textureTableSize);
+    defines["MATERIAL_SAMPLER_TABLE_SIZE"] = std::to_string(m_config.samplerTableSize);
+    defines["MATERIAL_BUFFER_TABLE_SIZE"] = std::to_string(m_config.bufferTableSize);
+    return defines;
+}
+
+auto MaterialSystem::getDiagnostics() const -> MaterialSystemDiagnostics
+{
+    auto diag = MaterialSystemDiagnostics{};
+
+    diag.totalMaterialCount = static_cast<uint32_t>(m_materials.size());
+
+    for (auto const& material : m_materials)
+    {
+        if (!material) continue;
+
+        if (core::dynamic_ref_cast<StandardMaterial>(material))
+        {
+            ++diag.standardMaterialCount;
+        }
+        else if (core::dynamic_ref_cast<UnlitMaterial>(material))
+        {
+            ++diag.unlitMaterialCount;
+        }
+        else
+        {
+            ++diag.otherMaterialCount;
+        }
+    }
+
+    diag.textureDescriptorCount = static_cast<uint32_t>(m_textureDescriptors.size());
+    diag.textureDescriptorCapacity = m_config.textureTableSize;
+    diag.samplerDescriptorCount = static_cast<uint32_t>(m_samplerDescriptors.size());
+    diag.samplerDescriptorCapacity = m_config.samplerTableSize;
+    diag.bufferDescriptorCount = static_cast<uint32_t>(m_bufferDescriptors.size());
+    diag.bufferDescriptorCapacity = m_config.bufferTableSize;
+
+    diag.textureOverflowCount = m_textureOverflowCount;
+    diag.samplerOverflowCount = m_samplerOverflowCount;
+    diag.bufferOverflowCount = m_bufferOverflowCount;
+    diag.invalidHandleCount = m_invalidHandleCount;
+
+    return diag;
+}
+
+auto MaterialSystem::validateAndClampDescriptorHandle(
+    uint32_t& handle,
+    uint32_t maxCount,
+    uint32_t& overflowCounter,
+    uint32_t materialIndex,
+    char const* slotName
+) const -> void
+{
+    if (handle < maxCount)
+    {
+        return;
+    }
+
+    // Debug fail-fast: assert in debug builds to catch issues early.
+    AP_ASSERT(false, "Descriptor overflow: handle {} >= capacity {} for slot '{}'", handle, maxCount, slotName);
+
+    // Runtime fallback: clamp to fallback slot 0 and log warning.
+    AP_WARN(
+        "MaterialSystem: descriptor overflow for material {} slot '{}' (handle={}, capacity={}), using fallback 0",
+        materialIndex,
+        slotName,
+        handle,
+        maxCount
+    );
+
+    handle = kInvalidDescriptorHandle;
+    ++overflowCounter;
+    ++m_invalidHandleCount;
 }
 
 auto MaterialSystem::addMaterial(core::ref<IMaterial> material) -> uint32_t
@@ -347,17 +406,15 @@ auto MaterialSystem::rebuildMaterialData() -> void
                 data.header.materialType = m_materialTypeRegistry.resolveTypeId("Unlit");
             }
 
-            auto const textureCount = static_cast<uint32_t>(m_textureDescriptors.size());
-            auto const samplerCount = static_cast<uint32_t>(m_samplerDescriptors.size());
-            auto const bufferCount = static_cast<uint32_t>(m_bufferDescriptors.size());
-
-            validateDescriptorHandle(data.baseColorTextureHandle, textureCount, static_cast<uint32_t>(i), "baseColor");
-            validateDescriptorHandle(data.metallicRoughnessTextureHandle, textureCount, static_cast<uint32_t>(i), "metallicRoughness");
-            validateDescriptorHandle(data.normalTextureHandle, textureCount, static_cast<uint32_t>(i), "normal");
-            validateDescriptorHandle(data.occlusionTextureHandle, textureCount, static_cast<uint32_t>(i), "occlusion");
-            validateDescriptorHandle(data.emissiveTextureHandle, textureCount, static_cast<uint32_t>(i), "emissive");
-            validateDescriptorHandle(data.samplerHandle, samplerCount, static_cast<uint32_t>(i), "sampler");
-            validateDescriptorHandle(data.bufferHandle, bufferCount, static_cast<uint32_t>(i), "buffer");
+            // Validate handles against configured capacities (matching shader table sizes).
+            auto const matIdx = static_cast<uint32_t>(i);
+            validateAndClampDescriptorHandle(data.baseColorTextureHandle, m_config.textureTableSize, m_textureOverflowCount, matIdx, "baseColor");
+            validateAndClampDescriptorHandle(data.metallicRoughnessTextureHandle, m_config.textureTableSize, m_textureOverflowCount, matIdx, "metallicRoughness");
+            validateAndClampDescriptorHandle(data.normalTextureHandle, m_config.textureTableSize, m_textureOverflowCount, matIdx, "normal");
+            validateAndClampDescriptorHandle(data.occlusionTextureHandle, m_config.textureTableSize, m_textureOverflowCount, matIdx, "occlusion");
+            validateAndClampDescriptorHandle(data.emissiveTextureHandle, m_config.textureTableSize, m_textureOverflowCount, matIdx, "emissive");
+            validateAndClampDescriptorHandle(data.samplerHandle, m_config.samplerTableSize, m_samplerOverflowCount, matIdx, "sampler");
+            validateAndClampDescriptorHandle(data.bufferHandle, m_config.bufferTableSize, m_bufferOverflowCount, matIdx, "buffer");
         }
         else
         {
