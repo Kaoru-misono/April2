@@ -4,4 +4,4 @@ type = library
 version = 0.1.0
 
 [dependencies]
-public = runtime, ui
+public = runtime
