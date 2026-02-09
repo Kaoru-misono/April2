@@ -9,6 +9,31 @@
 
 namespace april::graphics
 {
+namespace
+{
+    auto validateDescriptorHandle(
+        uint32_t& handle,
+        uint32_t maxCount,
+        uint32_t materialIndex,
+        char const* slotName
+    ) -> void
+    {
+        if (handle < maxCount)
+        {
+            return;
+        }
+
+        AP_WARN(
+            "MaterialSystem: invalid descriptor handle {} for material {} slot '{}' (max={}), using fallback 0",
+            handle,
+            materialIndex,
+            slotName,
+            maxCount
+        );
+        handle = MaterialSystem::kInvalidDescriptorHandle;
+    }
+}
+
 
 MaterialSystem::MaterialSystem(core::ref<Device> device)
     : m_device(std::move(device))
@@ -291,6 +316,19 @@ auto MaterialSystem::rebuildMaterialData() -> void
             }
 
             material->writeData(m_cpuMaterialData[i]);
+
+            auto& data = m_cpuMaterialData[i];
+            auto const textureCount = static_cast<uint32_t>(m_textureDescriptors.size());
+            auto const samplerCount = static_cast<uint32_t>(m_samplerDescriptors.size());
+            auto const bufferCount = static_cast<uint32_t>(m_bufferDescriptors.size());
+
+            validateDescriptorHandle(data.baseColorTextureHandle, textureCount, static_cast<uint32_t>(i), "baseColor");
+            validateDescriptorHandle(data.metallicRoughnessTextureHandle, textureCount, static_cast<uint32_t>(i), "metallicRoughness");
+            validateDescriptorHandle(data.normalTextureHandle, textureCount, static_cast<uint32_t>(i), "normal");
+            validateDescriptorHandle(data.occlusionTextureHandle, textureCount, static_cast<uint32_t>(i), "occlusion");
+            validateDescriptorHandle(data.emissiveTextureHandle, textureCount, static_cast<uint32_t>(i), "emissive");
+            validateDescriptorHandle(data.samplerHandle, samplerCount, static_cast<uint32_t>(i), "sampler");
+            validateDescriptorHandle(data.bufferHandle, bufferCount, static_cast<uint32_t>(i), "buffer");
         }
         else
         {

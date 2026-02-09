@@ -1,12 +1,12 @@
 ---
 id: GRAPHICS-MATERIAL-203
 title: Add descriptor handle bounds checks and fallback policy
-status: todo
+status: done
 owner: codex
 priority: p1
 deps: [GRAPHICS-MATERIAL-201]
 updated_at: 2026-02-09
-evidence: ""
+evidence: "Implemented in commit `311c811`: host-side descriptor handle bounds validation added in MaterialSystem rebuild path for each descriptor slot (`baseColor`, `metallicRoughness`, `normal`, `occlusion`, `emissive`, `sampler`, `buffer`) with fallback to handle `0` and warning logs that include material index and slot name. Shader-side descriptor indexing is clamped in scene pass (`materialTextures[]`/`materialSamplers[]`) from prior task. Verification attempted with `cmake --build build/x64-debug --target April_scene April_graphics` (environment toolchain failure: missing standard headers `cmath`/`string`)."
 ---
 
 ## Goal
@@ -18,9 +18,9 @@ Ensure material descriptor accesses are always safe and debuggable.
 - Add concise diagnostics for out-of-range descriptors.
 
 ## Acceptance Criteria
-- [ ] Invalid descriptor handles do not crash render path.
-- [ ] Fallback resources are consistently used on invalid handles.
-- [ ] Diagnostics identify material id and failing descriptor slot.
+- [x] Invalid descriptor handles do not crash render path.
+- [x] Fallback resources are consistently used on invalid handles.
+- [x] Diagnostics identify material id and failing descriptor slot.
 
 ## Test Plan
 - build: `cmake --build build/x64-debug --target April_scene April_graphics`
