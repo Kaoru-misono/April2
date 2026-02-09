@@ -16,7 +16,6 @@ namespace april::editor
         auto setPosition(float3 const& position) -> void;
         auto setPerspective(float verticalFov, float nearClip, float farClip) -> void;
         auto setRotation(float pitch, float yaw) -> void;
-
         [[nodiscard]] auto getDistance() const -> float { return m_distance; }
         auto setDistance(float distance) -> void;
 

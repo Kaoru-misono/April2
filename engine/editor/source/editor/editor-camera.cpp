@@ -210,19 +210,15 @@ namespace april::editor
         m_distance = std::max(glm::length(m_center - m_position), kMinDistance);
         m_direction = safeNormalize(m_center - m_position, float3{0.0f, 0.0f, -1.0f});
 
-        float3 worldUp{0.0f, 1.0f, 0.0f};
-        m_right = glm::cross(m_direction, worldUp);
-        if (glm::length(m_right) <= 0.000001f)
-        {
-            worldUp = {0.0f, 0.0f, 1.0f};
-            m_right = glm::cross(m_direction, worldUp);
-        }
-
+        // Keep camera roll-free and avoid unstable fallback axes when pitch approaches clamp limits.
+        // Right vector is derived from yaw only; up vector is reconstructed from right and forward.
+        m_right = {
+            std::cos(m_yaw),
+            0.0f,
+            std::sin(m_yaw),
+        };
         m_right = safeNormalize(m_right, float3{1.0f, 0.0f, 0.0f});
         m_up = safeNormalize(glm::cross(m_right, m_direction), float3{0.0f, 1.0f, 0.0f});
-
-        m_pitch = std::asin(std::clamp(m_direction.y, -0.9999f, 0.9999f));
-        m_yaw = std::atan2(m_direction.x, -m_direction.z);
 
         updateViewMatrix();
     }

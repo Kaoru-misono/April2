@@ -1,12 +1,12 @@
 ---
 id: EDITOR-CAMERA-001
 title: Stabilize editor camera orientation during simultaneous look-around and movement
-status: todo
+status: done
 owner: codex
 priority: p0
 deps: []
-updated_at: 2026-02-08
-evidence: ""
+updated_at: 2026-02-09
+evidence: "manual validation passed (user confirmed no roll when vertically dragging from side view around center cube) on 2026-02-09; implementation in engine/editor/source/editor/editor-camera.cpp and engine/editor/source/editor/window/viewport-window.cpp"
 ---
 
 ## Goal
@@ -18,10 +18,10 @@ Fix editor camera instability where rotating (RMB look-around) while moving (`WA
 - Remaining issue appears when rotate+move happen concurrently.
 
 ## Acceptance Criteria
-- [ ] RMB look-around left/right and up/down are stable and intuitive.
-- [ ] Holding `W` while rotating does not introduce roll, sudden flips, or basis corruption.
-- [ ] `W/S/A/D` stay consistent with current view direction after prolonged rotate+move use.
-- [ ] Scene camera render orientation matches editor camera movement orientation in every frame.
+- [x] RMB look-around left/right and up/down are stable and intuitive.
+- [x] Holding `W` while rotating does not introduce roll, sudden flips, or basis corruption.
+- [x] `W/S/A/D` stay consistent with current view direction after prolonged rotate+move use.
+- [x] Scene camera render orientation matches editor camera movement orientation in every frame.
 
 ## Test Plan
 - manual: open editor viewport, hold RMB and rotate continuously while pressing `W`, `A`, `D`, `S`.

@@ -6,12 +6,40 @@
 #include <scene/scene.hpp>
 #include <imgui.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/euler_angles.hpp>
 
 #include <algorithm>
-#include <cmath>
 
 namespace april::editor
 {
+    namespace
+    {
+        auto buildRotationMatrixFromEulerXyz(float3 const& euler) -> float4x4
+        {
+            auto matrix = float4x4{1.0f};
+            matrix = glm::rotate(matrix, euler.x, float3{1.0f, 0.0f, 0.0f});
+            matrix = glm::rotate(matrix, euler.y, float3{0.0f, 1.0f, 0.0f});
+            matrix = glm::rotate(matrix, euler.z, float3{0.0f, 0.0f, 1.0f});
+            return matrix;
+        }
+
+        auto buildRotationMatrixFromCameraBasis(float3 const& right, float3 const& up, float3 const& forward) -> float4x4
+        {
+            auto matrix = float4x4{1.0f};
+            matrix[0] = float4{right, 0.0f};
+            matrix[1] = float4{up, 0.0f};
+            matrix[2] = float4{-forward, 0.0f};
+            return matrix;
+        }
+
+        auto extractPitchYawFromForward(float3 const& forward) -> float2
+        {
+            auto const pitch = std::asin(std::clamp(forward.y, -0.99f, 0.99f));
+            auto const yaw = std::atan2(forward.x, -forward.z);
+            return {pitch, yaw};
+        }
+    }
+
     ViewportWindow::~ViewportWindow()
     {
         auto* scene = Engine::get().getSceneGraph();
@@ -191,19 +219,28 @@ namespace april::editor
 
                     if (!inputActive && selected)
                     {
+                        auto const rotationMatrix = buildRotationMatrixFromEulerXyz(transform.localRotation);
+                        auto const forward = glm::normalize(float3(rotationMatrix * float4{0.0f, 0.0f, -1.0f, 0.0f}));
+                        auto const pitchYaw = extractPitchYawFromForward(forward);
+
                         m_camera->setPosition(transform.localPosition);
-                        m_camera->setRotation(transform.localRotation.x, -transform.localRotation.y);
+                        m_camera->setRotation(pitchYaw.x, pitchYaw.y);
                     }
                     else
                     {
                         auto const position = m_camera->getPosition();
                         auto const direction = m_camera->getDirection();
+                        auto const right = m_camera->getRight();
+                        auto const up = m_camera->getUp();
 
-                        auto const yaw = std::atan2(direction.x, -direction.z);
-                        auto const pitch = std::asin(std::clamp(direction.y, -0.99f, 0.99f));
+                        auto const rotationMatrix = buildRotationMatrixFromCameraBasis(right, up, direction);
+                        auto eulerX = 0.0f;
+                        auto eulerY = 0.0f;
+                        auto eulerZ = 0.0f;
+                        glm::extractEulerAngleXYZ(rotationMatrix, eulerX, eulerY, eulerZ);
 
                         transform.localPosition = position;
-                        transform.localRotation = {pitch, -yaw, 0.0f};
+                        transform.localRotation = {eulerX, eulerY, eulerZ};
                         transform.isDirty = true;
                         scene->markTransformDirty(m_cameraEntity);
                     }
