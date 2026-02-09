@@ -32,18 +32,24 @@ struct StandardMaterialInstance : IMaterialInstance
         return MaterialType(data.header.materialType);
     }
 
-    float3 eval(ShadingData sd, float3 wo)
+    IBSDF getBSDF(ShadingData sd)
     {
         float3 wi = sd.toLocal(sd.V);
-        float3 woLocal = sd.toLocal(wo);
 
-        // Rebuild material data with sampled values
         StandardMaterialData mtlData = data;
         mtlData.metallic = sampledMetallic;
         mtlData.roughness = sampledRoughness;
 
         StandardBSDFData bsdfData = createStandardBSDFData(mtlData, sampledBaseColor);
-        StandardBSDF bsdf = StandardBSDF(wi, data.header, bsdfData);
+        return StandardBSDF(wi, data.header, bsdfData);
+    }
+
+    float3 eval(ShadingData sd, float3 wo)
+    {
+        float3 wi = sd.toLocal(sd.V);
+        float3 woLocal = sd.toLocal(wo);
+
+        IBSDF bsdf = getBSDF(sd);
 
         // Create a dummy sample generator for eval (not used for non-stochastic evaluation)
         DummySampleGenerator sg;
@@ -55,13 +61,7 @@ struct StandardMaterialInstance : IMaterialInstance
     {
         float3 wi = sd.toLocal(sd.V);
 
-        // Rebuild material data with sampled values
-        StandardMaterialData mtlData = data;
-        mtlData.metallic = sampledMetallic;
-        mtlData.roughness = sampledRoughness;
-
-        StandardBSDFData bsdfData = createStandardBSDFData(mtlData, sampledBaseColor);
-        StandardBSDF bsdf = StandardBSDF(wi, data.header, bsdfData);
+        IBSDF bsdf = getBSDF(sd);
 
         // Create sample generator from provided random numbers
         Float3SampleGenerator sg = Float3SampleGenerator(u);
@@ -79,13 +79,7 @@ struct StandardMaterialInstance : IMaterialInstance
         float3 wi = sd.toLocal(sd.V);
         float3 woLocal = sd.toLocal(wo);
 
-        // Rebuild material data with sampled values
-        StandardMaterialData mtlData = data;
-        mtlData.metallic = sampledMetallic;
-        mtlData.roughness = sampledRoughness;
-
-        StandardBSDFData bsdfData = createStandardBSDFData(mtlData, sampledBaseColor);
-        StandardBSDF bsdf = StandardBSDF(wi, data.header, bsdfData);
+        IBSDF bsdf = getBSDF(sd);
 
         BSDFContext bc;
         return bsdf.evalPdf(wi, woLocal, bc);

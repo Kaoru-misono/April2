@@ -3,12 +3,16 @@
 import material.material_types;
 import material.material_data;
 import material.shading_data;
+import material.bsdf.i_bsdf;
 
 // Material instance interface for runtime material evaluation.
 interface IMaterialInstance
 {
     // Get the type of this material.
     MaterialType getType();
+
+    // Create a BSDF interface instance for this shading point.
+    IBSDF getBSDF(ShadingData sd);
 
     // Evaluate the BSDF at a shading point.
     // Returns f(wi, wo) * dot(wo, n) in world space.

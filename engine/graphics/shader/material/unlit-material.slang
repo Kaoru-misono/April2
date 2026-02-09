@@ -4,6 +4,52 @@ import material.material_types;
 import material.material_data;
 import material.shading_data;
 import material.i_material;
+import material.bsdf.sample_generator;
+
+struct NullBSDF : IBSDF
+{
+    float3 eval<S : ISampleGenerator>(float3 wi, float3 wo, inout S sg, BSDFContext bc)
+    {
+        return float3(0.0f);
+    }
+
+    bool sample<S : ISampleGenerator>(
+        float3 wi,
+        out float3 wo,
+        out float pdf,
+        out float3 weight,
+        out uint lobeType,
+        inout S sg,
+        BSDFContext bc
+    )
+    {
+        wo = float3(0.0f);
+        pdf = 0.0f;
+        weight = float3(0.0f);
+        lobeType = (uint)LobeType::None;
+        return false;
+    }
+
+    float evalPdf(float3 wi, float3 wo, BSDFContext bc)
+    {
+        return 0.0f;
+    }
+
+    AlbedoContributions evalAlbedo(float3 wi, LobeType lobeType)
+    {
+        return AlbedoContributions(float3(0.0f), float3(0.0f), float3(0.0f), float3(1.0f));
+    }
+
+    float3 getIorAsReflectance()
+    {
+        return float3(0.0f);
+    }
+
+    RoughnessInformation getRoughnessInformation(float3 wi)
+    {
+        return RoughnessInformation();
+    }
+};
 
 struct UnlitMaterialInstance : IMaterialInstance
 {
@@ -17,6 +63,11 @@ struct UnlitMaterialInstance : IMaterialInstance
     MaterialType getType()
     {
         return MaterialType::Unlit;
+    }
+
+    IBSDF getBSDF(ShadingData sd)
+    {
+        return NullBSDF();
     }
 
     float3 eval(ShadingData sd, float3 wo)
