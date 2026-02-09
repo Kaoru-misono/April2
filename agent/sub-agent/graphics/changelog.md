@@ -9,3 +9,7 @@
 - Descriptor table capacities are now host-configurable via `MaterialSystemConfig` and synchronized to shaders via `MATERIAL_TEXTURE_TABLE_SIZE`, `MATERIAL_SAMPLER_TABLE_SIZE`, `MATERIAL_BUFFER_TABLE_SIZE` defines.
 - Added `MaterialSystem::getDiagnostics()` for material count by type, descriptor usage/capacity, and overflow counters.
 - Inspector now shows Material System diagnostics section with descriptor usage and overflow warnings.
+- Added `MaterialUpdateFlags` and per-material dirty tracking (`isDirty()`, `markDirty()`, `clearDirty()`) for selective GPU updates.
+- Added `IMaterial::getTypeName()` for human-readable type names.
+- Added `IMaterial::serializeParameters()` / `deserializeParameters()` for JSON round-trip serialization.
+- Both `StandardMaterial` and `UnlitMaterial` now support parameter serialization for editor tooling.

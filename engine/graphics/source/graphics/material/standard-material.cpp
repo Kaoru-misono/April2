@@ -48,6 +48,11 @@ auto StandardMaterial::getType() const -> generated::MaterialType
     return generated::MaterialType::Standard;
 }
 
+auto StandardMaterial::getTypeName() const -> std::string
+{
+    return "Standard";
+}
+
 auto StandardMaterial::writeData(generated::StandardMaterialData& data) const -> void
 {
     // Header
@@ -154,12 +159,82 @@ auto StandardMaterial::getFlags() const -> uint32_t
 
 auto StandardMaterial::setDoubleSided(bool doubleSided) -> void
 {
-    m_doubleSided = doubleSided;
+    if (m_doubleSided != doubleSided)
+    {
+        m_doubleSided = doubleSided;
+        markDirty(MaterialUpdateFlags::DataChanged);
+    }
 }
 
 auto StandardMaterial::isDoubleSided() const -> bool
 {
     return m_doubleSided;
+}
+
+auto StandardMaterial::serializeParameters(nlohmann::json& outJson) const -> void
+{
+    outJson["type"] = "Standard";
+    outJson["baseColor"] = baseColor;
+    outJson["metallic"] = metallic;
+    outJson["roughness"] = roughness;
+    outJson["ior"] = ior;
+    outJson["specularTransmission"] = specularTransmission;
+    outJson["emissive"] = emissive;
+    outJson["diffuseTransmission"] = diffuseTransmission;
+    outJson["transmission"] = transmission;
+    outJson["alphaCutoff"] = alphaCutoff;
+    outJson["normalScale"] = normalScale;
+    outJson["occlusionStrength"] = occlusionStrength;
+    outJson["doubleSided"] = m_doubleSided;
+
+    // Alpha mode
+    switch (alphaMode)
+    {
+    case generated::AlphaMode::Opaque: outJson["alphaMode"] = "OPAQUE"; break;
+    case generated::AlphaMode::Mask: outJson["alphaMode"] = "MASK"; break;
+    case generated::AlphaMode::Blend: outJson["alphaMode"] = "BLEND"; break;
+    }
+
+    // Diffuse model
+    switch (diffuseModel)
+    {
+    case DiffuseBRDFModel::Lambert: outJson["diffuseModel"] = "Lambert"; break;
+    case DiffuseBRDFModel::Frostbite: outJson["diffuseModel"] = "Frostbite"; break;
+    }
+}
+
+auto StandardMaterial::deserializeParameters(nlohmann::json const& inJson) -> bool
+{
+    if (inJson.contains("baseColor")) baseColor = inJson["baseColor"].get<float4>();
+    if (inJson.contains("metallic")) metallic = inJson["metallic"].get<float>();
+    if (inJson.contains("roughness")) roughness = inJson["roughness"].get<float>();
+    if (inJson.contains("ior")) ior = inJson["ior"].get<float>();
+    if (inJson.contains("specularTransmission")) specularTransmission = inJson["specularTransmission"].get<float>();
+    if (inJson.contains("emissive")) emissive = inJson["emissive"].get<float3>();
+    if (inJson.contains("diffuseTransmission")) diffuseTransmission = inJson["diffuseTransmission"].get<float>();
+    if (inJson.contains("transmission")) transmission = inJson["transmission"].get<float3>();
+    if (inJson.contains("alphaCutoff")) alphaCutoff = inJson["alphaCutoff"].get<float>();
+    if (inJson.contains("normalScale")) normalScale = inJson["normalScale"].get<float>();
+    if (inJson.contains("occlusionStrength")) occlusionStrength = inJson["occlusionStrength"].get<float>();
+    if (inJson.contains("doubleSided")) m_doubleSided = inJson["doubleSided"].get<bool>();
+
+    if (inJson.contains("alphaMode"))
+    {
+        auto const mode = inJson["alphaMode"].get<std::string>();
+        if (mode == "OPAQUE") alphaMode = generated::AlphaMode::Opaque;
+        else if (mode == "MASK") alphaMode = generated::AlphaMode::Mask;
+        else if (mode == "BLEND") alphaMode = generated::AlphaMode::Blend;
+    }
+
+    if (inJson.contains("diffuseModel"))
+    {
+        auto const model = inJson["diffuseModel"].get<std::string>();
+        if (model == "Lambert") diffuseModel = DiffuseBRDFModel::Lambert;
+        else if (model == "Frostbite") diffuseModel = DiffuseBRDFModel::Frostbite;
+    }
+
+    markDirty(MaterialUpdateFlags::All);
+    return true;
 }
 
 auto StandardMaterial::setDescriptorHandles(

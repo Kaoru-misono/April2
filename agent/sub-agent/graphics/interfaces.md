@@ -52,12 +52,14 @@ Include: `#include <graphics/material/i-material.hpp>`
 
 Purpose: Material interface for GPU data and texture bindings.
 
-Key Types: `ShaderVariable`, `Texture`, `IMaterial`
-Key APIs: `IMaterial::writeData(...)`, `IMaterial::bindTextures(...)`, `IMaterial::getTypeConformances()`, `IMaterial::getFlags()`
+Key Types: `ShaderVariable`, `Texture`, `IMaterial`, `MaterialUpdateFlags`
+Key APIs: `IMaterial::writeData(...)`, `IMaterial::bindTextures(...)`, `IMaterial::getTypeConformances()`, `IMaterial::getFlags()`, `IMaterial::getTypeName()`, `IMaterial::isDirty()`, `IMaterial::markDirty()`, `IMaterial::clearDirty()`, `IMaterial::serializeParameters()`, `IMaterial::deserializeParameters()`
 
 Usage Notes:
 - Implement this interface for new material types.
 - Use with `MaterialSystem` to populate GPU buffers.
+- Call `markDirty()` when material properties change; `MaterialSystem::updateGpuBuffers()` clears dirty flags after upload.
+- Use `serializeParameters()` / `deserializeParameters()` for JSON round-trip in editor/tooling.
 
 Used By: `scene`
 

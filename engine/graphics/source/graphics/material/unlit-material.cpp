@@ -7,6 +7,11 @@ namespace april::graphics
         return generated::MaterialType::Unlit;
     }
 
+    auto UnlitMaterial::getTypeName() const -> std::string
+    {
+        return "Unlit";
+    }
+
     auto UnlitMaterial::writeData(generated::StandardMaterialData& data) const -> void
     {
         data = {};
@@ -51,11 +56,41 @@ namespace april::graphics
 
     auto UnlitMaterial::setDoubleSided(bool doubleSided) -> void
     {
-        m_doubleSided = doubleSided;
+        if (m_doubleSided != doubleSided)
+        {
+            m_doubleSided = doubleSided;
+            markDirty(MaterialUpdateFlags::DataChanged);
+        }
     }
 
     auto UnlitMaterial::isDoubleSided() const -> bool
     {
         return m_doubleSided;
+    }
+
+    auto UnlitMaterial::serializeParameters(nlohmann::json& outJson) const -> void
+    {
+        outJson["type"] = "Unlit";
+        outJson["color"] = color;
+        outJson["emissive"] = emissive;
+        outJson["doubleSided"] = m_doubleSided;
+    }
+
+    auto UnlitMaterial::deserializeParameters(nlohmann::json const& inJson) -> bool
+    {
+        if (inJson.contains("color"))
+        {
+            color = inJson["color"].get<float4>();
+        }
+        if (inJson.contains("emissive"))
+        {
+            emissive = inJson["emissive"].get<float3>();
+        }
+        if (inJson.contains("doubleSided"))
+        {
+            m_doubleSided = inJson["doubleSided"].get<bool>();
+        }
+        markDirty(MaterialUpdateFlags::All);
+        return true;
     }
 }

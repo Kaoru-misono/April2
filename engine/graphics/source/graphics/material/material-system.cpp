@@ -172,7 +172,21 @@ auto MaterialSystem::getMaterialCount() const -> uint32_t
 
 auto MaterialSystem::updateGpuBuffers() -> void
 {
-    if (!m_dirty)
+    // Check if any materials have pending updates.
+    auto anyDirty = m_dirty;
+    if (!anyDirty)
+    {
+        for (auto const& material : m_materials)
+        {
+            if (material && material->isDirty())
+            {
+                anyDirty = true;
+                break;
+            }
+        }
+    }
+
+    if (!anyDirty)
         return;
 
     rebuildMaterialData();
@@ -185,11 +199,21 @@ auto MaterialSystem::updateGpuBuffers() -> void
 
     ensureBufferCapacity(static_cast<uint32_t>(m_cpuMaterialData.size()));
 
-    // Upload data to GPU buffer
+    // Upload data to GPU buffer.
+    // TODO: Selective upload optimization - for now upload all data.
     if (m_materialDataBuffer)
     {
         auto const dataSize = m_cpuMaterialData.size() * sizeof(generated::StandardMaterialData);
         m_materialDataBuffer->setBlob(m_cpuMaterialData.data(), 0, dataSize);
+    }
+
+    // Clear dirty flags on all materials after upload.
+    for (auto const& material : m_materials)
+    {
+        if (material)
+        {
+            material->clearDirty();
+        }
     }
 
     m_dirty = false;
