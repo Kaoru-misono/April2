@@ -24,8 +24,14 @@ MaterialSystem::MaterialSystem(core::ref<Device> device, MaterialSystemConfig co
     m_samplerDescriptors.emplace_back();
     m_bufferDescriptors.emplace_back();
 
-    m_materialTypeRegistry.registerBuiltIn("Standard", 1);
-    m_materialTypeRegistry.registerBuiltIn("Unlit", 2);
+    m_materialTypeRegistry.registerBuiltIn(
+        "Standard",
+        static_cast<uint32_t>(generated::MaterialType::Standard)
+    );
+    m_materialTypeRegistry.registerBuiltIn(
+        "Unlit",
+        static_cast<uint32_t>(generated::MaterialType::Unlit)
+    );
 
     AP_INFO("MaterialSystem: initialized with texture={}, sampler={}, buffer={} table capacities",
         m_config.textureTableSize, m_config.samplerTableSize, m_config.bufferTableSize);
@@ -189,34 +195,54 @@ auto MaterialSystem::updateGpuBuffers() -> void
     if (!anyDirty)
         return;
 
-    rebuildMaterialData();
-
-    if (m_cpuMaterialData.empty())
+    if (m_dirty)
     {
+        rebuildMaterialData();
+
+        if (m_cpuMaterialData.empty())
+        {
+            m_dirty = false;
+            return;
+        }
+
+        ensureBufferCapacity(static_cast<uint32_t>(m_cpuMaterialData.size()));
+
+        if (m_materialDataBuffer)
+        {
+            auto const dataSize = m_cpuMaterialData.size() * sizeof(generated::StandardMaterialData);
+            m_materialDataBuffer->setBlob(m_cpuMaterialData.data(), 0, dataSize);
+        }
+
+        for (auto const& material : m_materials)
+        {
+            if (material)
+            {
+                material->clearDirty();
+            }
+        }
+
         m_dirty = false;
         return;
     }
 
-    ensureBufferCapacity(static_cast<uint32_t>(m_cpuMaterialData.size()));
-
-    // Upload data to GPU buffer.
-    // TODO: Selective upload optimization - for now upload all data.
-    if (m_materialDataBuffer)
+    for (uint32_t i = 0; i < m_materials.size(); ++i)
     {
-        auto const dataSize = m_cpuMaterialData.size() * sizeof(generated::StandardMaterialData);
-        m_materialDataBuffer->setBlob(m_cpuMaterialData.data(), 0, dataSize);
-    }
-
-    // Clear dirty flags on all materials after upload.
-    for (auto const& material : m_materials)
-    {
-        if (material)
+        auto const& material = m_materials[i];
+        if (!material || !material->isDirty())
         {
-            material->clearDirty();
+            continue;
         }
-    }
 
-    m_dirty = false;
+        writeMaterialData(i);
+
+        if (m_materialDataBuffer)
+        {
+            auto const offset = static_cast<size_t>(i) * sizeof(generated::StandardMaterialData);
+            m_materialDataBuffer->setBlob(&m_cpuMaterialData[i], offset, sizeof(generated::StandardMaterialData));
+        }
+
+        material->clearDirty();
+    }
 }
 
 auto MaterialSystem::bindToShader(ShaderVariable& var) const -> void
@@ -381,13 +407,13 @@ auto MaterialSystem::ensureBufferCapacity(uint32_t requiredCount) -> void
     auto const newSize = newCount * sizeof(generated::StandardMaterialData);
 
     // Create new buffer
-    auto const usage = BufferUsage::ShaderResource | BufferUsage::CopyDestination;
+    auto const usage = BufferUsage::ShaderResource;
     m_materialDataBuffer = core::make_ref<Buffer>(
         m_device,
         static_cast<uint32_t>(sizeof(generated::StandardMaterialData)),
         newCount,
         usage,
-        MemoryType::DeviceLocal,
+        MemoryType::Upload,
         nullptr,
         false  // no UAV counter
     );
@@ -399,53 +425,59 @@ auto MaterialSystem::rebuildMaterialData() -> void
 {
     m_cpuMaterialData.resize(m_materials.size());
 
+    m_textureOverflowCount = 0;
+    m_samplerOverflowCount = 0;
+    m_bufferOverflowCount = 0;
+    m_invalidHandleCount = 0;
+
     for (size_t i = 0; i < m_materials.size(); ++i)
     {
-        auto const& material = m_materials[i];
-        if (material)
-        {
-            if (auto standardMaterial = core::dynamic_ref_cast<StandardMaterial>(material))
-            {
-                standardMaterial->setDescriptorHandles(
-                    registerTextureDescriptor(standardMaterial->baseColorTexture),
-                    registerTextureDescriptor(standardMaterial->metallicRoughnessTexture),
-                    registerTextureDescriptor(standardMaterial->normalTexture),
-                    registerTextureDescriptor(standardMaterial->occlusionTexture),
-                    registerTextureDescriptor(standardMaterial->emissiveTexture),
-                    kInvalidDescriptorHandle,
-                    kInvalidDescriptorHandle
-                );
-            }
-
-            material->writeData(m_cpuMaterialData[i]);
-
-            auto& data = m_cpuMaterialData[i];
-
-            if (core::dynamic_ref_cast<StandardMaterial>(material))
-            {
-                data.header.materialType = m_materialTypeRegistry.resolveTypeId("Standard");
-            }
-            else if (core::dynamic_ref_cast<UnlitMaterial>(material))
-            {
-                data.header.materialType = m_materialTypeRegistry.resolveTypeId("Unlit");
-            }
-
-            // Validate handles against configured capacities (matching shader table sizes).
-            auto const matIdx = static_cast<uint32_t>(i);
-            validateAndClampDescriptorHandle(data.baseColorTextureHandle, m_config.textureTableSize, m_textureOverflowCount, matIdx, "baseColor");
-            validateAndClampDescriptorHandle(data.metallicRoughnessTextureHandle, m_config.textureTableSize, m_textureOverflowCount, matIdx, "metallicRoughness");
-            validateAndClampDescriptorHandle(data.normalTextureHandle, m_config.textureTableSize, m_textureOverflowCount, matIdx, "normal");
-            validateAndClampDescriptorHandle(data.occlusionTextureHandle, m_config.textureTableSize, m_textureOverflowCount, matIdx, "occlusion");
-            validateAndClampDescriptorHandle(data.emissiveTextureHandle, m_config.textureTableSize, m_textureOverflowCount, matIdx, "emissive");
-            validateAndClampDescriptorHandle(data.samplerHandle, m_config.samplerTableSize, m_samplerOverflowCount, matIdx, "sampler");
-            validateAndClampDescriptorHandle(data.bufferHandle, m_config.bufferTableSize, m_bufferOverflowCount, matIdx, "buffer");
-        }
-        else
-        {
-            // Clear data for removed materials
-            m_cpuMaterialData[i] = {};
-        }
+        writeMaterialData(static_cast<uint32_t>(i));
     }
+}
+
+auto MaterialSystem::writeMaterialData(uint32_t index) -> void
+{
+    if (index >= m_materials.size())
+    {
+        return;
+    }
+
+    auto const& material = m_materials[index];
+    if (!material)
+    {
+        if (index < m_cpuMaterialData.size())
+        {
+            m_cpuMaterialData[index] = {};
+        }
+        return;
+    }
+
+    if (auto standardMaterial = core::dynamic_ref_cast<StandardMaterial>(material))
+    {
+        standardMaterial->setDescriptorHandles(
+            registerTextureDescriptor(standardMaterial->baseColorTexture),
+            registerTextureDescriptor(standardMaterial->metallicRoughnessTexture),
+            registerTextureDescriptor(standardMaterial->normalTexture),
+            registerTextureDescriptor(standardMaterial->occlusionTexture),
+            registerTextureDescriptor(standardMaterial->emissiveTexture),
+            kInvalidDescriptorHandle,
+            kInvalidDescriptorHandle
+        );
+    }
+
+    material->writeData(m_cpuMaterialData[index]);
+
+    auto& data = m_cpuMaterialData[index];
+    data.header.materialType = static_cast<uint32_t>(material->getType());
+
+    validateAndClampDescriptorHandle(data.baseColorTextureHandle, m_config.textureTableSize, m_textureOverflowCount, index, "baseColor");
+    validateAndClampDescriptorHandle(data.metallicRoughnessTextureHandle, m_config.textureTableSize, m_textureOverflowCount, index, "metallicRoughness");
+    validateAndClampDescriptorHandle(data.normalTextureHandle, m_config.textureTableSize, m_textureOverflowCount, index, "normal");
+    validateAndClampDescriptorHandle(data.occlusionTextureHandle, m_config.textureTableSize, m_textureOverflowCount, index, "occlusion");
+    validateAndClampDescriptorHandle(data.emissiveTextureHandle, m_config.textureTableSize, m_textureOverflowCount, index, "emissive");
+    validateAndClampDescriptorHandle(data.samplerHandle, m_config.samplerTableSize, m_samplerOverflowCount, index, "sampler");
+    validateAndClampDescriptorHandle(data.bufferHandle, m_config.bufferTableSize, m_bufferOverflowCount, index, "buffer");
 }
 
 } // namespace april::graphics

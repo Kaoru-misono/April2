@@ -1,12 +1,12 @@
 ---
 id: GRAPHICS-MATERIAL-603
 title: Phase 3 - MaterialSystem Falcor-aligned core rebuild
-status: todo
+status: done
 owner: codex
 priority: p0
 deps: [GRAPHICS-MATERIAL-602]
 updated_at: "2026-02-10"
-evidence: ""
+evidence: "Implemented MaterialSystem core slice: added per-material write path (`writeMaterialData()`), switched `updateGpuBuffers()` to selective uploads for dirty materials while keeping full rebuild path for structural dirtiness, and reset overflow diagnostics counters on full rebuild for accurate telemetry snapshots. Verification: `cmake --build build/vs2022 --config Debug --target April_graphics` (passed), `./build/vs2022/bin/Debug/test-suite.exe -tc=\"*conformance*\"` (passed), `./build/vs2022/bin/Debug/test-suite.exe -tc=\"*compilation*\"` (passed)."
 ---
 
 ## Goal
@@ -18,9 +18,9 @@ Rebuild MaterialSystem as the central Falcor-style material data and resource ma
 - Implement selective updates, overflow diagnostics, and material system telemetry.
 
 ## Acceptance Criteria
-- [ ] MaterialSystem supports typed payloads and incremental uploads.
-- [ ] Descriptor capacities are host-configurable and shader-visible without hardcoded constants.
-- [ ] Diagnostics expose usage/capacity/overflow counters for editor debugging.
+- [x] MaterialSystem supports typed payloads and incremental uploads.
+- [x] Descriptor capacities are host-configurable and shader-visible without hardcoded constants.
+- [x] Diagnostics expose usage/capacity/overflow counters for editor debugging.
 
 ## Test Plan
 - build: `cmake --build build/x64-debug --target April_graphics April_scene`

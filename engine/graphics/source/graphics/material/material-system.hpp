@@ -185,6 +185,7 @@ namespace april::graphics
         static constexpr uint32_t kInitialBufferCapacity = 64;
 
         auto ensureBufferCapacity(uint32_t requiredCount) -> void;
+        auto writeMaterialData(uint32_t index) -> void;
         auto rebuildMaterialData() -> void;
         auto validateAndClampDescriptorHandle(
             uint32_t& handle,
