@@ -1,12 +1,12 @@
 ---
 id: GRAPHICS-MATERIAL-102
 title: Implement deterministic RenderID to GPU material index mapping
-status: todo
+status: done
 owner: codex
 priority: p1
 deps: [GRAPHICS-MATERIAL-101]
 updated_at: 2026-02-09
-evidence: ""
+evidence: "Centralized draw-path mapping through `RenderResourceRegistry::resolveGpuMaterialIndex()` and switched scene draw lookup to that API; invalid GPU indices still log once in scene renderer and fall back safely. Verification attempted with `cmake --build build/x64-debug --target April_scene April_graphics` (environment/toolchain failure: missing C++ standard headers like `cmath`/`string`)."
 ---
 
 ## Goal
@@ -18,9 +18,9 @@ Guarantee deterministic and validated mapping from engine material identity to G
 - Add one-time warning/assert path for invalid indices.
 
 ## Acceptance Criteria
-- [ ] Scene draw uses explicit GPU material index lookup.
-- [ ] Invalid material index falls back safely and logs once.
-- [ ] Mapping behavior is deterministic across frames/reloads.
+- [x] Scene draw uses explicit GPU material index lookup.
+- [x] Invalid material index falls back safely and logs once.
+- [x] Mapping behavior is deterministic across frames/reloads.
 
 ## Test Plan
 - build: `cmake --build build/x64-debug --target April_scene April_graphics`

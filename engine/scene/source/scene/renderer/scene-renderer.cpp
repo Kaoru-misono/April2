@@ -247,8 +247,12 @@ namespace april::scene
                         }
                     }
 
-                    // Resolve explicit GPU material buffer index for this render material.
-                    auto materialIndex = m_resources.getMaterialBufferIndex(materialId);
+                    // Resolve explicit GPU material buffer index via registry mapping.
+                    auto materialIndex = m_resources.resolveGpuMaterialIndex(
+                        instance.meshId,
+                        submesh.materialIndex,
+                        materialId
+                    );
                     if (materialSystem)
                     {
                         auto const materialCount = materialSystem->getMaterialCount();

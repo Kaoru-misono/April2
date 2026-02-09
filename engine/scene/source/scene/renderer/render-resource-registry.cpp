@@ -276,6 +276,21 @@ namespace april::scene
         return m_materialBufferIndices[id];
     }
 
+    auto RenderResourceRegistry::resolveGpuMaterialIndex(
+        RenderID meshId,
+        uint32_t slotIndex,
+        RenderID overrideMaterialId
+    ) const -> uint32_t
+    {
+        auto materialId = overrideMaterialId;
+        if (materialId == kInvalidRenderID)
+        {
+            materialId = getMeshMaterialId(meshId, slotIndex);
+        }
+
+        return getMaterialBufferIndex(materialId);
+    }
+
     auto RenderResourceRegistry::loadMaterialTextures(
         core::ref<graphics::StandardMaterial> material,
         asset::MaterialTextures const& textures

@@ -51,10 +51,14 @@ auto StandardMaterial::getType() const -> generated::MaterialType
 auto StandardMaterial::writeData(generated::StandardMaterialData& data) const -> void
 {
     // Header
+    data.header.abiVersion = 1;
     data.header.materialType = static_cast<uint32_t>(generated::MaterialType::Standard);
     data.header.flags = updateFlags();
     data.header.alphaMode = static_cast<uint32_t>(alphaMode);
     data.header.activeLobes = updateActiveLobes();
+    data.header.reserved0 = 0;
+    data.header.reserved1 = 0;
+    data.header.reserved2 = 0;
 
     // Material parameters
     data.baseColor = baseColor;

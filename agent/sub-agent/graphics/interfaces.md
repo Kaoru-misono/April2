@@ -72,6 +72,7 @@ Key APIs: `MaterialSystem::addMaterial()`, `MaterialSystem::updateGpuBuffers()`,
 
 Usage Notes:
 - Call `updateGpuBuffers()` after modifying material data.
+- Material GPU ABI uses `generated::MaterialHeader` with `abiVersion` and reserved words for forward-compatible layout growth.
 
 Used By: `scene`
 

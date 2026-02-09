@@ -3,13 +3,20 @@
 
 import material.material_types;
 
+// Material ABI version. Increment when binary layout changes.
+static const uint kMaterialAbiVersion = 1;
+
 // @export-cpp
 struct MaterialHeader
 {
+    uint abiVersion;        // Material ABI version (kMaterialAbiVersion)
     uint materialType;      // MaterialType enum
     uint flags;             // MaterialFlags bitmask
     uint alphaMode;         // AlphaMode enum
     uint activeLobes;       // LobeType bitmask
+    uint reserved0;         // Reserved for forward-compatible header growth
+    uint reserved1;         // Reserved for forward-compatible header growth
+    uint reserved2;         // Reserved for forward-compatible header growth
 };
 
 // @export-cpp
