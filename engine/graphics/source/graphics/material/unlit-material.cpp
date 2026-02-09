@@ -15,7 +15,7 @@ namespace april::graphics
     auto UnlitMaterial::writeData(generated::StandardMaterialData& data) const -> void
     {
         data = {};
-        data.header.abiVersion = 1;
+        data.header.abiVersion = generated::kMaterialAbiVersion;
         data.header.materialType = static_cast<uint32_t>(generated::MaterialType::Unlit);
         data.header.flags = getFlags();
         data.header.alphaMode = static_cast<uint32_t>(generated::AlphaMode::Opaque);

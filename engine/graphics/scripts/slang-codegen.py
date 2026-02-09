@@ -96,6 +96,14 @@ class StructDef:
     fields: list[Field]
 
 
+@dataclass
+class ConstantDef:
+    cpp_name: str
+    slang_name: str
+    type: str
+    value: str
+
+
 def parse_enum_values(body: str) -> list[EnumValue]:
     """Parse enum values from the body of an enum definition."""
     values = []
@@ -213,6 +221,26 @@ def parse_slang_structs(content: str) -> list[StructDef]:
     return structs
 
 
+def parse_slang_constants(content: str) -> list[ConstantDef]:
+    """Extract constants marked with @export-cpp."""
+    pattern = r'//\s*@export-cpp(?::\s*(\w+))?\s*\n(?:\s*//[^\n]*\n)*\s*(?:static\s+)?const\s+(\w+)\s+(\w+)\s*=\s*([^;]+);'
+    matches = re.findall(pattern, content, re.MULTILINE)
+
+    constants = []
+    for cpp_name, slang_type, slang_name, value in matches:
+        if not cpp_name:
+            cpp_name = slang_name
+        cpp_type = str(SLANG_TO_CPP_TYPES.get(slang_type, slang_type))
+        constants.append(ConstantDef(
+            cpp_name=cpp_name,
+            slang_name=slang_name,
+            type=cpp_type,
+            value=value.strip()
+        ))
+
+    return constants
+
+
 def get_field_size(field: Field, type_sizes: dict[str, int]) -> int:
     """Return field size in bytes using known scalar/vector/struct sizes."""
     size = type_sizes.get(field.type, 4)
@@ -249,7 +277,12 @@ def is_flags_enum(enum: EnumDef) -> bool:
     return False
 
 
-def generate_cpp_header(enums: list[EnumDef], structs: list[StructDef], source_file: str) -> str:
+def generate_cpp_header(
+    enums: list[EnumDef],
+    structs: list[StructDef],
+    constants: list[ConstantDef],
+    source_file: str
+) -> str:
     """Generate C++ header from parsed enums and structs."""
     lines = [
         f'// AUTO-GENERATED from {source_file} - DO NOT EDIT',
@@ -266,6 +299,11 @@ def generate_cpp_header(enums: list[EnumDef], structs: list[StructDef], source_f
     ]
 
     # Generate enums
+    for const in constants:
+        lines.append(f'    inline constexpr {const.type} {const.cpp_name} = {const.value};')
+    if constants:
+        lines.append('')
+
     for enum in enums:
         lines.append(f'    enum class {enum.cpp_name} : {enum.backing_type}')
         lines.append('    {')
@@ -338,12 +376,13 @@ def process_file(input_path: Path, output_path: Path) -> bool:
 
     enums = parse_slang_enums(content)
     structs = parse_slang_structs(content)
+    constants = parse_slang_constants(content)
 
-    if not enums and not structs:
+    if not enums and not structs and not constants:
         print(f"No @export-cpp annotations found in {input_path}")
         return False
 
-    cpp_code = generate_cpp_header(enums, structs, input_path.name)
+    cpp_code = generate_cpp_header(enums, structs, constants, input_path.name)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(cpp_code, encoding='utf-8')

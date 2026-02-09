@@ -56,7 +56,7 @@ auto StandardMaterial::getTypeName() const -> std::string
 auto StandardMaterial::writeData(generated::StandardMaterialData& data) const -> void
 {
     // Header
-    data.header.abiVersion = 1;
+    data.header.abiVersion = generated::kMaterialAbiVersion;
     data.header.materialType = static_cast<uint32_t>(generated::MaterialType::Standard);
     data.header.flags = updateFlags();
     data.header.alphaMode = static_cast<uint32_t>(alphaMode);

@@ -3,6 +3,7 @@
 
 import material.material_types;
 
+// @export-cpp
 // Material ABI version. Increment when binary layout changes.
 static const uint kMaterialAbiVersion = 1;
 
