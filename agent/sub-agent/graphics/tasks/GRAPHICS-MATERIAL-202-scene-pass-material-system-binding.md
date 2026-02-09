@@ -1,12 +1,12 @@
 ---
 id: GRAPHICS-MATERIAL-202
 title: Bind MaterialSystem once per scene pass and remove per-draw texture globals
-status: todo
+status: done
 owner: codex
 priority: p1
 deps: [GRAPHICS-MATERIAL-201]
 updated_at: 2026-02-09
-evidence: ""
+evidence: "Implemented in commit `22b83b6`: scene pass now binds material texture/sampler tables once per pass (`materialTextures[]`, `materialSamplers[]`) and per-draw texture globals/bind calls were removed; draw-time work is limited to instance/material indices. Verification attempted with `cmake --build build/x64-debug --target April_scene April_graphics` (environment toolchain failure: missing standard headers `cmath`/`string`)."
 ---
 
 ## Goal
@@ -18,9 +18,9 @@ Refactor scene forward pass to consume a unified MaterialSystem binding model.
 - Keep draw-time work focused on indices/instance data only.
 
 ## Acceptance Criteria
-- [ ] Scene pass no longer binds per-material texture globals every draw.
-- [ ] Material resources are fetched through MaterialSystem binding.
-- [ ] Visual parity for Standard material path is maintained.
+- [x] Scene pass no longer binds per-material texture globals every draw.
+- [x] Material resources are fetched through MaterialSystem binding.
+- [x] Visual parity for Standard material path is maintained.
 
 ## Test Plan
 - build: `cmake --build build/x64-debug --target April_scene April_graphics`

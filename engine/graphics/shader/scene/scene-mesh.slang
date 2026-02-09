@@ -37,13 +37,10 @@ ParameterBlock<PerFrame> perFrame;
 ParameterBlock<PerInstance> perInstance;
 StructuredBuffer<StandardMaterialData> materials;
 
-// Material textures
-Texture2D baseColorTexture;
-Texture2D metallicRoughnessTexture;
-Texture2D normalTexture;
-Texture2D occlusionTexture;
-Texture2D emissiveTexture;
-SamplerState materialSampler;
+static const uint kMaterialTextureTableSize = 128;
+static const uint kMaterialSamplerTableSize = 8;
+Texture2D materialTextures[kMaterialTextureTableSize];
+SamplerState materialSamplers[kMaterialSamplerTableSize];
 
 [shader("vertex")]
 VSOut vsMain(VSIn input)
@@ -61,12 +58,15 @@ VSOut vsMain(VSIn input)
 float4 psMain(VSOut input) : SV_Target
 {
     StandardMaterialData mtl = materials[perInstance.materialIndex];
+    uint samplerHandle = min(mtl.samplerHandle, kMaterialSamplerTableSize - 1);
+    SamplerState materialSampler = materialSamplers[samplerHandle];
 
     // Sample base color
     float4 baseColor = mtl.baseColor;
     if ((mtl.header.flags & (uint)MaterialFlags.HasTextures) != 0)
     {
-        float4 texColor = baseColorTexture.Sample(materialSampler, input.texCoord);
+        uint baseColorHandle = min(mtl.baseColorTextureHandle, kMaterialTextureTableSize - 1);
+        float4 texColor = materialTextures[baseColorHandle].Sample(materialSampler, input.texCoord);
         baseColor *= texColor;
     }
 
@@ -82,7 +82,8 @@ float4 psMain(VSOut input) : SV_Target
     float roughness = mtl.roughness;
     if ((mtl.header.flags & (uint)MaterialFlags.HasTextures) != 0)
     {
-        float4 mrSample = metallicRoughnessTexture.Sample(materialSampler, input.texCoord);
+        uint metallicRoughnessHandle = min(mtl.metallicRoughnessTextureHandle, kMaterialTextureTableSize - 1);
+        float4 mrSample = materialTextures[metallicRoughnessHandle].Sample(materialSampler, input.texCoord);
         // glTF convention: roughness in G, metallic in B
         roughness *= mrSample.g;
         metallic *= mrSample.b;
@@ -92,7 +93,8 @@ float4 psMain(VSOut input) : SV_Target
     float3 emissive = mtl.emissive;
     if ((mtl.header.flags & (uint)MaterialFlags.Emissive) != 0)
     {
-        float3 emissiveSample = emissiveTexture.Sample(materialSampler, input.texCoord).rgb;
+        uint emissiveHandle = min(mtl.emissiveTextureHandle, kMaterialTextureTableSize - 1);
+        float3 emissiveSample = materialTextures[emissiveHandle].Sample(materialSampler, input.texCoord).rgb;
         emissive *= emissiveSample;
     }
 

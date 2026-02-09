@@ -8,6 +8,9 @@
 
 namespace april::scene
 {
+    static constexpr uint32_t kMaterialTextureTableSize = 128;
+    static constexpr uint32_t kMaterialSamplerTableSize = 8;
+
     SceneRenderer::SceneRenderer(core::ref<graphics::Device> device, asset::AssetManager* assetManager)
         : m_device(std::move(device))
         , m_resources(m_device, assetManager)
@@ -205,8 +208,31 @@ namespace april::scene
             rootVar["materials"].setBuffer(materialSystem->getMaterialDataBuffer());
         }
 
-        // Bind default sampler
-        rootVar["materialSampler"].setSampler(m_defaultSampler);
+        for (uint32_t textureIndex = 0; textureIndex < kMaterialTextureTableSize; ++textureIndex)
+        {
+            auto texture = m_defaultWhiteTexture;
+            if (materialSystem && textureIndex != 0)
+            {
+                if (auto registered = materialSystem->getTextureDescriptorResource(textureIndex))
+                {
+                    texture = registered;
+                }
+            }
+            rootVar["materialTextures"][textureIndex].setTexture(texture);
+        }
+
+        for (uint32_t samplerIndex = 0; samplerIndex < kMaterialSamplerTableSize; ++samplerIndex)
+        {
+            auto sampler = m_defaultSampler;
+            if (materialSystem && samplerIndex != 0)
+            {
+                if (auto registered = materialSystem->getSamplerDescriptorResource(samplerIndex))
+                {
+                    sampler = registered;
+                }
+            }
+            rootVar["materialSamplers"][samplerIndex].setSampler(sampler);
+        }
 
         auto warnMissingSlot = [&](RenderID meshId, uint32_t slotIndex)
         {
@@ -288,20 +314,6 @@ namespace april::scene
                             materialId,
                             materialIndex
                         );
-                    }
-
-                    // Always bind defaults first to avoid stale textures leaking from previous draws.
-                    rootVar["baseColorTexture"].setTexture(m_defaultWhiteTexture);
-                    rootVar["metallicRoughnessTexture"].setTexture(m_defaultWhiteTexture);
-                    rootVar["normalTexture"].setTexture(m_defaultWhiteTexture);
-                    rootVar["occlusionTexture"].setTexture(m_defaultWhiteTexture);
-                    rootVar["emissiveTexture"].setTexture(m_defaultWhiteTexture);
-
-                    // Override with bound material textures when present.
-                    auto material = m_resources.getMaterial(materialId);
-                    if (material)
-                    {
-                        material->bindTextures(rootVar);
                     }
 
                     encoder->drawIndexed(submesh.indexCount, submesh.indexOffset, 0);
