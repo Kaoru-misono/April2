@@ -325,7 +325,11 @@ namespace april::graphics
                     );
                     if (SLANG_FAILED(res))
                     {
-                        log += "Slang call createCompositeComponentType() failed.\n";
+                        log += "Slang call createCompositeComponentType() failed while specializing entry point with type conformances.\n";
+                        if (pSlangDiagnostics && pSlangDiagnostics->getBufferSize() > 0)
+                        {
+                            log += (char const*)pSlangDiagnostics->getBufferPointer();
+                        }
                         return nullptr;
                     }
                 }
@@ -345,7 +349,11 @@ namespace april::graphics
                     );
                     if (SLANG_FAILED(res))
                     {
-                        log += "Slang call createCompositeComponentType() failed.\n";
+                        log += "Slang call createCompositeComponentType() failed while linking specialized global scope with entry point.\n";
+                        if (pSlangDiagnostics && pSlangDiagnostics->getBufferSize() > 0)
+                        {
+                            log += (char const*)pSlangDiagnostics->getBufferPointer();
+                        }
                         return nullptr;
                     }
                 }
@@ -416,12 +424,17 @@ namespace april::graphics
                 }
             }
 
+            Slang::ComPtr<slang::IBlob> pSlangDiagnostics;
             auto res = pSlangSession->createCompositeComponentType(
-                componentTypesForProgram.data(), componentTypesForProgram.size(), pSpecializedSlangProgram.writeRef()
+                componentTypesForProgram.data(), componentTypesForProgram.size(), pSpecializedSlangProgram.writeRef(), pSlangDiagnostics.writeRef()
             );
             if (SLANG_FAILED(res))
             {
-                log += "Slang call createCompositeComponentType() failed.\n";
+                log += "Slang call createCompositeComponentType() failed while building specialized program component.\n";
+                if (pSlangDiagnostics && pSlangDiagnostics->getBufferSize() > 0)
+                {
+                    log += (char const*)pSlangDiagnostics->getBufferPointer();
+                }
                 return nullptr;
             }
         }

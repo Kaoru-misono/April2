@@ -171,8 +171,16 @@ namespace april::graphics
         for (auto const& arg : specializationArgs)
         {
             if (!first) specializationKey += ",";
-            specializationKey += std::string(arg.type->getName()); // arg.type might be null if it's value specialization?
-            // Falcor implementation assumes arg.type is valid or uses it.
+
+            if (arg.type)
+            {
+                specializationKey += std::string(arg.type->getName());
+            }
+            else
+            {
+                specializationKey += "<null-type-specialization>";
+            }
+
             first = false;
         }
 

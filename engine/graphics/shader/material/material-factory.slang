@@ -52,10 +52,8 @@ IMaterialInstance getMaterialInstance(MaterialFactory factory, uint materialID, 
     StandardMaterialData mtl = getMaterial(factory.ms, materialID);
     if (MaterialType(mtl.header.materialType) == MaterialType::Unlit)
     {
-        UnlitMaterialInstance unlit = UnlitMaterialInstance(mtl);
-        return createDynamicObject<IMaterialInstance>(unlit);
+        return UnlitMaterialInstance(mtl);
     }
 
-    StandardMaterialInstance standard = factory.getStandardMaterialInstance(materialID, sd);
-    return createDynamicObject<IMaterialInstance>(standard);
+    return factory.getStandardMaterialInstance(materialID, sd);
 }

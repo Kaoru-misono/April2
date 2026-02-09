@@ -205,20 +205,26 @@ namespace april::graphics
 
     auto Program::addTypeConformance(std::string const& typeName, std::string const interfaceType, uint32_t id) -> bool
     {
-        if (m_typeConformanceList.add(typeName, interfaceType, id).size()) // add returns ref, checking size not strictly correct for dirty check but add modifies map
+        auto const before = m_typeConformanceList;
+        m_typeConformanceList.add(typeName, interfaceType, id);
+        if (m_typeConformanceList != before)
         {
             markDirty();
-            return true; // add always updates map
+            return true;
         }
         return false;
     }
 
     auto Program::removeTypeConformance(std::string const& typeName, std::string const interfaceType) -> bool
     {
-        // TypeConformanceList::remove returns ref
-        markDirty();
+        auto const before = m_typeConformanceList;
         m_typeConformanceList.remove(typeName, interfaceType);
-        return true;
+        if (m_typeConformanceList != before)
+        {
+            markDirty();
+            return true;
+        }
+        return false;
     }
 
     auto Program::setTypeConformances(TypeConformanceList const& conformances) -> bool
@@ -351,7 +357,14 @@ namespace april::graphics
     auto Program::link() const -> bool
     {
         // Preflight conformance validation.
-        validateConformancesPreflight();
+        if (!validateConformancesPreflight())
+        {
+            AP_ERROR(
+                "Program preflight failed before link due to missing/invalid material conformances: {}",
+                getProgramDescString()
+            );
+            return false;
+        }
 
         while (1)
         {
