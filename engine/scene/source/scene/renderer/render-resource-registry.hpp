@@ -42,6 +42,8 @@ namespace april::scene
         auto getMaterial(RenderID id) const -> core::ref<graphics::IMaterial>;
         auto getMaterialBufferIndex(RenderID id) const -> uint32_t;
         auto resolveGpuMaterialIndex(RenderID meshId, uint32_t slotIndex, RenderID overrideMaterialId) const -> uint32_t;
+        auto getMaterialTypeId(RenderID id) const -> uint32_t;
+        auto getMaterialTypeName(RenderID id) const -> std::string;
 
     private:
         auto loadMaterialTextures(

@@ -130,6 +130,14 @@ namespace april::editor
 
                 ImGui::Text("Mesh ID: %u", meshRenderer.meshId);
                 ImGui::Text("Material ID: %u", meshRenderer.materialId);
+                if (auto* resources = Engine::get().getRenderResourceRegistry())
+                {
+                    auto const gpuMaterialIndex = resources->getMaterialBufferIndex(meshRenderer.materialId);
+                    auto const materialTypeId = resources->getMaterialTypeId(meshRenderer.materialId);
+                    auto const materialTypeName = resources->getMaterialTypeName(meshRenderer.materialId);
+                    ImGui::Text("GPU Material Index: %u", gpuMaterialIndex);
+                    ImGui::Text("Material Type: %s (%u)", materialTypeName.c_str(), materialTypeId);
+                }
                 ui::PropertyUndoable(context, "Enabled", meshRenderer, &scene::MeshRendererComponent::enabled, "Toggle Mesh Renderer");
                 ui::PropertyUndoable(context, "Cast Shadows", meshRenderer, &scene::MeshRendererComponent::castShadows, "Toggle Cast Shadows");
                 ui::PropertyUndoable(context, "Receive Shadows", meshRenderer, &scene::MeshRendererComponent::receiveShadows, "Toggle Receive Shadows");

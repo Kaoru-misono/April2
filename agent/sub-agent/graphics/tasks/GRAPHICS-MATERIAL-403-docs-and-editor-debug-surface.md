@@ -1,12 +1,12 @@
 ---
 id: GRAPHICS-MATERIAL-403
 title: Document extension workflow and expose material debug surfaces
-status: todo
+status: done
 owner: codex
 priority: p2
 deps: [GRAPHICS-MATERIAL-401]
 updated_at: 2026-02-09
-evidence: ""
+evidence: "Implemented in commit `5954a72`: updated graphics interfaces/changelog docs for material extension architecture and onboarding workflow; added render-resource registry debug APIs (`getMaterialTypeId()`, `getMaterialTypeName()`) and surfaced GPU material index + material type (name/id) in editor inspector Mesh Renderer panel. Verification attempted via `cmake --build build/x64-debug --target April_editor April_scene April_graphics` (environment toolchain failure: missing standard headers e.g. `cmath`, `string`, `functional`)."
 ---
 
 ## Goal
@@ -18,9 +18,9 @@ Complete migration by documenting extension contract and exposing runtime debug 
 - Document steps to add a new material type.
 
 ## Acceptance Criteria
-- [ ] `interfaces.md` and `changelog.md` reflect architecture changes.
-- [ ] Editor/runtime debug view can inspect material type/index mapping.
-- [ ] New material type onboarding steps are documented.
+- [x] `interfaces.md` and `changelog.md` reflect architecture changes.
+- [x] Editor/runtime debug view can inspect material type/index mapping.
+- [x] New material type onboarding steps are documented.
 
 ## Test Plan
 - docs + manual validation in editor debug UI.

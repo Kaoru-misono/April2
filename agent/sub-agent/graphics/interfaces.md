@@ -74,8 +74,19 @@ Usage Notes:
 - Call `updateGpuBuffers()` after modifying material data.
 - Material GPU ABI uses `generated::MaterialHeader` with `abiVersion` and reserved words for forward-compatible layout growth.
 - Descriptor handles use `MaterialSystem::DescriptorHandle`, with `kInvalidDescriptorHandle` as the fallback for missing resources.
+- Material type metadata is exposed through `MaterialTypeRegistry` (`resolveTypeId()`, `resolveTypeName()`) and per-material lookup via `MaterialSystem::getMaterialTypeId()`.
 
 Used By: `scene`
+
+### Material Extension Workflow
+Location: `engine/graphics/source/graphics/material/*`, `engine/graphics/shader/material/*`
+
+Steps:
+- Add host material class implementing `IMaterial` (example: `UnlitMaterial`).
+- Register/resolve stable type id through `MaterialTypeRegistry` in `MaterialSystem`.
+- Add Slang material instance implementing `IMaterialInstance`.
+- Update `material-factory.slang` to return the new instance via `createDynamicObject<IMaterialInstance>()`.
+- Ensure host `getTypeConformances()` contributes `<TypeInstance, IMaterialInstance>` mapping.
 
 ### graphics/material/standard-material.hpp
 Location: `engine/graphics/source/graphics/material/standard-material.hpp`

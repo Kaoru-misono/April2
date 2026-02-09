@@ -314,6 +314,28 @@ namespace april::scene
         return getMaterialBufferIndex(materialId);
     }
 
+    auto RenderResourceRegistry::getMaterialTypeId(RenderID id) const -> uint32_t
+    {
+        auto const bufferIndex = getMaterialBufferIndex(id);
+        if (!m_materialSystem)
+        {
+            return 0;
+        }
+
+        return m_materialSystem->getMaterialTypeId(bufferIndex);
+    }
+
+    auto RenderResourceRegistry::getMaterialTypeName(RenderID id) const -> std::string
+    {
+        auto const typeId = getMaterialTypeId(id);
+        if (!m_materialSystem)
+        {
+            return "Unknown";
+        }
+
+        return m_materialSystem->getMaterialTypeRegistry().resolveTypeName(typeId);
+    }
+
     auto RenderResourceRegistry::loadMaterialTextures(
         core::ref<graphics::StandardMaterial> material,
         asset::MaterialTextures const& textures
