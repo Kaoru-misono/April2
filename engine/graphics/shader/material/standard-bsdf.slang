@@ -32,14 +32,18 @@ StandardBSDFData createStandardBSDFData(StandardMaterialData mtl, float3 baseCol
 {
     StandardBSDFData data;
 
-    // Derive diffuse and specular from metallic workflow
-    float3 dielectricF0 = float3(0.04f);  // Default F0 for dielectrics
+    // Derive dielectric F0 from IoR, matching Falcor's StandardMaterial path.
+    float ior = max(mtl.ior, 1.0001f);
+    float f = (ior - 1.0f) / (ior + 1.0f);
+    float3 dielectricF0 = float3(f * f);
+
+    // Derive diffuse and specular from metallic workflow.
     data.specular = lerp(dielectricF0, baseColor, mtl.metallic);
     data.diffuse = baseColor * (1.0f - mtl.metallic);
 
-    data.roughness = mtl.roughness;
-    data.metallic = mtl.metallic;
-    data.eta = 1.0f / mtl.ior;  // eta = etaI / etaT, assuming air outside
+    data.roughness = saturate(mtl.roughness);
+    data.metallic = saturate(mtl.metallic);
+    data.eta = 1.0f / ior;  // eta = etaI / etaT, assuming air outside.
     data.transmission = mtl.transmission;
     data.diffuseTransmission = mtl.diffuseTransmission;
     data.specularTransmission = mtl.specularTransmission;
