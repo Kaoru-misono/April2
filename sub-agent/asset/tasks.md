@@ -6,15 +6,15 @@
 - ID: ASSET-000
 - Goal: Define the asset handle/load API contract.
 - Dependencies: (none)
-- Scope: Document asset public headers in `engine/asset/agent/interfaces.md`.
+- Scope: Document asset public headers in `sub-agent/asset/interfaces.md`.
 - Out of scope: No asset pipeline changes.
 - Acceptance Criteria:
-- `engine/asset/agent/interfaces.md` lists all public headers
+- `sub-agent/asset/interfaces.md` lists all public headers
 - `changelog.md` updated if APIs change
 - Test Plan: N/A (docs only)
 - Expected files touched:
-- `engine/asset/agent/interfaces.md`
-- `engine/asset/agent/changelog.md`
+- `sub-agent/asset/interfaces.md`
+- `sub-agent/asset/changelog.md`
 - Risk: Low
 - Owner: TBD
 

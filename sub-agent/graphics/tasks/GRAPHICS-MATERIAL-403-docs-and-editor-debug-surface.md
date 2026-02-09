@@ -26,7 +26,7 @@ Complete migration by documenting extension contract and exposing runtime debug 
 - docs + manual validation in editor debug UI.
 
 ## Expected Files
-- `engine/graphics/agent/interfaces.md`
-- `engine/graphics/agent/changelog.md`
+- `sub-agent/graphics/interfaces.md`
+- `sub-agent/graphics/changelog.md`
 - `engine/editor/source/editor/window/*`
 

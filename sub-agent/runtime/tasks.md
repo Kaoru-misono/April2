@@ -6,15 +6,15 @@
 - ID: RT-000
 - Goal: Define the runtime loop and lifecycle contract.
 - Dependencies: (none)
-- Scope: Document runtime public headers in `engine/runtime/agent/interfaces.md`.
+- Scope: Document runtime public headers in `sub-agent/runtime/interfaces.md`.
 - Out of scope: No runtime behavior changes.
 - Acceptance Criteria:
-- `engine/runtime/agent/interfaces.md` lists all public headers
+- `sub-agent/runtime/interfaces.md` lists all public headers
 - `changelog.md` updated if APIs change
 - Test Plan: N/A (docs only)
 - Expected files touched:
-- `engine/runtime/agent/interfaces.md`
-- `engine/runtime/agent/changelog.md`
+- `sub-agent/runtime/interfaces.md`
+- `sub-agent/runtime/changelog.md`
 - Risk: Low
 - Owner: TBD
 
