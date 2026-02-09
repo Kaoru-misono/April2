@@ -3,6 +3,7 @@
 import material.i_material;
 import material.material_data;
 import material.material_system;
+import material.material_types;
 import material.shading_data;
 import material.standard_material;
 import material.unlit_material;
