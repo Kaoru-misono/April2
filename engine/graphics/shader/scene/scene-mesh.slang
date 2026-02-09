@@ -58,81 +58,35 @@ VSOut vsMain(VSIn input)
 }
 
 [shader("fragment")]
-float4 psMain(VSOut input) : SV_Target
+float4 psMain(VSOut input, bool isFrontFace : SV_IsFrontFace) : SV_Target
 {
-    StandardMaterialData mtl = materials[perInstance.materialIndex];
-    uint samplerHandle = min(mtl.samplerHandle, kMaterialSamplerTableSize - 1);
-    SamplerState materialSampler = materialSamplers[samplerHandle];
+    MaterialSystemContext materialSystem;
+    materialSystem.materials = materials;
+    materialSystem.materialTextures = materialTextures;
+    materialSystem.materialSamplers = materialSamplers;
 
-    // Sample base color
-    float4 baseColor = mtl.baseColor;
-    if ((mtl.header.flags & (uint)MaterialFlags.HasTextures) != 0)
-    {
-        uint baseColorHandle = min(mtl.baseColorTextureHandle, kMaterialTextureTableSize - 1);
-        float4 texColor = materialTextures[baseColorHandle].Sample(materialSampler, input.texCoord);
-        baseColor *= texColor;
-    }
+    MaterialFactory materialFactory = MaterialFactory(materialSystem);
 
-    // Alpha testing
-    if (mtl.header.alphaMode == (uint)AlphaMode.Mask)
-    {
-        if (baseColor.a < mtl.alphaCutoff)
-            discard;
-    }
-
-    // Sample metallic/roughness
-    float metallic = mtl.metallic;
-    float roughness = mtl.roughness;
-    if ((mtl.header.flags & (uint)MaterialFlags.HasTextures) != 0)
-    {
-        uint metallicRoughnessHandle = min(mtl.metallicRoughnessTextureHandle, kMaterialTextureTableSize - 1);
-        float4 mrSample = materialTextures[metallicRoughnessHandle].Sample(materialSampler, input.texCoord);
-        // glTF convention: roughness in G, metallic in B
-        roughness *= mrSample.g;
-        metallic *= mrSample.b;
-    }
-
-    // Sample emissive
-    float3 emissive = mtl.emissive;
-    if ((mtl.header.flags & (uint)MaterialFlags.Emissive) != 0)
-    {
-        uint emissiveHandle = min(mtl.emissiveTextureHandle, kMaterialTextureTableSize - 1);
-        float3 emissiveSample = materialTextures[emissiveHandle].Sample(materialSampler, input.texCoord).rgb;
-        emissive *= emissiveSample;
-    }
-
-    // Basic PBR lighting
     float3 N = normalize(input.normal);
     float3 V = normalize(perFrame.cameraPos - input.worldPos);
+    float3 tangentRef = abs(N.z) < 0.99f ? float3(0.0f, 0.0f, 1.0f) : float3(0.0f, 1.0f, 0.0f);
+    float3 T = normalize(cross(tangentRef, N));
+    ShadingData sd = prepareShadingData(input.worldPos, V, N, T, input.texCoord, N, isFrontFace);
+
+    IMaterialInstance materialInstance = getMaterialInstance(materialFactory, perInstance.materialIndex, sd);
+    float3 baseAlbedo = materialInstance.getAlbedo(sd);
+    float roughness = materialInstance.getRoughness(sd);
+    float3 emissive = materialInstance.getEmission(sd);
+
+    // Basic PBR lighting
     float3 L = normalize(float3(1.0, 1.0, 1.0));  // Fixed directional light
-    float3 H = normalize(V + L);
-
-    float NdotL = max(dot(N, L), 0.0);
-    float NdotV = max(dot(N, V), 0.0);
-    float NdotH = max(dot(N, H), 0.0);
-
-    // Simple approximation of PBR
-    // Diffuse contribution (non-metallic)
-    float3 diffuseColor = baseColor.rgb * (1.0 - metallic);
-    float3 diffuse = diffuseColor * NdotL;
-
-    // Specular contribution
-    float alpha = roughness * roughness;
-    float alpha2 = alpha * alpha;
-    float denom = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
-    float D = alpha2 / (3.14159265 * denom * denom);
-
-    // Fresnel (Schlick approximation)
-    float3 F0 = lerp(float3(0.04), baseColor.rgb, metallic);
-    float3 F = F0 + (1.0 - F0) * pow(1.0 - max(dot(H, V), 0.0), 5.0);
-
-    float3 specular = D * F * NdotL * 0.25;
+    float3 bsdf = materialInstance.eval(sd, L);
 
     // Ambient
-    float3 ambient = baseColor.rgb * 0.03;
+    float3 ambient = baseAlbedo * 0.03;
 
     // Final color
-    float3 finalColor = ambient + diffuse + specular + emissive;
+    float3 finalColor = ambient + bsdf + emissive;
 
-    return float4(finalColor, baseColor.a);
+    return float4(finalColor, 1.0f);
 }
