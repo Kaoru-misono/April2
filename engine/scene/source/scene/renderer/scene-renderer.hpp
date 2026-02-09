@@ -68,5 +68,6 @@ namespace april::scene
         // Track missing material slots to avoid log spam.
         std::unordered_set<uint64_t> m_missingMaterialSlots{};
         std::unordered_set<uint64_t> m_invalidMaterialIndices{};
+        bool m_materialBindingDumped{false};
     };
 }

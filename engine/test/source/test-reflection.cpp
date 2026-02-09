@@ -97,4 +97,37 @@ TEST_SUITE("Reflection")
         CHECK(threadGroupSize.y == 8);
         CHECK(threadGroupSize.z == 1);
     }
+
+    TEST_CASE("Scene material binding reflection")
+    {
+        Device::Desc deviceDesc;
+        deviceDesc.type = Device::Type::Default;
+        auto device = april::core::make_ref<Device>(deviceDesc);
+        REQUIRE(device);
+
+        ProgramDesc progDesc;
+        progDesc.addShaderLibrary("graphics/scene/scene-mesh.slang");
+        progDesc.vsEntryPoint("vsMain");
+        progDesc.psEntryPoint("psMain");
+
+        auto program = Program::create(device, progDesc);
+        REQUIRE(program);
+
+        auto reflector = program->getReflector();
+        REQUIRE(reflector);
+
+        auto perInstanceType = reflector->findType("PerInstance");
+        REQUIRE(perInstanceType);
+        auto perInstanceStruct = perInstanceType->asStructType();
+        REQUIRE(perInstanceStruct);
+
+        auto materialIndexMember = perInstanceStruct->getMember("materialIndex");
+        REQUIRE(materialIndexMember);
+        CHECK(materialIndexMember->getByteOffset() == 64);
+
+        auto materialsVar = reflector->getResource("materials");
+        REQUIRE(materialsVar);
+        CHECK(materialsVar->getType()->getKind() == ReflectionType::Kind::Resource);
+        CHECK(materialsVar->getType()->asResourceType()->getType() == ReflectionResourceType::Type::StructuredBuffer);
+    }
 }

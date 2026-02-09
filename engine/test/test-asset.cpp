@@ -1332,6 +1332,10 @@ TEST_SUITE("Asset System - Stage 3 & 4")
         REQUIRE(expectedMaterialsOpt.has_value());
         auto const& expectedMaterials = *expectedMaterialsOpt;
 
+        auto expectedMeshOpt = gltfImporter.importMesh(copiedSource, MeshImportSettings{});
+        REQUIRE(expectedMeshOpt.has_value());
+        auto const& expectedMesh = *expectedMeshOpt;
+
         REQUIRE(importedMesh->m_materialSlots.size() == expectedMaterials.size());
 
         for (size_t i = 0; i < expectedMaterials.size(); ++i)
@@ -1348,12 +1352,21 @@ TEST_SUITE("Asset System - Stage 3 & 4")
         auto meshPayload = manager.getMeshData(*importedMesh, meshBlob);
         REQUIRE(meshPayload.isValid());
         REQUIRE(meshPayload.submeshes.size() > 0);
+        REQUIRE(meshPayload.submeshes.size() == expectedMesh.submeshes.size());
 
-        for (auto const& submesh : meshPayload.submeshes)
+        for (size_t i = 0; i < meshPayload.submeshes.size(); ++i)
         {
+            auto const& submesh = meshPayload.submeshes[i];
+            auto const& expectedSubmesh = expectedMesh.submeshes[i];
+            CAPTURE(i);
             CAPTURE(submesh.materialIndex);
             CAPTURE(importedMesh->m_materialSlots.size());
             CHECK(submesh.materialIndex < importedMesh->m_materialSlots.size());
+            CHECK(submesh.materialIndex == expectedSubmesh.materialIndex);
+
+            auto const& referencedSlot = importedMesh->m_materialSlots[submesh.materialIndex];
+            CAPTURE(referencedSlot.name);
+            CHECK(referencedSlot.name == expectedMaterials[submesh.materialIndex].name);
         }
 
         auto validateTexture = [&](

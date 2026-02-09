@@ -4,6 +4,8 @@
 #include <graphics/material/standard-material.hpp>
 #include <graphics/rhi/depth-stencil-state.hpp>
 
+#include <cstdlib>
+
 namespace april::scene
 {
     SceneRenderer::SceneRenderer(core::ref<graphics::Device> device, asset::AssetManager* assetManager)
@@ -184,6 +186,12 @@ namespace april::scene
 
     auto SceneRenderer::renderMeshInstances(core::ref<graphics::RenderPassEncoder> encoder, FrameSnapshot const& snapshot) -> void
     {
+        auto const shouldDumpMaterialBindings = []() -> bool
+        {
+            auto const* envValue = std::getenv("APRIL_SCENE_DUMP_MATERIAL_BINDINGS");
+            return envValue && envValue[0] != '\0' && envValue[0] != '0';
+        }();
+
         auto rootVar = m_vars->getRootVariable();
 
         // Set per-frame data
@@ -270,6 +278,18 @@ namespace april::scene
                     }
                     rootVar["perInstance"]["materialIndex"].set(materialIndex);
 
+                    if (shouldDumpMaterialBindings && !m_materialBindingDumped)
+                    {
+                        AP_INFO(
+                            "[SceneRenderer] MaterialBinding mesh={} submesh={} slot={} materialId={} gpuMaterialIndex={}",
+                            instance.meshId,
+                            s,
+                            submesh.materialIndex,
+                            materialId,
+                            materialIndex
+                        );
+                    }
+
                     // Always bind defaults first to avoid stale textures leaking from previous draws.
                     rootVar["baseColorTexture"].setTexture(m_defaultWhiteTexture);
                     rootVar["metallicRoughnessTexture"].setTexture(m_defaultWhiteTexture);
@@ -297,6 +317,11 @@ namespace april::scene
         if (!snapshot.dynamicMeshes.empty())
         {
             drawList(snapshot.dynamicMeshes);
+        }
+
+        if (shouldDumpMaterialBindings)
+        {
+            m_materialBindingDumped = true;
         }
     }
 
