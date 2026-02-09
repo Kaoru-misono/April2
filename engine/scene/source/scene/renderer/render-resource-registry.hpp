@@ -64,6 +64,7 @@ namespace april::scene
         std::vector<core::ref<graphics::IMaterial>> m_materials{};
         std::vector<uint32_t> m_materialBufferIndices{};
         std::unordered_map<core::UUID, RenderID> m_materialIdsByGuid{};
+        std::unordered_map<core::UUID, core::ref<graphics::Texture>> m_texturesByGuid{};
         uint32_t m_defaultMaterialBufferIndex{0};
 
         auto registerMaterialAsset(std::shared_ptr<asset::MaterialAsset> const& materialAsset) -> RenderID;

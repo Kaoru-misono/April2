@@ -356,6 +356,12 @@ namespace april::scene
             }
 
             auto const& guid = ref->asset.guid;
+
+            if (auto existing = m_texturesByGuid.find(guid); existing != m_texturesByGuid.end())
+            {
+                return existing->second;
+            }
+
             auto textureAsset = m_assetManager->getAsset<asset::TextureAsset>(guid);
             if (!textureAsset)
             {
@@ -367,7 +373,10 @@ namespace april::scene
             if (!texture)
             {
                 AP_WARN("[RenderResourceRegistry] Failed to create texture from asset: {}", guid.toString());
+                return nullptr;
             }
+
+            m_texturesByGuid.emplace(guid, texture);
             return texture;
         };
 
