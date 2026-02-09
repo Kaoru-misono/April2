@@ -1,11 +1,11 @@
 # Falcor-Informed, April-Native Material Architecture Review
 
-Date: 2026-02-09  
+Date: 2026-02-09
 Task: GRAPHICS-MATERIAL-405
 
 ## Intent
 
-This document is **not** a Falcor migration plan.  
+This document is **not** a Falcor migration plan.
 It is a design review that uses Falcor as a reference model to:
 
 1. extract architecture principles that hold up in production,
@@ -118,15 +118,15 @@ These are the issues that should be addressed early rather than deferred.
 
 ## Gap List (Prioritized)
 
-1. Typed payload model missing.  
-2. Descriptor limits hardcoded in shader.  
-3. Asset material type not explicit (path heuristic).  
-4. Coarse dirty-bit update model.  
-5. Factory dispatch partly hardcoded.  
-6. Missing conformance preflight validation.  
-7. Missing parameter layout/serialization system.  
-8. Incomplete resource class support in shader context (buffer/3D expansion path).  
-9. Limited material diagnostics and stats APIs.  
+1. Typed payload model missing.
+2. Descriptor limits hardcoded in shader.
+3. Asset material type not explicit (path heuristic).
+4. Coarse dirty-bit update model.
+5. Factory dispatch partly hardcoded.
+6. Missing conformance preflight validation.
+7. Missing parameter layout/serialization system.
+8. Incomplete resource class support in shader context (buffer/3D expansion path).
+9. Limited material diagnostics and stats APIs.
 10. Registry lacks explicit ABI bit-budget enforcement contract.
 
 ## Refactor-Now Plan (Do Early)
@@ -155,5 +155,5 @@ These are the issues that should be addressed early rather than deferred.
 
 ## Final Position
 
-Use Falcor as a **reference architecture**, not an implementation template.  
+Use Falcor as a **reference architecture**, not an implementation template.
 For April, the best modern path is: **explicit contracts, typed payloads, scalable descriptors, selective updates, and strong diagnostics**, with early refactor of structural defects before adding more material features.
