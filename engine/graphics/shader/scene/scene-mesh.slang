@@ -2,6 +2,9 @@
 
 import material.material_types;
 import material.material_data;
+import material.material_system;
+import material.material_factory;
+import material.shading_data;
 
 struct VSIn
 {
