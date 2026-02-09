@@ -1,6 +1,7 @@
 // MaterialSystem implementation.
 
 #include "material-system.hpp"
+#include "basic-material.hpp"
 #include "standard-material.hpp"
 #include "unlit-material.hpp"
 #include "program/shader-variable.hpp"
@@ -453,14 +454,14 @@ auto MaterialSystem::writeMaterialData(uint32_t index) -> void
         return;
     }
 
-    if (auto standardMaterial = core::dynamic_ref_cast<StandardMaterial>(material))
+    if (auto basicMaterial = core::dynamic_ref_cast<BasicMaterial>(material))
     {
-        standardMaterial->setDescriptorHandles(
-            registerTextureDescriptor(standardMaterial->baseColorTexture),
-            registerTextureDescriptor(standardMaterial->metallicRoughnessTexture),
-            registerTextureDescriptor(standardMaterial->normalTexture),
-            registerTextureDescriptor(standardMaterial->occlusionTexture),
-            registerTextureDescriptor(standardMaterial->emissiveTexture),
+        basicMaterial->setDescriptorHandles(
+            registerTextureDescriptor(basicMaterial->baseColorTexture),
+            registerTextureDescriptor(basicMaterial->metallicRoughnessTexture),
+            registerTextureDescriptor(basicMaterial->normalTexture),
+            registerTextureDescriptor(basicMaterial->occlusionTexture),
+            registerTextureDescriptor(basicMaterial->emissiveTexture),
             kInvalidDescriptorHandle,
             kInvalidDescriptorHandle
         );
