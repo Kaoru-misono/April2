@@ -22,14 +22,16 @@ Use this guide to run the new workflow in daily development.
   - `Use april-coordinator to split this into module-owned workstreams`
 
 ## 4) Required task lifecycle
-1. Select exactly one task card in `agent/sub-agent/<module>/tasks/`.
-2. Set `status: in_progress` and update `updated_at`.
-3. Implement a mergeable slice and verify with build/test/demo.
+1. If no task card exists, create one from `agent/templates/tasks/` in `agent/sub-agent/<module>/tasks/`.
+2. Select exactly one task card in `agent/sub-agent/<module>/tasks/`.
+3. Set `status: in_progress` and update `updated_at`.
+4. Implement a mergeable slice and verify with build/test/demo.
    - For generated artifacts: do not edit `AUTO-GENERATED` files directly. Edit source inputs and regenerate in the same change.
-4. When the task is complete, create one dedicated commit containing both code changes and task-card updates for that task.
-   - Commit message must include the task id (example: `GRAPHICS-MATERIAL-201: ...`).
-5. Set `status: done` and fill `evidence` with verification command(s) and result notes (no commit id required).
-6. After all tasks in the batch are complete, update the task commit tracker document with `task id -> commit id` mappings.
+5. When the task is complete, create one dedicated commit containing both code changes and task-card updates for that task.
+    - Commit message must include the task id (example: `GRAPHICS-MATERIAL-201: ...`).
+6. Set `status: done` and fill `evidence` with verification command(s) and result notes (no commit id required).
+7. Move the completed task card to `agent/sub-agent/<module>/tasks/complete/`.
+8. After all tasks in the batch are complete, update the task commit tracker document with `task id -> commit id` mappings.
 
 ## 5) DocSync gate
 - If public API/behavior/contracts changed, update docs in the same change:

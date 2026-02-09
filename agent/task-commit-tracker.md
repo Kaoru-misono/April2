@@ -23,3 +23,4 @@ Use this document to track `task id -> commit id` mappings after completing a ta
 | GRAPHICS-MATERIAL-406 | 126d81a | explicit material type metadata + conformance preflight |
 | GRAPHICS-MATERIAL-407 | d4b93ab | descriptor scalability and material diagnostics |
 | GRAPHICS-MATERIAL-408 | 61efbee | per-material update flags and parameter serialization |
+| GRAPHICS-MATERIAL-501 | 84b3939 | material factory import fix + task update |

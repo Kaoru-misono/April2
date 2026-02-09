@@ -35,15 +35,19 @@ This repository now treats `agent/` as the source of truth for a Skill-first wor
 
 ## Task Lifecycle (MUST)
 Before coding:
-1) Select exactly one task card for active work.
-2) Set `status: in_progress` and refresh `updated_at`.
-3) If required contracts are missing, set `status: blocked` and document the missing contract.
+1) If no task card exists, create one from `agent/templates/tasks/` and place it under `agent/sub-agent/<module>/tasks/`.
+2) Select exactly one task card for active work.
+3) Set `status: in_progress` and refresh `updated_at`.
+4) If required contracts are missing, set `status: blocked` and document the missing contract.
 
 After coding:
 1) Update the same task card:
+   - completed sub-work -> mark [ ] to [x]
    - completed work -> `status: done`
    - add `evidence` (commit hash/PR + verification command)
-2) Create new task cards for follow-up work; do not overload the current card.
+2) Move completed task cards to `agent/sub-agent/<module>/tasks/complete/`.
+3) Create new task cards for follow-up work; do not overload the current card.
+4) After the batch, update `agent/task-commit-tracker.md` with `task id -> commit id` mappings.
 
 ## Definition of Done
 - build passes

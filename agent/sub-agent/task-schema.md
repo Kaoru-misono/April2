@@ -32,3 +32,5 @@ evidence: ""            # commit hash / PR / verification notes
 - One task card = one mergeable unit of work.
 - Keep acceptance criteria testable and specific.
 - Update `status`, `updated_at`, and `evidence` as work progresses.
+- If no task card exists for a request, create one from `agent/templates/tasks/` in `agent/sub-agent/<module>/tasks/`.
+- Task cards live in `tasks/` while `todo`, `in_progress`, or `blocked`, and move to `tasks/complete/` when `done`.
