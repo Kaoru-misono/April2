@@ -74,6 +74,11 @@ namespace april::graphics
         virtual auto getTypeConformances() const -> TypeConformanceList = 0;
 
         /**
+         * Get shader modules required by this material type.
+         */
+        virtual auto getShaderModules() const -> ProgramDesc::ShaderModuleList = 0;
+
+        /**
          * Bind textures to a shader variable.
          * @param var Shader variable representing the material's texture bindings.
          */

@@ -91,6 +91,16 @@ auto StandardMaterial::getTypeConformances() const -> TypeConformanceList
     return conformances;
 }
 
+auto StandardMaterial::getShaderModules() const -> ProgramDesc::ShaderModuleList
+{
+    ProgramDesc::ShaderModuleList modules;
+    modules.push_back(ProgramDesc::ShaderModule::fromFile("engine/graphics/shader/material/i-material-instance.slang"));
+    modules.push_back(ProgramDesc::ShaderModule::fromFile("engine/graphics/shader/material/texture-sampler.slang"));
+    modules.push_back(ProgramDesc::ShaderModule::fromFile("engine/graphics/shader/material/standard-material-instance.slang"));
+    modules.push_back(ProgramDesc::ShaderModule::fromFile("engine/graphics/shader/material/standard-material.slang"));
+    return modules;
+}
+
 auto StandardMaterial::serializeParameters(nlohmann::json& outJson) const -> void
 {
     outJson["type"] = "Standard";

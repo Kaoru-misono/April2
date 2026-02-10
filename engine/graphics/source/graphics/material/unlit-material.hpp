@@ -15,6 +15,7 @@ namespace april::graphics
         auto getTypeName() const -> std::string override;
         auto writeData(generated::StandardMaterialData& data) const -> void override;
         auto getTypeConformances() const -> TypeConformanceList override;
+        auto getShaderModules() const -> ProgramDesc::ShaderModuleList override;
         auto bindTextures(ShaderVariable& var) const -> void override;
         auto hasTextures() const -> bool override;
         auto getFlags() const -> uint32_t override;

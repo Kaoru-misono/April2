@@ -35,6 +35,15 @@ namespace april::graphics
         return conformances;
     }
 
+    auto UnlitMaterial::getShaderModules() const -> ProgramDesc::ShaderModuleList
+    {
+        ProgramDesc::ShaderModuleList modules;
+        modules.push_back(ProgramDesc::ShaderModule::fromFile("engine/graphics/shader/material/i-material-instance.slang"));
+        modules.push_back(ProgramDesc::ShaderModule::fromFile("engine/graphics/shader/material/unlit-material-instance.slang"));
+        modules.push_back(ProgramDesc::ShaderModule::fromFile("engine/graphics/shader/material/unlit-material.slang"));
+        return modules;
+    }
+
     auto UnlitMaterial::bindTextures(ShaderVariable& var) const -> void
     {
         (void)var;

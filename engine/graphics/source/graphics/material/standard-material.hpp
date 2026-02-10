@@ -47,6 +47,7 @@ namespace april::graphics
         auto getTypeName() const -> std::string override;
         auto writeData(generated::StandardMaterialData& data) const -> void override;
         auto getTypeConformances() const -> TypeConformanceList override;
+        auto getShaderModules() const -> ProgramDesc::ShaderModuleList override;
         auto serializeParameters(nlohmann::json& outJson) const -> void override;
         auto deserializeParameters(nlohmann::json const& inJson) -> bool override;
 

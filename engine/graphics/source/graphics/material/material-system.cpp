@@ -10,6 +10,7 @@
 #include <core/log/logger.hpp>
 #include <core/error/assert.hpp>
 #include <format>
+#include <stdexcept>
 
 namespace april::graphics
 {
@@ -261,27 +262,39 @@ auto MaterialSystem::getMaterialDataBuffer() const -> core::ref<Buffer>
 
 auto MaterialSystem::getTypeConformances() const -> TypeConformanceList
 {
+    rebuildCodeCache();
+
     TypeConformanceList conformances;
-    std::unordered_map<uint32_t, bool> seenMaterialTypes;
-
-    for (auto const& material : m_materials)
+    for (auto const& [type, list] : m_typeConformancesByType)
     {
-        if (!material)
-        {
-            continue;
-        }
+        conformances.add(list);
+    }
+    return conformances;
+}
 
-        auto const typeId = static_cast<uint32_t>(material->getType());
-        if (seenMaterialTypes.contains(typeId))
-        {
-            continue;
-        }
+auto MaterialSystem::getTypeConformances(generated::MaterialType type) const -> TypeConformanceList
+{
+    rebuildCodeCache();
 
-        conformances.add(material->getTypeConformances());
-        seenMaterialTypes[typeId] = true;
+    auto it = m_typeConformancesByType.find(type);
+    if (it == m_typeConformancesByType.end())
+    {
+        throw std::runtime_error(std::format("No type conformances for material type '{}'.", static_cast<uint32_t>(type)));
     }
 
-    return conformances;
+    return it->second;
+}
+
+auto MaterialSystem::getShaderModules() const -> ProgramDesc::ShaderModuleList
+{
+    rebuildCodeCache();
+    return m_shaderModules;
+}
+
+auto MaterialSystem::getShaderModules(ProgramDesc::ShaderModuleList& modules) const -> void
+{
+    rebuildCodeCache();
+    modules.insert(modules.end(), m_shaderModules.begin(), m_shaderModules.end());
 }
 
 auto MaterialSystem::registerTextureDescriptor(core::ref<Texture> texture) -> DescriptorHandle
@@ -389,11 +402,44 @@ auto MaterialSystem::getMaterialTypeId(uint32_t materialIndex) const -> uint32_t
 auto MaterialSystem::markDirty() -> void
 {
     m_dirty = true;
+    m_codeCacheDirty = true;
 }
 
 auto MaterialSystem::isDirty() const -> bool
 {
     return m_dirty;
+}
+
+auto MaterialSystem::rebuildCodeCache() const -> void
+{
+    if (!m_codeCacheDirty)
+    {
+        return;
+    }
+
+    m_typeConformancesByType.clear();
+    m_shaderModules.clear();
+
+    for (auto const& material : m_materials)
+    {
+        if (!material)
+        {
+            continue;
+        }
+
+        auto type = material->getType();
+        if (m_typeConformancesByType.contains(type))
+        {
+            continue;
+        }
+
+        m_typeConformancesByType[type] = material->getTypeConformances();
+
+        auto modules = material->getShaderModules();
+        m_shaderModules.insert(m_shaderModules.end(), modules.begin(), modules.end());
+    }
+
+    m_codeCacheDirty = false;
 }
 
 auto MaterialSystem::ensureBufferCapacity(uint32_t requiredCount) -> void

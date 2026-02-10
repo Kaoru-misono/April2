@@ -12,6 +12,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <map>
 
 namespace april::graphics
 {
@@ -131,6 +132,9 @@ namespace april::graphics
          * Call this when setting up shader compilation.
          */
         auto getTypeConformances() const -> TypeConformanceList;
+        auto getTypeConformances(generated::MaterialType type) const -> TypeConformanceList;
+        auto getShaderModules() const -> ProgramDesc::ShaderModuleList;
+        auto getShaderModules(ProgramDesc::ShaderModuleList& modules) const -> void;
 
         using DescriptorHandle = uint32_t;
         static constexpr DescriptorHandle kInvalidDescriptorHandle = 0;
@@ -181,6 +185,10 @@ namespace april::graphics
         mutable uint32_t m_invalidHandleCount{0};
 
         bool m_dirty{true};
+        mutable bool m_codeCacheDirty{true};
+
+        mutable std::map<generated::MaterialType, TypeConformanceList> m_typeConformancesByType;
+        mutable ProgramDesc::ShaderModuleList m_shaderModules;
 
         static constexpr uint32_t kInitialBufferCapacity = 64;
 
@@ -194,6 +202,7 @@ namespace april::graphics
             uint32_t materialIndex,
             char const* slotName
         ) const -> void;
+        auto rebuildCodeCache() const -> void;
     };
 
 } // namespace april::graphics
