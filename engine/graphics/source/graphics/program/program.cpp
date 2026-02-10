@@ -297,74 +297,14 @@ namespace april::graphics
 
     auto Program::validateConformancesPreflight() const -> bool
     {
-        // Preflight validation: detect missing IMaterialInstance conformance before shader link.
-        // This catches misconfiguration early rather than failing during link with a cryptic error.
-
-        auto hasMaterialInterface = false;
-        auto hasIMaterialInstanceConformance = false;
-
-        // Check if any shader module might reference IMaterialInstance (heuristic: check file paths).
-        for (auto const& module : m_description.shaderModules)
-        {
-            for (auto const& source : module.sources)
-            {
-                auto const pathStr = source.path.string();
-                if (pathStr.find("material") != std::string::npos ||
-                    pathStr.find("scene-mesh") != std::string::npos)
-                {
-                    hasMaterialInterface = true;
-                    break;
-                }
-            }
-            if (hasMaterialInterface) break;
-        }
-
-        // Check if IMaterialInstance conformance is registered.
-        for (auto const& [conformance, id] : m_typeConformanceList)
-        {
-            if (conformance.interfaceName == "IMaterialInstance")
-            {
-                hasIMaterialInstanceConformance = true;
-                break;
-            }
-        }
-
-        // Also check entry point group conformances.
-        for (auto const& group : m_description.entryPointGroups)
-        {
-            for (auto const& [conformance, id] : group.typeConformances)
-            {
-                if (conformance.interfaceName == "IMaterialInstance")
-                {
-                    hasIMaterialInstanceConformance = true;
-                    break;
-                }
-            }
-            if (hasIMaterialInstanceConformance) break;
-        }
-
-        if (hasMaterialInterface && !hasIMaterialInstanceConformance)
-        {
-            AP_WARN("Program '{}' appears to use material interface but has no IMaterialInstance conformance. "
-                    "Ensure material type conformances are set before linking.",
-                    getProgramDescString());
-            return false;
-        }
-
+        // Keep this hook for future semantic checks. Avoid path-name heuristics that can
+        // reject valid reflection/analysis programs before Slang semantic diagnostics run.
         return true;
     }
 
     auto Program::link() const -> bool
     {
-        // Preflight conformance validation.
-        if (!validateConformancesPreflight())
-        {
-            AP_ERROR(
-                "Program preflight failed before link due to missing/invalid material conformances: {}",
-                getProgramDescString()
-            );
-            return false;
-        }
+        validateConformancesPreflight();
 
         while (1)
         {
