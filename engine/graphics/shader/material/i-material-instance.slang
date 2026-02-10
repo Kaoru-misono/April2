@@ -3,6 +3,7 @@
 import material.shading_data;
 import material.material_types;
 import material.bsdf.i_bsdf;
+import material.bsdf.bsdf_sample;
 import material.material_instance_hints;
 
 struct DiffMaterialData
@@ -25,14 +26,7 @@ struct BSDFSample
     uint lobeType;
 };
 
-struct BSDFProperties
-{
-    float3 emission;
-    float roughness;
-    float3 guideNormal;
-    uint flags;
-};
-
+[anyValueSize(128)]
 interface IMaterialInstance
 {
     MaterialType getType();

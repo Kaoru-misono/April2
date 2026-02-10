@@ -2,9 +2,17 @@ import material.material_types;
 import material.material_data;
 import material.shading_data;
 import material.i_material_instance;
+import material.material_types;
+import material.bsdf.i_bsdf;
+import material.bsdf.bsdf_sample;
+import material.bsdf.sample_generator;
 
 struct NullBSDF : IBSDF
 {
+    __init()
+    {
+    }
+
     float3 eval<S : ISampleGenerator>(float3 wi, float3 wo, inout S sg, BSDFContext bc)
     {
         return float3(0.0f);
@@ -96,7 +104,7 @@ struct UnlitMaterialInstance : IMaterialInstance
         BSDFProperties p;
         p.emission = data.emissive;
         p.roughness = 1.0f;
-        p.guideNormal = sd.N;
+        p.albedo = data.baseColor.rgb;
         p.flags = 0;
         return p;
     }

@@ -5,6 +5,8 @@ import material.material_data;
 import material.shading_data;
 import material.i_material_instance;
 import material.standard_bsdf;
+import material.bsdf.i_bsdf;
+import material.bsdf.bsdf_sample;
 import material.bsdf.sample_generator;
 
 // Dummy sample generator for evaluation.
@@ -105,7 +107,10 @@ struct StandardMaterialInstance : IMaterialInstance
         IBSDF bsdf = getBSDF(sd);
         Float3SampleGenerator sg = Float3SampleGenerator(u);
         BSDFContext bc;
-        float3 woLocal;
+        float3 woLocal = float3(0.0f);
+        pdf = 0.0f;
+        weight = float3(0.0f);
+        lobeType = (uint)LobeType::None;
         bool valid = bsdf.sample(wi, woLocal, pdf, weight, lobeType, sg, bc);
         wo = sd.toWorld(woLocal);
         return valid;
@@ -125,7 +130,7 @@ struct StandardMaterialInstance : IMaterialInstance
         BSDFProperties p;
         p.emission = sampledEmissive;
         p.roughness = sampledRoughness;
-        p.guideNormal = sd.N;
+        p.albedo = getAlbedo(sd);
         p.flags = 0;
         return p;
     }

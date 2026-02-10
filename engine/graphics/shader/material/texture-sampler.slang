@@ -1,5 +1,6 @@
 // Texture sampler abstractions for material pattern generation.
 
+[anyValueSize(32)]
 interface ITextureSampler
 {
     float4 sampleTexture(Texture2D texture, SamplerState sampler, float2 uv);

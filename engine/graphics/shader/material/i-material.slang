@@ -2,12 +2,12 @@
 
 import material.material_types;
 import material.shading_data;
+import material.material_system;
 import material.i_material_instance;
 import material.texture_sampler;
 import material.material_instance_hints;
 
-struct MaterialSystemContext;
-
+[anyValueSize(128)]
 interface IMaterial
 {
     MaterialType getType();
