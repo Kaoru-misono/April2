@@ -31,16 +31,13 @@ namespace april::graphics
             "IMaterial",
             static_cast<uint32_t>(generated::MaterialType::Unlit)
         );
-        conformances.add("UnlitMaterialInstance", "IMaterialInstance");
         return conformances;
     }
 
     auto UnlitMaterial::getShaderModules() const -> ProgramDesc::ShaderModuleList
     {
         ProgramDesc::ShaderModuleList modules;
-        modules.push_back(ProgramDesc::ShaderModule::fromFile("engine/graphics/shader/material/i-material-instance.slang"));
-        modules.push_back(ProgramDesc::ShaderModule::fromFile("engine/graphics/shader/material/unlit-material-instance.slang"));
-        modules.push_back(ProgramDesc::ShaderModule::fromFile("engine/graphics/shader/material/unlit-material.slang"));
+        modules.push_back(ProgramDesc::ShaderModule::fromFile("graphics/material/unlit-material.slang"));
         return modules;
     }
 

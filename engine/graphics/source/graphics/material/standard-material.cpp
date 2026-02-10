@@ -69,24 +69,11 @@ auto StandardMaterial::getTypeConformances() const -> TypeConformanceList
 {
     TypeConformanceList conformances;
 
-    // Select diffuse BRDF implementation based on model
-    switch (diffuseModel)
-    {
-    case DiffuseBRDFModel::Lambert:
-        conformances.add("LambertDiffuseBRDF", "IDiffuseBRDF");
-        break;
-    case DiffuseBRDFModel::Frostbite:
-    default:
-        conformances.add("FrostbiteDiffuseBRDF", "IDiffuseBRDF");
-        break;
-    }
-
     conformances.add(
         "StandardMaterial",
         "IMaterial",
         static_cast<uint32_t>(generated::MaterialType::Standard)
     );
-    conformances.add("StandardMaterialInstance", "IMaterialInstance");
 
     return conformances;
 }
@@ -94,10 +81,7 @@ auto StandardMaterial::getTypeConformances() const -> TypeConformanceList
 auto StandardMaterial::getShaderModules() const -> ProgramDesc::ShaderModuleList
 {
     ProgramDesc::ShaderModuleList modules;
-    modules.push_back(ProgramDesc::ShaderModule::fromFile("engine/graphics/shader/material/i-material-instance.slang"));
-    modules.push_back(ProgramDesc::ShaderModule::fromFile("engine/graphics/shader/material/texture-sampler.slang"));
-    modules.push_back(ProgramDesc::ShaderModule::fromFile("engine/graphics/shader/material/standard-material-instance.slang"));
-    modules.push_back(ProgramDesc::ShaderModule::fromFile("engine/graphics/shader/material/standard-material.slang"));
+    modules.push_back(ProgramDesc::ShaderModule::fromFile("graphics/material/standard-material.slang"));
     return modules;
 }
 

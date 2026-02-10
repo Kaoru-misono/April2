@@ -26,6 +26,10 @@ import material.texture_sampler;
 #define MATERIAL_UDIM_INDIRECTION_ENABLED 0
 #endif
 
+#ifndef MATERIAL_SYSTEM_ENABLE_EXTRA_RESOURCES
+#define MATERIAL_SYSTEM_ENABLE_EXTRA_RESOURCES 0
+#endif
+
 static const uint kMaterialTextureTableSize = MATERIAL_TEXTURE_TABLE_SIZE;
 static const uint kMaterialSamplerTableSize = MATERIAL_SAMPLER_TABLE_SIZE;
 static const uint kMaterialBufferTableSize = MATERIAL_BUFFER_TABLE_SIZE;
@@ -36,35 +40,39 @@ struct MaterialSystemContext
     StructuredBuffer<StandardMaterialData> materials;
     Texture2D materialTextures[kMaterialTextureTableSize];
     SamplerState materialSamplers[kMaterialSamplerTableSize];
+#if MATERIAL_SYSTEM_ENABLE_EXTRA_RESOURCES != 0
     ByteAddressBuffer materialBuffers[kMaterialBufferTableSize];
     Texture3D materialTextures3d[kMaterialTexture3dTableSize];
+#endif
 
-#if MATERIAL_UDIM_INDIRECTION_ENABLED != 0
+#if MATERIAL_SYSTEM_ENABLE_EXTRA_RESOURCES != 0 && MATERIAL_UDIM_INDIRECTION_ENABLED != 0
     StructuredBuffer<int> udimIndirection;
 #endif
+
+    [ForceInline]
+    StandardMaterialData getMaterialData(uint materialID)
+    {
+        return materials[materialID];
+    }
+
+    [ForceInline]
+    SamplerState getMaterialSampler(StandardMaterialData mtl)
+    {
+        uint samplerHandle = min(mtl.samplerHandle, kMaterialSamplerTableSize - 1);
+        return materialSamplers[samplerHandle];
+    }
+
+    [ForceInline]
+    float4 sampleMaterialTexture<L: ITextureSampler>(uint textureHandle, SamplerState sampler, float2 uv, L lod)
+    {
+        uint clampedHandle = min(textureHandle, kMaterialTextureTableSize - 1);
+        return lod.sampleTexture(materialTextures[clampedHandle], sampler, uv);
+    }
+
+    [ForceInline]
+    float4 sampleMaterialTexture(uint textureHandle, SamplerState sampler, float2 uv)
+    {
+        ImplicitLodTextureSampler lod;
+        return sampleMaterialTexture(textureHandle, sampler, uv, lod);
+    }
 };
-
-StandardMaterialData getMaterial(MaterialSystemContext ms, uint materialID)
-{
-    return ms.materials[materialID];
-}
-
-SamplerState getMaterialSampler(MaterialSystemContext ms, StandardMaterialData mtl)
-{
-    // Clamp to valid range with overflow fallback to slot 0.
-    uint samplerHandle = min(mtl.samplerHandle, kMaterialSamplerTableSize - 1);
-    return ms.materialSamplers[samplerHandle];
-}
-
-float4 sampleMaterialTexture<L: ITextureSampler>(MaterialSystemContext ms, uint textureHandle, SamplerState sampler, float2 uv, L lod)
-{
-    // Clamp to valid range with overflow fallback to slot 0.
-    uint clampedHandle = min(textureHandle, kMaterialTextureTableSize - 1);
-    return lod.sampleTexture(ms.materialTextures[clampedHandle], sampler, uv);
-}
-
-float4 sampleMaterialTexture(MaterialSystemContext ms, uint textureHandle, SamplerState sampler, float2 uv)
-{
-    ImplicitLodTextureSampler lod;
-    return sampleMaterialTexture(ms, textureHandle, sampler, uv, lod);
-}

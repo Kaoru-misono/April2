@@ -77,7 +77,7 @@ float4 psMain(VSOut input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     materialSystem.materialTextures = materialTextures;
     materialSystem.materialSamplers = materialSamplers;
 
-    StandardMaterialData mtl = getMaterial(materialSystem, perInstance.materialIndex);
+    StandardMaterialData mtl = materialSystem.getMaterialData(perInstance.materialIndex);
 
     float3 N = normalize(input.normal);
     float3 V = normalize(perFrame.cameraPos - input.worldPos);

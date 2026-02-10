@@ -26,7 +26,11 @@ struct BSDFSample
     uint lobeType;
 };
 
-[anyValueSize(128)]
+#ifndef FALCOR_MATERIAL_INSTANCE_SIZE
+#define FALCOR_MATERIAL_INSTANCE_SIZE 256
+#endif
+
+[anyValueSize(FALCOR_MATERIAL_INSTANCE_SIZE)]
 interface IMaterialInstance
 {
     MaterialType getType();

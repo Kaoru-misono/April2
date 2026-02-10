@@ -36,29 +36,44 @@ namespace april::scene
         progDesc.vsEntryPoint("vsMain");
         progDesc.psEntryPoint("psMain");
 
+        graphics::DefineList programDefines;
+
         if (auto* materialSystem = m_resources.getMaterialSystem())
         {
+            auto const shaderModules = materialSystem->getShaderModules();
+            progDesc.addShaderModules(shaderModules);
+            programDefines.add(materialSystem->getShaderDefines());
+            // Enforce material instance storage budget expected by shader interfaces.
+            programDefines.add("FALCOR_MATERIAL_INSTANCE_SIZE", "256");
+
             auto const typeConformances = materialSystem->getTypeConformances();
             progDesc.addTypeConformances(typeConformances);
 
-            auto hasMaterialInstanceConformance = false;
+            AP_INFO(
+                "[SceneRenderer] Material program setup: {} shader module(s), {} type conformance(s), FALCOR_MATERIAL_INSTANCE_SIZE={}",
+                shaderModules.size(),
+                typeConformances.size(),
+                programDefines.contains("FALCOR_MATERIAL_INSTANCE_SIZE") ? programDefines.at("FALCOR_MATERIAL_INSTANCE_SIZE") : "<unset>"
+            );
+
+            auto hasMaterialConformance = false;
             for (auto const& [conformance, id] : typeConformances)
             {
                 (void)id;
-                if (conformance.interfaceName == "IMaterialInstance")
+                if (conformance.interfaceName == "IMaterial")
                 {
-                    hasMaterialInstanceConformance = true;
+                    hasMaterialConformance = true;
                     break;
                 }
             }
 
-            if (!hasMaterialInstanceConformance)
+            if (!hasMaterialConformance)
             {
-                AP_WARN("[SceneRenderer] No IMaterialInstance type conformance registered; using shader defaults.");
+                AP_WARN("[SceneRenderer] No IMaterial type conformance registered; using shader defaults.");
             }
         }
 
-        m_program = graphics::Program::create(m_device, progDesc);
+        m_program = graphics::Program::create(m_device, progDesc, programDefines);
         m_vars = graphics::ProgramVariables::create(m_device, m_program.get());
 
         graphics::GraphicsPipelineDesc pipelineDesc;

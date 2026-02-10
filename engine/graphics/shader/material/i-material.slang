@@ -10,22 +10,24 @@ import material.material_instance_hints;
 [anyValueSize(128)]
 interface IMaterial
 {
+    associatedtype MaterialInstance : IMaterialInstance;
+
     MaterialType getType();
 
-    IMaterialInstance setupMaterialInstance(
-        MaterialSystemContext ms,
-        ShadingData sd,
-        ITextureSampler lod,
+    MaterialInstance setupMaterialInstance(
+        const MaterialSystemContext ms,
+        const ShadingData sd,
+        const ITextureSampler lod,
         uint hints = (uint)MaterialInstanceHints::None
     );
 
-    IMaterialInstance setupDiffMaterialInstance(
+    MaterialInstance setupDiffMaterialInstance(
         out DiffMaterialData diffData,
-        MaterialSystemContext ms,
-        ShadingData sd,
-        ITextureSampler lod,
+        const MaterialSystemContext ms,
+        const ShadingData sd,
+        const ITextureSampler lod,
         uint hints = (uint)MaterialInstanceHints::None
     );
 
-    VolumeProperties getHomogeneousVolumeProperties(MaterialSystemContext ms, uint materialID);
+    VolumeProperties getHomogeneousVolumeProperties(const MaterialSystemContext ms, const uint materialID);
 };

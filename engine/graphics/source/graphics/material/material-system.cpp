@@ -45,6 +45,8 @@ auto MaterialSystem::getShaderDefines() const -> DefineList
     defines["MATERIAL_TEXTURE_TABLE_SIZE"] = std::to_string(m_config.textureTableSize);
     defines["MATERIAL_SAMPLER_TABLE_SIZE"] = std::to_string(m_config.samplerTableSize);
     defines["MATERIAL_BUFFER_TABLE_SIZE"] = std::to_string(m_config.bufferTableSize);
+    // Match IMaterialInstance anyValueSize constraint for dynamic object storage.
+    defines["FALCOR_MATERIAL_INSTANCE_SIZE"] = "256";
     return defines;
 }
 

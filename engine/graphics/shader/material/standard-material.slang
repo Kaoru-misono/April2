@@ -12,11 +12,12 @@ import material.standard_material_instance;
 
 struct StandardMaterial : IMaterial
 {
-    StandardMaterialData data;
+    uint materialID;
+    typedef StandardMaterialInstance MaterialInstance;
 
-    __init(StandardMaterialData data_)
+    __init(uint materialID_)
     {
-        data = data_;
+        materialID = materialID_;
     }
 
     MaterialType getType()
@@ -24,26 +25,27 @@ struct StandardMaterial : IMaterial
         return MaterialType::Standard;
     }
 
-    IMaterialInstance setupMaterialInstance(
-        MaterialSystemContext ms,
-        ShadingData sd,
-        ITextureSampler lod,
+    StandardMaterialInstance setupMaterialInstance(
+        const MaterialSystemContext ms,
+        const ShadingData sd,
+        const ITextureSampler lod,
         uint hints = (uint)MaterialInstanceHints::None
     )
     {
-        SamplerState sampler = getMaterialSampler(ms, data);
+        StandardMaterialData data = ms.getMaterialData(materialID);
+        SamplerState sampler = ms.getMaterialSampler(data);
 
         float4 baseColor = data.baseColor;
         if ((data.header.flags & (uint)MaterialFlags.HasTextures) != 0)
         {
-            baseColor *= sampleMaterialTexture(ms, data.baseColorTextureHandle, sampler, sd.uv, lod);
+            baseColor *= ms.sampleMaterialTexture(data.baseColorTextureHandle, sampler, sd.uv, lod);
         }
 
         float metallic = data.metallic;
         float roughness = data.roughness;
         if ((data.header.flags & (uint)MaterialFlags.HasTextures) != 0)
         {
-            float4 mrSample = sampleMaterialTexture(ms, data.metallicRoughnessTextureHandle, sampler, sd.uv, lod);
+            float4 mrSample = ms.sampleMaterialTexture(data.metallicRoughnessTextureHandle, sampler, sd.uv, lod);
             roughness *= mrSample.g;
             metallic *= mrSample.b;
         }
@@ -51,17 +53,17 @@ struct StandardMaterial : IMaterial
         float3 emissive = data.emissive;
         if ((data.header.flags & (uint)MaterialFlags.Emissive) != 0)
         {
-            emissive *= sampleMaterialTexture(ms, data.emissiveTextureHandle, sampler, sd.uv, lod).rgb;
+            emissive *= ms.sampleMaterialTexture(data.emissiveTextureHandle, sampler, sd.uv, lod).rgb;
         }
 
         return StandardMaterialInstance(data, baseColor.rgb, emissive, metallic, roughness);
     }
 
-    IMaterialInstance setupDiffMaterialInstance(
+    StandardMaterialInstance setupDiffMaterialInstance(
         out DiffMaterialData diffData,
-        MaterialSystemContext ms,
-        ShadingData sd,
-        ITextureSampler lod,
+        const MaterialSystemContext ms,
+        const ShadingData sd,
+        const ITextureSampler lod,
         uint hints = (uint)MaterialInstanceHints::None
     )
     {
@@ -69,7 +71,7 @@ struct StandardMaterial : IMaterial
         return setupMaterialInstance(ms, sd, lod, hints);
     }
 
-    VolumeProperties getHomogeneousVolumeProperties(MaterialSystemContext ms, uint materialID)
+    VolumeProperties getHomogeneousVolumeProperties(const MaterialSystemContext ms, const uint materialID)
     {
         VolumeProperties p;
         p.sigmaA = 0.0f;

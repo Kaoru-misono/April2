@@ -10,11 +10,12 @@ import material.unlit_material_instance;
 
 struct UnlitMaterial : IMaterial
 {
-    StandardMaterialData data;
+    uint materialID;
+    typedef UnlitMaterialInstance MaterialInstance;
 
-    __init(StandardMaterialData data_)
+    __init(uint materialID_)
     {
-        data = data_;
+        materialID = materialID_;
     }
 
     MaterialType getType()
@@ -22,21 +23,22 @@ struct UnlitMaterial : IMaterial
         return MaterialType::Unlit;
     }
 
-    IMaterialInstance setupMaterialInstance(
-        MaterialSystemContext ms,
-        ShadingData sd,
-        ITextureSampler lod,
+    UnlitMaterialInstance setupMaterialInstance(
+        const MaterialSystemContext ms,
+        const ShadingData sd,
+        const ITextureSampler lod,
         uint hints = (uint)MaterialInstanceHints::None
     )
     {
+        StandardMaterialData data = ms.getMaterialData(materialID);
         return UnlitMaterialInstance(data);
     }
 
-    IMaterialInstance setupDiffMaterialInstance(
+    UnlitMaterialInstance setupDiffMaterialInstance(
         out DiffMaterialData diffData,
-        MaterialSystemContext ms,
-        ShadingData sd,
-        ITextureSampler lod,
+        const MaterialSystemContext ms,
+        const ShadingData sd,
+        const ITextureSampler lod,
         uint hints = (uint)MaterialInstanceHints::None
     )
     {
@@ -44,7 +46,7 @@ struct UnlitMaterial : IMaterial
         return setupMaterialInstance(ms, sd, lod, hints);
     }
 
-    VolumeProperties getHomogeneousVolumeProperties(MaterialSystemContext ms, uint materialID)
+    VolumeProperties getHomogeneousVolumeProperties(const MaterialSystemContext ms, const uint materialID)
     {
         VolumeProperties p;
         p.sigmaA = 0.0f;
