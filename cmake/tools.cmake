@@ -87,13 +87,78 @@ function(april_helper_add_codegen MODULE_NAME MODULE_PATH MANIFEST_PATH CMD OUTP
     set(CMD_LIST "")
     separate_arguments(CMD_LIST NATIVE_COMMAND "${CMD}")
 
+    # Build dependency set so codegen reruns when inputs/generator change.
+    set(CODEGEN_DEPENDS "${MANIFEST_PATH}")
+
+    list(LENGTH CMD_LIST CMD_LIST_LEN)
+    if(CMD_LIST_LEN GREATER 0)
+        list(GET CMD_LIST 0 CMD_EXE)
+        if(CMD_EXE MATCHES "slang-codegen\\.py$")
+            if(IS_ABSOLUTE "${CMD_EXE}")
+                set(CODEGEN_SCRIPT_PATH "${CMD_EXE}")
+            else()
+                set(CODEGEN_SCRIPT_PATH "${MODULE_PATH}/${CMD_EXE}")
+            endif()
+            if(EXISTS "${CODEGEN_SCRIPT_PATH}")
+                list(APPEND CODEGEN_DEPENDS "${CODEGEN_SCRIPT_PATH}")
+            endif()
+        endif()
+    endif()
+
+    if(CMD_LIST_LEN GREATER 1)
+        list(GET CMD_LIST 0 CMD_EXE)
+        if(CMD_EXE STREQUAL "python" OR CMD_EXE STREQUAL "python3")
+            list(GET CMD_LIST 1 CODEGEN_SCRIPT_ARG)
+            if(IS_ABSOLUTE "${CODEGEN_SCRIPT_ARG}")
+                set(CODEGEN_SCRIPT_PATH "${CODEGEN_SCRIPT_ARG}")
+            else()
+                set(CODEGEN_SCRIPT_PATH "${MODULE_PATH}/${CODEGEN_SCRIPT_ARG}")
+            endif()
+            if(EXISTS "${CODEGEN_SCRIPT_PATH}")
+                list(APPEND CODEGEN_DEPENDS "${CODEGEN_SCRIPT_PATH}")
+            endif()
+        endif()
+    endif()
+
+    if(CMD_LIST_LEN GREATER 1)
+        math(EXPR CODEGEN_LAST_ARG_INDEX "${CMD_LIST_LEN} - 2")
+        foreach(ARG_INDEX RANGE 0 ${CODEGEN_LAST_ARG_INDEX})
+            list(GET CMD_LIST ${ARG_INDEX} ARG_KEY)
+            math(EXPR ARG_VALUE_INDEX "${ARG_INDEX} + 1")
+            list(GET CMD_LIST ${ARG_VALUE_INDEX} ARG_VALUE)
+
+            if(ARG_KEY STREQUAL "--input")
+                if(IS_ABSOLUTE "${ARG_VALUE}")
+                    set(CODEGEN_INPUT_FILE "${ARG_VALUE}")
+                else()
+                    set(CODEGEN_INPUT_FILE "${MODULE_PATH}/${ARG_VALUE}")
+                endif()
+                if(EXISTS "${CODEGEN_INPUT_FILE}")
+                    list(APPEND CODEGEN_DEPENDS "${CODEGEN_INPUT_FILE}")
+                endif()
+            elseif(ARG_KEY STREQUAL "--input-dir")
+                if(IS_ABSOLUTE "${ARG_VALUE}")
+                    set(CODEGEN_INPUT_DIR "${ARG_VALUE}")
+                else()
+                    set(CODEGEN_INPUT_DIR "${MODULE_PATH}/${ARG_VALUE}")
+                endif()
+                if(IS_DIRECTORY "${CODEGEN_INPUT_DIR}")
+                    file(GLOB_RECURSE CODEGEN_INPUT_FILES CONFIGURE_DEPENDS "${CODEGEN_INPUT_DIR}/*")
+                    list(APPEND CODEGEN_DEPENDS ${CODEGEN_INPUT_FILES})
+                endif()
+            endif()
+        endforeach()
+    endif()
+
+    list(REMOVE_DUPLICATES CODEGEN_DEPENDS)
+
     add_custom_command(
         OUTPUT "${STAMP_FILE}"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CODEGEN_DIR}"
         COMMAND ${CMD_LIST}
         COMMAND ${CMAKE_COMMAND} -E touch "${STAMP_FILE}"
         WORKING_DIRECTORY "${MODULE_PATH}"
-        DEPENDS "${MANIFEST_PATH}"
+        DEPENDS ${CODEGEN_DEPENDS}
         COMMENT "[${MODULE_NAME}] Running codegen"
     )
 
