@@ -1,28 +1,29 @@
-// Material factory helpers to create IMaterialInstance implementations.
+// Material factory extension API.
 
 import material.i_material;
-import material.material_data;
 import material.material_system;
 import material.shading_data;
-import material.standard_material;
-import material.unlit_material;
+import material.texture_sampler;
+import material.material_instance_hints;
 
-struct MaterialFactory
+IMaterial getMaterial(MaterialSystemContext ms, uint materialID)
 {
-    MaterialSystemContext ms;
+    return getMaterialObject(ms, materialID);
+}
 
-    __init(MaterialSystemContext materialSystem)
-    {
-        ms = materialSystem;
-    }
-
-    IMaterialInstance getMaterialInstance(uint materialID, ShadingData sd)
-    {
-        return getMaterialInstanceFromSystem(ms, materialID, sd);
-    }
-};
-
-IMaterialInstance getMaterialInstance(MaterialFactory factory, uint materialID, ShadingData sd)
+IMaterialInstance getMaterialInstance(MaterialSystemContext ms, uint materialID, ShadingData sd)
 {
-    return factory.getMaterialInstance(materialID, sd);
+    ImplicitLodTextureSampler lod;
+    return getMaterialInstanceFromSystem(ms, materialID, sd, lod, (uint)MaterialInstanceHints::None);
+}
+
+IMaterialInstance getMaterialInstance<L: ITextureSampler>(
+    MaterialSystemContext ms,
+    uint materialID,
+    ShadingData sd,
+    L lod,
+    uint hints = (uint)MaterialInstanceHints::None
+)
+{
+    return getMaterialInstanceFromSystem(ms, materialID, sd, lod, hints);
 }
