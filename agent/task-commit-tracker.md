@@ -51,4 +51,4 @@ Use this document to track `task id -> commit id` mappings after completing a ta
 | GRAPHICS-MATERIAL-624 | 424656f | Slang interface contract syntax fixes |
 | GRAPHICS-MATERIAL-625 | 40fd7a9 | Falcor factory extension alignment |
 | GRAPHICS-MATERIAL-626 | dabd587 | material-system split cleanup and typing |
-| GRAPHICS-MATERIAL-627 | pending-this-commit | DXC material-system signature and instance-size fix |
+| GRAPHICS-MATERIAL-627 | 1aff6ae | DXC material-system signature and instance-size fix |
