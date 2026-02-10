@@ -104,9 +104,11 @@ Location: `engine/graphics/source/graphics/material/*`, `engine/graphics/shader/
 Steps:
 - Add host material class implementing `IMaterial` (example: `UnlitMaterial`).
 - Register/resolve stable type id through `MaterialTypeRegistry` in `MaterialSystem`.
+- Keep file layout Falcor-aligned: split `i-material.slang` / `i-material-instance.slang`, split `standard-material.slang` / `standard-material-instance.slang`, and split `unlit-material.slang` / `unlit-material-instance.slang`.
 - Add Slang material object implementing `IMaterial` plus a material instance implementing `IMaterialInstance`.
-- Route instance creation through `MaterialSystem`/`material-factory` dynamic dispatch (`createDynamicObject<IMaterial, StandardMaterialData>` + `setupMaterialInstance(...)`).
-- Ensure host `getTypeConformances()` contributes `<Type, IMaterial>` and `<TypeInstance, IMaterialInstance>` mappings.
+- Route instance creation through `MaterialSystem` dynamic dispatch (`createDynamicObject<IMaterial, StandardMaterialData>`) and extension-style factory helpers in `material-factory.slang`.
+- Use `texture-sampler.slang` + `material-instance-hints.slang` contracts for `(sd, lod, hints)` instance construction signatures.
+- Ensure host `getTypeConformances()` contributes `<Type, IMaterial>` and `<TypeInstance, IMaterialInstance>` mappings and `getShaderModules()` supplies type-deduplicated module list.
 
 ### graphics/material/standard-material.hpp
 Location: `engine/graphics/source/graphics/material/standard-material.hpp`

@@ -37,4 +37,14 @@ Use this document to track `task id -> commit id` mappings after completing a ta
 | GRAPHICS-MATERIAL-611 | 4439f9b | StandardMaterial/ShadingData semantic parity |
 | GRAPHICS-MATERIAL-612 | b99182f | scene integration via MaterialSystem extensions |
 | GRAPHICS-MATERIAL-613 | dff427e | host conformance aggregation parity |
-| GRAPHICS-MATERIAL-614 | pending-this-commit | parity validation + docsync closeout |
+| GRAPHICS-MATERIAL-614 | 53bc4cc | parity validation + docsync closeout |
+| GRAPHICS-MATERIAL-615 | 8e7a254 | split material interface file layout |
+| GRAPHICS-MATERIAL-616 | 1531ed2 | material-system/factory extension and sampler split |
+| GRAPHICS-MATERIAL-617 | ab3834a | standard material file split and setup parity |
+| GRAPHICS-MATERIAL-618 | 4730a29 | unlit material file split and contract parity |
+| GRAPHICS-MATERIAL-619 | e704490 | shading-data and shading-utils parity |
+| GRAPHICS-MATERIAL-620 | 638c1cd | host material-system module/conformance aggregation parity |
+| GRAPHICS-PROGRAM-609 | 789467d | semantic conformance diagnostics integration |
+| GRAPHICS-MATERIAL-621 | 4efc03f | volume and differentiable contract scaffolding |
+| GRAPHICS-MATERIAL-622 | 74db04a | UDIM/3D/buffer resource channel scaffolding |
+| GRAPHICS-MATERIAL-623 | pending-this-commit | parity validation/docsync closeout v2 |

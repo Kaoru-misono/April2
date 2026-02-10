@@ -19,3 +19,7 @@
 - Program conformance/linking now relies on semantic Slang diagnostics instead of path-based preflight link gating, while preserving detailed composite-link diagnostics and null-safe specialization-key generation.
 - Shader material stack now supports Falcor-style dynamic dispatch with `IMaterial` + `IMaterialInstance` (`setupMaterialInstance(...)` flow) and host conformance mappings for both interfaces.
 - Standard BSDF setup now uses front/back-face aware eta (`sd.IoR` and material IoR) and consistent metallic/roughness normalization across derived terms.
+- Material shader file layout is now Falcor-aligned: interfaces split into `i-material.slang` and `i-material-instance.slang`, and Standard/Unlit implementations split into separate material vs instance files.
+- Added texture sampling abstraction (`texture-sampler.slang`) and material instance hint flags (`material-instance-hints.slang`) to support `(sd, lod, hints)` setup signatures.
+- MaterialSystem shader context now includes scaffolding for buffer/3D texture channels and optional UDIM indirection toggles for future parity expansion.
+- Host `MaterialSystem` now exposes deduplicated `getShaderModules()` and per-type `getTypeConformances(MaterialType)` behavior with explicit missing-type failures.
