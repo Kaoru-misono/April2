@@ -2,7 +2,6 @@
 
 import material.material_data;
 import material.material_types;
-import material.i_material;
 import material.shading_data;
 import material.texture_sampler;
 
@@ -68,22 +67,4 @@ float4 sampleMaterialTexture(MaterialSystemContext ms, uint textureHandle, Sampl
 {
     ImplicitLodTextureSampler lod;
     return sampleMaterialTexture(ms, textureHandle, sampler, uv, lod);
-}
-
-IMaterial getMaterialObject(MaterialSystemContext ms, uint materialID)
-{
-    MaterialType type = MaterialType(ms.materials[materialID].header.materialType);
-    return createDynamicObject<IMaterial, StandardMaterialData>(int(type), ms.materials[materialID]);
-}
-
-IMaterialInstance getMaterialInstanceFromSystem<L: ITextureSampler>(MaterialSystemContext ms, uint materialID, ShadingData sd, L lod, uint hints = 0)
-{
-    IMaterial material = getMaterialObject(ms, materialID);
-    return material.setupMaterialInstance(ms, sd, lod, hints);
-}
-
-IMaterialInstance getMaterialInstanceFromSystem(MaterialSystemContext ms, uint materialID, ShadingData sd)
-{
-    ImplicitLodTextureSampler lod;
-    return getMaterialInstanceFromSystem(ms, materialID, sd, lod, 0);
 }
