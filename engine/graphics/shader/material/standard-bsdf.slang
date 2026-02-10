@@ -3,6 +3,7 @@
 
 import material.material_types;
 import material.material_data;
+import material.shading_data;
 import material.bsdf.math_constants;
 import material.bsdf.math_helpers;
 import material.bsdf.fresnel;
@@ -28,7 +29,7 @@ struct StandardBSDFData
 };
 
 // Create StandardBSDFData from StandardMaterialData.
-StandardBSDFData createStandardBSDFData(StandardMaterialData mtl, float3 baseColor)
+StandardBSDFData createStandardBSDFData(StandardMaterialData mtl, float3 baseColor, ShadingData sd)
 {
     StandardBSDFData data;
 
@@ -37,13 +38,16 @@ StandardBSDFData createStandardBSDFData(StandardMaterialData mtl, float3 baseCol
     float f = (ior - 1.0f) / (ior + 1.0f);
     float3 dielectricF0 = float3(f * f);
 
-    // Derive diffuse and specular from metallic workflow.
-    data.specular = lerp(dielectricF0, baseColor, mtl.metallic);
-    data.diffuse = baseColor * (1.0f - mtl.metallic);
+    float metallic = saturate(mtl.metallic);
+    float roughness = saturate(mtl.roughness);
 
-    data.roughness = saturate(mtl.roughness);
-    data.metallic = saturate(mtl.metallic);
-    data.eta = 1.0f / ior;  // eta = etaI / etaT, assuming air outside.
+    // Derive diffuse and specular from metallic workflow.
+    data.specular = lerp(dielectricF0, baseColor, metallic);
+    data.diffuse = baseColor * (1.0f - metallic);
+
+    data.roughness = roughness;
+    data.metallic = metallic;
+    data.eta = sd.frontFacing ? (sd.IoR / ior) : (ior / sd.IoR);
     data.transmission = mtl.transmission;
     data.diffuseTransmission = mtl.diffuseTransmission;
     data.specularTransmission = mtl.specularTransmission;
