@@ -73,13 +73,25 @@ float4 psMain(VSOut input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     materialSystem.materialTextures = materialTextures;
     materialSystem.materialSamplers = materialSamplers;
 
+    StandardMaterialData mtl = getMaterial(materialSystem, perInstance.materialIndex);
     MaterialFactory materialFactory = MaterialFactory(materialSystem);
 
     float3 N = normalize(input.normal);
     float3 V = normalize(perFrame.cameraPos - input.worldPos);
     float3 tangentRef = abs(N.z) < 0.99f ? float3(0.0f, 0.0f, 1.0f) : float3(0.0f, 1.0f, 0.0f);
     float3 T = normalize(cross(tangentRef, N));
-    ShadingData sd = prepareShadingData(input.worldPos, V, N, T, input.texCoord, N, isFrontFace);
+    ShadingData sd = prepareShadingData(
+        input.worldPos,
+        V,
+        N,
+        T,
+        input.texCoord,
+        N,
+        isFrontFace,
+        perInstance.materialIndex,
+        mtl.header,
+        1.0f
+    );
 
     IMaterialInstance materialInstance = getMaterialInstance(materialFactory, perInstance.materialIndex, sd);
     float3 baseAlbedo = materialInstance.getAlbedo(sd);
