@@ -32,3 +32,9 @@ Use this document to track `task id -> commit id` mappings after completing a ta
 | GRAPHICS-MATERIAL-606 | 06c8ca5 | scene shader IMaterialInstance contract wiring |
 | GRAPHICS-PROGRAM-607 | e2f1e13 | conformance preflight + link diagnostics hardening |
 | GRAPHICS-MATERIAL-609 | b7ec0c1 | explicit BasicMaterial-architecture alignment closure |
+| GRAPHICS-MATERIAL-610 | 6efed7e | Falcor IMaterial dynamic dispatch alignment |
+| GRAPHICS-PROGRAM-608 | 0fa940b | remove heuristic conformance gate |
+| GRAPHICS-MATERIAL-611 | 4439f9b | StandardMaterial/ShadingData semantic parity |
+| GRAPHICS-MATERIAL-612 | b99182f | scene integration via MaterialSystem extensions |
+| GRAPHICS-MATERIAL-613 | dff427e | host conformance aggregation parity |
+| GRAPHICS-MATERIAL-614 | pending-this-commit | parity validation + docsync closeout |

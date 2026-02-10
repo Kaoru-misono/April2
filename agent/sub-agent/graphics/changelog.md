@@ -16,4 +16,6 @@
 - Added Falcor-style host `BasicMaterial` base abstraction and refactored `StandardMaterial` to inherit shared payload/texture/descriptor logic without introducing `MaterialType::Basic`.
 - Standard BSDF parity update: dielectric F0 is now derived from IoR and roughness/metallic inputs are clamped in shader BSDF setup.
 - Scene material pipeline now imports and uses the explicit `IMaterialInstance` contract in `scene-mesh.slang` while binding through `MaterialSystem` as the authoritative path.
-- Program conformance/linking hardened: preflight now fails missing material conformances, composite-link diagnostics now include Slang details, and specialization-key generation is null-safe.
+- Program conformance/linking now relies on semantic Slang diagnostics instead of path-based preflight link gating, while preserving detailed composite-link diagnostics and null-safe specialization-key generation.
+- Shader material stack now supports Falcor-style dynamic dispatch with `IMaterial` + `IMaterialInstance` (`setupMaterialInstance(...)` flow) and host conformance mappings for both interfaces.
+- Standard BSDF setup now uses front/back-face aware eta (`sd.IoR` and material IoR) and consistent metallic/roughness normalization across derived terms.

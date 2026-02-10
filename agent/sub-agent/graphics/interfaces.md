@@ -104,9 +104,9 @@ Location: `engine/graphics/source/graphics/material/*`, `engine/graphics/shader/
 Steps:
 - Add host material class implementing `IMaterial` (example: `UnlitMaterial`).
 - Register/resolve stable type id through `MaterialTypeRegistry` in `MaterialSystem`.
-- Add Slang material instance implementing `IMaterialInstance`.
-- Update `material-factory.slang` to return the new concrete instance as `IMaterialInstance` (direct interface return).
-- Ensure host `getTypeConformances()` contributes `<TypeInstance, IMaterialInstance>` mapping.
+- Add Slang material object implementing `IMaterial` plus a material instance implementing `IMaterialInstance`.
+- Route instance creation through `MaterialSystem`/`material-factory` dynamic dispatch (`createDynamicObject<IMaterial, StandardMaterialData>` + `setupMaterialInstance(...)`).
+- Ensure host `getTypeConformances()` contributes `<Type, IMaterial>` and `<TypeInstance, IMaterialInstance>` mappings.
 
 ### graphics/material/standard-material.hpp
 Location: `engine/graphics/source/graphics/material/standard-material.hpp`
@@ -143,12 +143,12 @@ Include: `#include <graphics/program/program.hpp>`
 Purpose: Shader program description, compilation, and management (Falcor-style).
 
 Key Types: `RayTracingPipeline`, `RtProgramVariables`, `TypeConformance`, `HashFunction`, `TypeConformanceList`, `SlangCompilerFlags`, `ProgramDesc`, `ShaderID`, `ShaderSource`, `Type`, `ShaderModule`, `EntryPoint`, `EntryPointGroup`, `Program`, `ProgramManager`, `ProgramVersion`, `ParameterBlockReflection`, `ProgramVersionKey`
-Key APIs: `ProgramDesc`, `Program`, `ProgramManager`, `TypeConformanceList`, `Program::validateConformancesPreflight()`
+Key APIs: `ProgramDesc`, `Program`, `ProgramManager`, `TypeConformanceList`
 
 Usage Notes:
 - Build `ProgramDesc` with modules/entry points; compile via `ProgramManager`.
 - Use `TypeConformanceList` to select interface implementations.
-- Preflight conformance validation hard-fails link if material-related shaders are missing `IMaterialInstance` conformance and emits actionable diagnostics.
+- Material conformance failures are surfaced through semantic Slang compile/link diagnostics, without path-name heuristic link gating.
 
 Used By: `scene`
 
