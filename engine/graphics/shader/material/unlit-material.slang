@@ -3,8 +3,31 @@
 import material.material_types;
 import material.material_data;
 import material.shading_data;
+import material.material_system;
 import material.i_material;
 import material.bsdf.sample_generator;
+
+struct UnlitMaterialInstance;
+
+struct UnlitMaterial : IMaterial
+{
+    StandardMaterialData data;
+
+    __init(StandardMaterialData data_)
+    {
+        data = data_;
+    }
+
+    MaterialType getType()
+    {
+        return MaterialType::Unlit;
+    }
+
+    IMaterialInstance setupMaterialInstance(MaterialSystemContext ms, ShadingData sd)
+    {
+        return UnlitMaterialInstance(data);
+    }
+};
 
 struct NullBSDF : IBSDF
 {

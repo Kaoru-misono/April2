@@ -3,11 +3,57 @@
 import material.material_types;
 import material.material_data;
 import material.shading_data;
+import material.material_system;
 import material.i_material;
 import material.standard_bsdf;
 import material.bsdf.math_helpers;
 import material.bsdf.bsdf_sample;
 import material.bsdf.sample_generator;
+
+struct StandardMaterialInstance;
+
+struct StandardMaterial : IMaterial
+{
+    StandardMaterialData data;
+
+    __init(StandardMaterialData data_)
+    {
+        data = data_;
+    }
+
+    MaterialType getType()
+    {
+        return MaterialType::Standard;
+    }
+
+    IMaterialInstance setupMaterialInstance(MaterialSystemContext ms, ShadingData sd)
+    {
+        SamplerState sampler = getMaterialSampler(ms, data);
+
+        float4 baseColor = data.baseColor;
+        if ((data.header.flags & (uint)MaterialFlags.HasTextures) != 0)
+        {
+            baseColor *= sampleMaterialTexture(ms, data.baseColorTextureHandle, sampler, sd.uv);
+        }
+
+        float metallic = data.metallic;
+        float roughness = data.roughness;
+        if ((data.header.flags & (uint)MaterialFlags.HasTextures) != 0)
+        {
+            float4 mrSample = sampleMaterialTexture(ms, data.metallicRoughnessTextureHandle, sampler, sd.uv);
+            roughness *= mrSample.g;
+            metallic *= mrSample.b;
+        }
+
+        float3 emissive = data.emissive;
+        if ((data.header.flags & (uint)MaterialFlags.Emissive) != 0)
+        {
+            emissive *= sampleMaterialTexture(ms, data.emissiveTextureHandle, sampler, sd.uv).rgb;
+        }
+
+        return StandardMaterialInstance(data, baseColor.rgb, emissive, metallic, roughness);
+    }
+};
 
 // Standard PBR material instance.
 struct StandardMaterialInstance : IMaterialInstance
@@ -40,7 +86,7 @@ struct StandardMaterialInstance : IMaterialInstance
         mtlData.metallic = sampledMetallic;
         mtlData.roughness = sampledRoughness;
 
-        StandardBSDFData bsdfData = createStandardBSDFData(mtlData, sampledBaseColor);
+        StandardBSDFData bsdfData = createStandardBSDFData(mtlData, sampledBaseColor, sd);
         return StandardBSDF(wi, data.header, bsdfData);
     }
 

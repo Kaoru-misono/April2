@@ -5,6 +5,8 @@ import material.material_data;
 import material.shading_data;
 import material.bsdf.i_bsdf;
 
+struct MaterialSystemContext;
+
 // Material instance interface for runtime material evaluation.
 interface IMaterialInstance
 {
@@ -37,4 +39,14 @@ interface IMaterialInstance
     // Get material properties for denoising/debugging.
     float3 getAlbedo(ShadingData sd);
     float getRoughness(ShadingData sd);
+};
+
+// Material interface for runtime dynamic dispatch.
+interface IMaterial
+{
+    // Get the type of this material implementation.
+    MaterialType getType();
+
+    // Build a material instance at the shading point.
+    IMaterialInstance setupMaterialInstance(MaterialSystemContext ms, ShadingData sd);
 };
