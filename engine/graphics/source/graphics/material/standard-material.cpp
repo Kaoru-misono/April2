@@ -81,6 +81,11 @@ auto StandardMaterial::getTypeConformances() const -> TypeConformanceList
         break;
     }
 
+    conformances.add(
+        "StandardMaterial",
+        "IMaterial",
+        static_cast<uint32_t>(generated::MaterialType::Standard)
+    );
     conformances.add("StandardMaterialInstance", "IMaterialInstance");
 
     return conformances;

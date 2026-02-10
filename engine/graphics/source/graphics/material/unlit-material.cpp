@@ -26,6 +26,11 @@ namespace april::graphics
     auto UnlitMaterial::getTypeConformances() const -> TypeConformanceList
     {
         TypeConformanceList conformances;
+        conformances.add(
+            "UnlitMaterial",
+            "IMaterial",
+            static_cast<uint32_t>(generated::MaterialType::Unlit)
+        );
         conformances.add("UnlitMaterialInstance", "IMaterialInstance");
         return conformances;
     }

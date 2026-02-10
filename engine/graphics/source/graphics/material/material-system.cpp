@@ -262,13 +262,23 @@ auto MaterialSystem::getMaterialDataBuffer() const -> core::ref<Buffer>
 auto MaterialSystem::getTypeConformances() const -> TypeConformanceList
 {
     TypeConformanceList conformances;
+    std::unordered_map<uint32_t, bool> seenMaterialTypes;
 
     for (auto const& material : m_materials)
     {
-        if (material)
+        if (!material)
         {
-            conformances.add(material->getTypeConformances());
+            continue;
         }
+
+        auto const typeId = static_cast<uint32_t>(material->getType());
+        if (seenMaterialTypes.contains(typeId))
+        {
+            continue;
+        }
+
+        conformances.add(material->getTypeConformances());
+        seenMaterialTypes[typeId] = true;
     }
 
     return conformances;
