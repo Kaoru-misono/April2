@@ -70,7 +70,8 @@ namespace april::graphics
         size_t elementSize,
         ResourceFormat format,
         BufferUsage usage,
-        MemoryType memoryType
+        MemoryType memoryType,
+        void const* pInitData = nullptr
     ) -> Slang::ComPtr<rhi::IBuffer>;
 
     auto prepareGFXBufferDesc(

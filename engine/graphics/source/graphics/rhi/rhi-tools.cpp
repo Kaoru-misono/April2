@@ -181,7 +181,8 @@ namespace april::graphics
         size_t elementSize,
         ResourceFormat format,
         BufferUsage usage,
-        MemoryType memoryType
+        MemoryType memoryType,
+        void const* pInitData
     ) -> Slang::ComPtr<rhi::IBuffer>
     {
         AP_ASSERT(p_device);
@@ -191,7 +192,7 @@ namespace april::graphics
         prepareGFXBufferDesc(bufDesc, initState, size, elementSize, format, usage, memoryType);
 
         Slang::ComPtr<rhi::IBuffer> p_apiHandle;
-        checkResult(p_device->getGfxDevice()->createBuffer(bufDesc, nullptr, p_apiHandle.writeRef()), "Failed to create buffer resource");
+        checkResult(p_device->getGfxDevice()->createBuffer(bufDesc, pInitData, p_apiHandle.writeRef()), "Failed to create buffer resource");
         AP_ASSERT(p_apiHandle);
 
         return p_apiHandle;

@@ -89,10 +89,7 @@ namespace april::graphics
             m_state.global = Resource::State::CopyDest;
         }
 
-        m_gfxBuffer = createBufferResource(mp_device, m_state.global, m_size, m_structSize, m_format, m_usage, m_memoryType);
-
-        if (pInitData)
-            setBlob(pInitData, 0, size);
+        m_gfxBuffer = createBufferResource(mp_device, m_state.global, m_size, m_structSize, m_format, m_usage, m_memoryType, pInitData);
 
         m_elementCount = (uint32_t)size;
     }
