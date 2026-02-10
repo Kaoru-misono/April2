@@ -6,6 +6,9 @@ import material.material_system;
 import material.material_factory;
 import material.i_material;
 import material.shading_data;
+import material.shading_utils;
+import material.texture_sampler;
+import material.material_instance_hints;
 
 // Descriptor table capacities - host-provided via defines, with defaults.
 #ifndef MATERIAL_TEXTURE_TABLE_SIZE
@@ -74,12 +77,10 @@ float4 psMain(VSOut input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     materialSystem.materialSamplers = materialSamplers;
 
     StandardMaterialData mtl = getMaterial(materialSystem, perInstance.materialIndex);
-    MaterialFactory materialFactory = MaterialFactory(materialSystem);
 
     float3 N = normalize(input.normal);
     float3 V = normalize(perFrame.cameraPos - input.worldPos);
-    float3 tangentRef = abs(N.z) < 0.99f ? float3(0.0f, 0.0f, 1.0f) : float3(0.0f, 1.0f, 0.0f);
-    float3 T = normalize(cross(tangentRef, N));
+    float3 T = makeSafeTangent(N);
     ShadingData sd = prepareShadingData(
         input.worldPos,
         V,
@@ -93,7 +94,14 @@ float4 psMain(VSOut input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         1.0f
     );
 
-    IMaterialInstance materialInstance = getMaterialInstance(materialFactory, perInstance.materialIndex, sd);
+    ImplicitLodTextureSampler lod;
+    IMaterialInstance materialInstance = getMaterialInstance(
+        materialSystem,
+        perInstance.materialIndex,
+        sd,
+        lod,
+        (uint)MaterialInstanceHints::None
+    );
     float3 baseAlbedo = materialInstance.getAlbedo(sd);
     float roughness = materialInstance.getRoughness(sd);
     float3 emissive = materialInstance.getEmission(sd);

@@ -14,6 +14,7 @@ struct ShadingData
     float3 faceN;           // Face normal (world-space, geometric normal)
     bool frontFacing;       // True if viewing the front face
     float NdotV;            // Dot product of N and V (clamped)
+    float curveRadius;      // Optional curve radius for hair/curve shading
 
     // Material context
     uint materialID;        // Material id at shading point
@@ -57,6 +58,7 @@ ShadingData prepareShadingData(
     sd.faceN = faceN;
     sd.frontFacing = frontFacing;
     sd.NdotV = max(dot(N, V), 0.0f);
+    sd.curveRadius = 0.0f;
     sd.materialID = materialID;
     sd.mtl = mtl;
     sd.IoR = ior;
