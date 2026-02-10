@@ -5,6 +5,7 @@ import material.material_data;
 import material.material_system;
 import material.material_factory;
 import material.i_material;
+import material.i_material_instance;
 import material.shading_data;
 import material.shading_utils;
 import material.texture_sampler;
@@ -95,13 +96,7 @@ float4 psMain(VSOut input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     );
 
     ImplicitLodTextureSampler lod;
-    IMaterialInstance materialInstance = getMaterialInstance(
-        materialSystem,
-        perInstance.materialIndex,
-        sd,
-        lod,
-        (uint)MaterialInstanceHints::None
-    );
+    IMaterialInstance materialInstance = materialSystem.getMaterialInstance(sd, lod, (uint)MaterialInstanceHints::None);
     float3 baseAlbedo = materialInstance.getAlbedo(sd);
     float roughness = materialInstance.getRoughness(sd);
     float3 emissive = materialInstance.getEmission(sd);
