@@ -180,35 +180,19 @@ namespace april::editor
             {
                 if (ImGui::CollapsingHeader("Material System"))
                 {
-                    auto const diag = materialSystem->getDiagnostics();
+                    auto const stats = materialSystem->getStats();
 
-                    ImGui::Text("Materials: %u total", diag.totalMaterialCount);
-                    ImGui::Text("  Standard: %u", diag.standardMaterialCount);
-                    ImGui::Text("  Unlit: %u", diag.unlitMaterialCount);
-                    if (diag.otherMaterialCount > 0)
-                    {
-                        ImGui::Text("  Other: %u", diag.otherMaterialCount);
-                    }
+                    ImGui::Text("Materials: %llu", static_cast<unsigned long long>(stats.materialCount));
+                    ImGui::Text("Material types: %llu", static_cast<unsigned long long>(stats.materialTypeCount));
+                    ImGui::Text("Opaque materials: %llu", static_cast<unsigned long long>(stats.materialOpaqueCount));
+                    ImGui::Text("Material memory: %llu bytes", static_cast<unsigned long long>(stats.materialMemoryInBytes));
 
                     ImGui::Separator();
-                    ImGui::Text("Textures: %u / %u", diag.textureDescriptorCount, diag.textureDescriptorCapacity);
-                    ImGui::Text("Samplers: %u / %u", diag.samplerDescriptorCount, diag.samplerDescriptorCapacity);
-                    ImGui::Text("Buffers: %u / %u", diag.bufferDescriptorCount, diag.bufferDescriptorCapacity);
-
-                    if (diag.textureOverflowCount > 0 || diag.samplerOverflowCount > 0 ||
-                        diag.bufferOverflowCount > 0 || diag.invalidHandleCount > 0)
-                    {
-                        ImGui::Separator();
-                        ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "Overflow Warnings:");
-                        if (diag.textureOverflowCount > 0)
-                            ImGui::Text("  Texture overflows: %u", diag.textureOverflowCount);
-                        if (diag.samplerOverflowCount > 0)
-                            ImGui::Text("  Sampler overflows: %u", diag.samplerOverflowCount);
-                        if (diag.bufferOverflowCount > 0)
-                            ImGui::Text("  Buffer overflows: %u", diag.bufferOverflowCount);
-                        if (diag.invalidHandleCount > 0)
-                            ImGui::Text("  Invalid handles: %u", diag.invalidHandleCount);
-                    }
+                    ImGui::Text("Textures: %llu", static_cast<unsigned long long>(stats.textureCount));
+                    ImGui::Text("Compressed textures: %llu", static_cast<unsigned long long>(stats.textureCompressedCount));
+                    ImGui::Text("Texture texels: %llu", static_cast<unsigned long long>(stats.textureTexelCount));
+                    ImGui::Text("Texel channel bits: %llu", static_cast<unsigned long long>(stats.textureTexelChannelCount));
+                    ImGui::Text("Texture memory (est): %llu bytes", static_cast<unsigned long long>(stats.textureMemoryInBytes));
                 }
             }
         }

@@ -6,6 +6,7 @@ namespace april::graphics
 {
 
 StandardMaterial::StandardMaterial()
+    : BasicMaterial(nullptr, "Standard", generated::MaterialType::Standard)
 {
     m_activeLobes = updateActiveLobes();
 }
@@ -19,20 +20,21 @@ auto StandardMaterial::createFromAsset(
 
     // Copy parameters from asset
     auto const& params = asset.parameters;
-    material->baseColor = params.baseColorFactor;
+    material->setBaseColor(params.baseColorFactor);
     material->metallic = params.metallicFactor;
     material->roughness = params.roughnessFactor;
-    material->emissive = params.emissiveFactor;
+    material->m_data.emissive = params.emissiveFactor;
+    material->updateEmissiveFlag();
     material->occlusionStrength = params.occlusionStrength;
     material->normalScale = params.normalScale;
-    material->alphaCutoff = params.alphaCutoff;
+    material->setAlphaThreshold(params.alphaCutoff);
     material->setDoubleSided(params.doubleSided);
 
     // Parse alpha mode
     if (params.alphaMode == "OPAQUE")
-        material->alphaMode = generated::AlphaMode::Opaque;
+        material->setAlphaMode(generated::AlphaMode::Opaque);
     else if (params.alphaMode == "MASK")
-        material->alphaMode = generated::AlphaMode::Mask;
+        material->setAlphaMode(generated::AlphaMode::Mask);
 
     // Textures would be loaded from the asset's texture references here
     // For now, we leave them as null and let the caller set them
@@ -45,22 +47,47 @@ auto StandardMaterial::getType() const -> generated::MaterialType
     return generated::MaterialType::Standard;
 }
 
-auto StandardMaterial::getTypeName() const -> std::string
+auto StandardMaterial::isEqual(core::ref<Material> const& pOther) const -> bool
 {
-    return "Standard";
+    auto other = core::dynamic_ref_cast<StandardMaterial>(pOther);
+    if (!other)
+    {
+        return false;
+    }
+
+    return getBaseColor() == other->getBaseColor()
+        && metallic == other->metallic
+        && roughness == other->roughness
+        && normalScale == other->normalScale
+        && occlusionStrength == other->occlusionStrength
+        && float3(m_data.emissive) == float3(other->m_data.emissive)
+        && getAlphaThreshold() == other->getAlphaThreshold()
+        && getAlphaMode() == other->getAlphaMode()
+        && getIndexOfRefraction() == other->getIndexOfRefraction()
+        && getSpecularTransmission() == other->getSpecularTransmission()
+        && getDiffuseTransmission() == other->getDiffuseTransmission()
+        && getTransmissionColor() == other->getTransmissionColor()
+        && isDoubleSided() == other->isDoubleSided()
+        && getBaseColorTexture() == other->getBaseColorTexture()
+        && getSpecularTexture() == other->getSpecularTexture()
+        && getNormalMap() == other->getNormalMap()
+        && getEmissiveTexture() == other->getEmissiveTexture()
+        && getTransmissionTexture() == other->getTransmissionTexture()
+        && getDisplacementMap() == other->getDisplacementMap();
 }
 
 auto StandardMaterial::update(MaterialSystem* pOwner) -> MaterialUpdateFlags
 {
     (void)pOwner;
     m_activeLobes = updateActiveLobes();
-    return consumeUpdates();
+    auto const updates = m_updates;
+    m_updates = UpdateFlags::None;
+    return updates;
 }
 
 auto StandardMaterial::getDataBlob() const -> generated::MaterialDataBlob
 {
-    generated::BasicMaterialData data{};
-    writeCommonData(data);
+    auto data = m_data;
     data.specular = float4{occlusionStrength, roughness, metallic, 0.0f};
     data.setShadingModel(generated::ShadingModel::MetalRough);
 
@@ -71,13 +98,13 @@ auto StandardMaterial::getDataBlob() const -> generated::MaterialDataBlob
     blob.header.setActiveLobes(updateActiveLobes());
     blob.header.setDoubleSided(isDoubleSided());
     blob.header.setThinSurface(false);
-    blob.header.setEmissive(hasEmissive());
+    blob.header.setEmissive(m_header.isEmissive());
     blob.header.setIsBasicMaterial(true);
-    blob.header.setAlphaMode(alphaMode);
-    blob.header.setAlphaThreshold(alphaCutoff);
-    blob.header.setDefaultTextureSamplerID(getSamplerHandle());
+    blob.header.setAlphaMode(getAlphaMode());
+    blob.header.setAlphaThreshold(getAlphaThreshold());
+    blob.header.setDefaultTextureSamplerID(m_header.getDefaultTextureSamplerID());
     blob.header.setEnableLightProfile(false);
-    blob.header.setIoR(ior);
+    blob.header.setIoR(getIndexOfRefraction());
     blob.header.setAlphaTextureHandle(data.texBaseColor);
 
     auto const deltaOnlyMask =
@@ -121,12 +148,12 @@ auto StandardMaterial::updateActiveLobes() const -> uint32_t
     uint32_t lobes = 0;
 
     // Check for diffuse
-    auto const dielectricContribution = (1.0f - metallic) * (1.0f - specularTransmission);
+    auto const dielectricContribution = (1.0f - metallic) * (1.0f - getSpecularTransmission());
     if (dielectricContribution > 0.0f)
     {
-        if (diffuseTransmission < 1.0f)
+        if (getDiffuseTransmission() < 1.0f)
             lobes |= static_cast<uint32_t>(generated::LobeType::DiffuseReflection);
-        if (diffuseTransmission > 0.0f)
+        if (getDiffuseTransmission() > 0.0f)
             lobes |= static_cast<uint32_t>(generated::LobeType::DiffuseTransmission);
     }
 
@@ -139,7 +166,7 @@ auto StandardMaterial::updateActiveLobes() const -> uint32_t
         lobes |= static_cast<uint32_t>(generated::LobeType::SpecularReflection);
 
     // Specular transmission
-    if (specularTransmission > 0.0f)
+    if (getSpecularTransmission() > 0.0f)
     {
         if (alpha < kMinGGXAlpha)
             lobes |= static_cast<uint32_t>(generated::LobeType::DeltaTransmission);

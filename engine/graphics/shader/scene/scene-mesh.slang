@@ -100,9 +100,15 @@ float4 psMain(VSOut input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     float3 L = normalize(float3(1.0, 1.0, 1.0));  // Fixed directional light
     SceneDummySampleGenerator sg;
     float3 bsdf = materialInstance.eval(sd, L, sg);
+    float phase = materials.evalPhaseFunction(perInstance.materialIndex, dot(-V, L));
 
     // Ambient
     float3 ambient = baseAlbedo * 0.03;
+
+    if (props.isTransmissive)
+    {
+        bsdf += phase * 0.02;
+    }
 
     // Final color
     float3 finalColor = ambient + bsdf + emissive;

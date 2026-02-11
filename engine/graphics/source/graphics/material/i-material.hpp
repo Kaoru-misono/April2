@@ -1,67 +1,50 @@
-// IMaterial interface - Abstract base class for materials.
-
 #pragma once
 
-#include "generated/material/material-types.generated.hpp"
 #include "generated/material/material-data.generated.hpp"
+#include "generated/material/material-types.generated.hpp"
 #include "../program/define-list.hpp"
 #include "program/program.hpp"
 #include "rhi/format.hpp"
 
 #include <core/foundation/object.hpp>
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <filesystem>
 #include <functional>
+#include <string>
 
 namespace april::graphics
 {
+    class Device;
     class MaterialSystem;
-    class ShaderVariable;
     class Texture;
     class Sampler;
 
-    /**
-     * Material update flags (Falcor Material::UpdateFlags).
-     * Indicates what was updated in the material since last update().
-     */
-    enum class MaterialUpdateFlags : uint32_t
+    struct MaterialParamLayout
     {
-        None                = 0x0,   // Nothing updated.
-        CodeChanged         = 0x1,   // Material shader code changed.
-        DataChanged         = 0x2,   // Material data (parameters) changed.
-        ResourcesChanged    = 0x4,   // Material resources (textures, buffers, samplers) changed.
-        DisplacementChanged = 0x8,   // Displacement mapping parameters changed.
-        EmissiveChanged     = 0x10,  // Material emissive properties changed.
     };
 
-    inline auto operator|(MaterialUpdateFlags a, MaterialUpdateFlags b) -> MaterialUpdateFlags
+    struct SerializedMaterialParams
     {
-        return static_cast<MaterialUpdateFlags>(static_cast<uint32_t>(a) | static_cast<uint32_t>(b));
-    }
+    };
 
-    inline auto operator&(MaterialUpdateFlags a, MaterialUpdateFlags b) -> MaterialUpdateFlags
+    class Material : public core::Object
     {
-        return static_cast<MaterialUpdateFlags>(static_cast<uint32_t>(a) & static_cast<uint32_t>(b));
-    }
-
-    inline auto operator|=(MaterialUpdateFlags& a, MaterialUpdateFlags b) -> MaterialUpdateFlags&
-    {
-        a = a | b;
-        return a;
-    }
-
-    inline auto hasFlag(MaterialUpdateFlags flags, MaterialUpdateFlags flag) -> bool
-    {
-        return (flags & flag) != MaterialUpdateFlags::None;
-    }
-
-    /**
-     * Abstract base class for materials.
-     * Materials manage GPU data and textures for rendering.
-     */
-    class IMaterial : public core::Object
-    {
-        APRIL_OBJECT(IMaterial)
+        APRIL_OBJECT(Material)
     public:
+        enum class UpdateFlags : uint32_t
+        {
+            None                = 0x0,
+            CodeChanged         = 0x1,
+            DataChanged         = 0x2,
+            ResourcesChanged    = 0x4,
+            DisplacementChanged = 0x8,
+            EmissiveChanged     = 0x10,
+        };
+
         enum class TextureSlot
         {
             BaseColor,
@@ -70,6 +53,7 @@ namespace april::graphics
             Normal,
             Transmission,
             Displacement,
+            Index,
             Count,
         };
 
@@ -80,168 +64,123 @@ namespace april::graphics
             bool srgb{false};
 
             auto isEnabled() const -> bool { return mask != TextureChannelFlags::None; }
+            auto operator==(TextureSlotInfo const& rhs) const -> bool { return name == rhs.name && mask == rhs.mask && srgb == rhs.srgb; }
+            auto operator!=(TextureSlotInfo const& rhs) const -> bool { return !(*this == rhs); }
         };
 
-        using UpdateCallback = std::function<void(MaterialUpdateFlags)>;
+        struct TextureSlotData
+        {
+            core::ref<Texture> pTexture;
 
-        virtual ~IMaterial() = default;
+            auto hasData() const -> bool { return pTexture != nullptr; }
+            auto operator==(TextureSlotData const& rhs) const -> bool { return pTexture == rhs.pTexture; }
+            auto operator!=(TextureSlotData const& rhs) const -> bool { return !(*this == rhs); }
+        };
 
-        /**
-         * Update material. Prepares material for rendering.
-         * @param pOwner Material system that owns this material.
-         * @return Update flags since previous update() call.
-         */
-        virtual auto update(MaterialSystem* pOwner) -> MaterialUpdateFlags = 0;
+        struct TextureOptimizationStats
+        {
+            std::array<size_t, static_cast<size_t>(TextureSlot::Count)> texturesRemoved{};
+            size_t disabledAlpha{0};
+            size_t constantBaseColor{0};
+            size_t constantNormalMaps{0};
+        };
 
-        /**
-         * Get material data blob for GPU upload.
-         */
-        virtual auto getDataBlob() const -> generated::MaterialDataBlob = 0;
+        virtual ~Material() = default;
 
-        /**
-         * Get the material type.
-         */
-        virtual auto getType() const -> generated::MaterialType = 0;
+        virtual auto update(MaterialSystem* pOwner) -> UpdateFlags = 0;
 
-        /**
-         * Get the material type name as a string.
-         */
-        virtual auto getTypeName() const -> std::string = 0;
+        virtual auto setName(std::string const& name) -> void;
+        virtual auto getName() const -> std::string const&;
 
-        /**
-         * Get type conformances for shader compilation.
-         * These specify which implementations to use for interfaces (e.g., IDiffuseBRDF).
-         */
-        virtual auto getTypeConformances() const -> TypeConformanceList = 0;
+        virtual auto getType() const -> generated::MaterialType;
+        virtual auto isOpaque() const -> bool;
+        virtual auto isDisplaced() const -> bool;
+        virtual auto isEmissive() const -> bool;
+        virtual auto isDynamic() const -> bool;
 
-        /**
-         * Get shader modules required by this material type.
-         */
-        virtual auto getShaderModules() const -> ProgramDesc::ShaderModuleList = 0;
+        virtual auto isEqual(core::ref<Material> const& pOther) const -> bool = 0;
 
-        /**
-         * Get shader defines required by this material type.
-         */
-        virtual auto getDefines() const -> DefineList { return {}; }
-
-        /**
-         * Bind textures to a shader variable.
-         * @param var Shader variable representing the material's texture bindings.
-         */
-        virtual auto bindTextures(ShaderVariable& var) const -> void = 0;
-
-        /**
-         * Check if the material has any textures bound.
-         */
-        virtual auto hasTextures() const -> bool = 0;
-
+        virtual auto setDoubleSided(bool doubleSided) -> void;
+        virtual auto isDoubleSided() const -> bool;
+        virtual auto setThinSurface(bool thinSurface) -> void;
+        virtual auto isThinSurface() const -> bool;
+        virtual auto setAlphaMode(generated::AlphaMode alphaMode) -> void;
+        virtual auto getAlphaMode() const -> generated::AlphaMode;
+        virtual auto setAlphaThreshold(float alphaThreshold) -> void;
+        virtual auto getAlphaThreshold() const -> float;
+        virtual auto getAlphaTextureHandle() const -> generated::TextureHandle;
+        virtual auto setNestedPriority(uint32_t priority) -> void;
+        virtual auto getNestedPriority() const -> uint32_t;
+        virtual auto setIndexOfRefraction(float ior) -> void;
+        virtual auto getIndexOfRefraction() const -> float;
         virtual auto getTextureSlotInfo(TextureSlot slot) const -> TextureSlotInfo const&;
         virtual auto hasTextureSlot(TextureSlot slot) const -> bool;
-        virtual auto setTexture(TextureSlot slot, core::ref<Texture> texture) -> bool;
+        virtual auto setTexture(TextureSlot slot, core::ref<Texture> const& pTexture) -> bool;
+        virtual auto loadTexture(TextureSlot slot, std::filesystem::path const& path, bool useSrgb = true) -> bool;
+        virtual auto clearTexture(TextureSlot slot) -> void;
         virtual auto getTexture(TextureSlot slot) const -> core::ref<Texture>;
+        virtual auto optimizeTexture(TextureSlot slot, TextureOptimizationStats& stats) -> void;
+        virtual auto setDefaultTextureSampler(core::ref<Sampler> const& pSampler) -> void;
+        virtual auto getDefaultTextureSampler() const -> core::ref<Sampler>;
+        virtual auto getHeader() const -> generated::MaterialHeader const&;
 
-        /**
-         * Get the material flags.
-         */
-        virtual auto getFlags() const -> uint32_t = 0;
+        virtual auto getDataBlob() const -> generated::MaterialDataBlob = 0;
+        virtual auto getShaderModules() const -> ProgramDesc::ShaderModuleList = 0;
+        virtual auto getTypeConformances() const -> TypeConformanceList = 0;
+        virtual auto getDefines() const -> DefineList;
 
-        /**
-         * Set whether the material is double-sided.
-         */
-        virtual auto setDoubleSided(bool doubleSided) -> void = 0;
+        virtual auto getMaxBufferCount() const -> size_t;
+        virtual auto getMaxTextureCount() const -> size_t;
+        virtual auto getMaxTexture3DCount() const -> size_t;
+        virtual auto getMaterialInstanceByteSize() const -> size_t;
 
-        /**
-         * Get whether the material is double-sided.
-         */
-        virtual auto isDoubleSided() const -> bool = 0;
-
-        virtual auto getMaxTextureCount() const -> size_t { return 7; }
-        virtual auto getMaxBufferCount() const -> size_t { return 0; }
-        virtual auto getMaxTexture3DCount() const -> size_t { return 0; }
-
-        /**
-         * Returns true for dynamic materials requiring per-frame update.
-         */
-        virtual auto isDynamic() const -> bool { return false; }
-
-        /**
-         * Size of IMaterialInstance implementation in bytes.
-         */
-        virtual auto getMaterialInstanceByteSize() const -> size_t { return 128; }
-
-        auto registerUpdateCallback(UpdateCallback const& callback) -> void { m_updateCallback = callback; }
-
-        auto setDefaultTextureSampler(core::ref<Sampler> sampler) -> void
-        {
-            m_defaultTextureSampler = std::move(sampler);
-            markUpdates(MaterialUpdateFlags::ResourcesChanged);
-        }
-
-        auto getDefaultTextureSampler() const -> core::ref<Sampler> const& { return m_defaultTextureSampler; }
-
-        // ---- Lifecycle and update tracking ----
-
-        /**
-         * Check if the material has pending updates.
-         */
-        auto getUpdateFlags() const -> MaterialUpdateFlags { return m_updateFlags; }
+        virtual auto getParamLayout() const -> MaterialParamLayout const&;
+        virtual auto serializeParams() const -> SerializedMaterialParams;
+        virtual auto deserializeParams(SerializedMaterialParams const& params) -> void;
 
     protected:
-        auto markUpdates(MaterialUpdateFlags flags) -> void
-        {
-            if (flags == MaterialUpdateFlags::None)
-            {
-                return;
-            }
+        Material(core::ref<Device> pDevice, std::string const& name, generated::MaterialType type);
 
-            m_updateFlags |= flags;
-            if (m_updateCallback)
-            {
-                m_updateCallback(flags);
-            }
+        using UpdateCallback = std::function<void(UpdateFlags)>;
+
+        auto registerUpdateCallback(UpdateCallback const& updateCallback) -> void;
+        auto markUpdates(UpdateFlags updates) -> void;
+
+        auto hasTextureSlotData(TextureSlot slot) const -> bool;
+        auto updateTextureHandle(MaterialSystem* pOwner, core::ref<Texture> const& pTexture, generated::TextureHandle& handle) -> void;
+        auto updateTextureHandle(MaterialSystem* pOwner, TextureSlot slot, generated::TextureHandle& handle) -> void;
+        auto updateDefaultTextureSamplerID(MaterialSystem* pOwner, core::ref<Sampler> const& pSampler) -> void;
+        auto isBaseEqual(Material const& other) const -> bool;
+        static auto detectNormalMapType(core::ref<Texture> const& pNormalMap) -> generated::NormalMapType;
+
+        template<typename T>
+        auto prepareDataBlob(T const& data) const -> generated::MaterialDataBlob
+        {
+            auto blob = generated::MaterialDataBlob{};
+            blob.header = m_header;
+            static_assert(sizeof(m_header) + sizeof(data) <= sizeof(blob));
+            static_assert(offsetof(generated::MaterialDataBlob, payload) == sizeof(generated::MaterialHeader));
+            std::memcpy(&blob.payload, &data, sizeof(data));
+            return blob;
         }
 
-        auto consumeUpdates() -> MaterialUpdateFlags
-        {
-            auto const flags = m_updateFlags;
-            m_updateFlags = MaterialUpdateFlags::None;
-            return flags;
-        }
+        core::ref<Device> m_device;
 
-        static auto getDisabledTextureSlotInfo() -> TextureSlotInfo const&
-        {
-            static TextureSlotInfo const kDisabled{};
-            return kDisabled;
-        }
+        std::string m_name;
+        generated::MaterialHeader m_header{};
 
-        // Initial state: all updates pending (Falcor uses DataChanged | ResourcesChanged).
-        MaterialUpdateFlags m_updateFlags{MaterialUpdateFlags::DataChanged | MaterialUpdateFlags::ResourcesChanged};
+        std::array<TextureSlotInfo, static_cast<size_t>(TextureSlot::Count)> m_textureSlotInfo{};
+        std::array<TextureSlotData, static_cast<size_t>(TextureSlot::Count)> m_textureSlotData{};
+
+        mutable UpdateFlags m_updates{static_cast<UpdateFlags>(static_cast<uint32_t>(UpdateFlags::DataChanged) | static_cast<uint32_t>(UpdateFlags::ResourcesChanged))};
         UpdateCallback m_updateCallback{};
-        core::ref<Sampler> m_defaultTextureSampler{};
+
+        friend class MaterialSystem;
     };
 
-    inline auto IMaterial::getTextureSlotInfo(TextureSlot slot) const -> TextureSlotInfo const&
-    {
-        (void)slot;
-        return getDisabledTextureSlotInfo();
-    }
+    using IMaterial = Material;
+    using MaterialUpdateFlags = Material::UpdateFlags;
 
-    inline auto IMaterial::hasTextureSlot(TextureSlot slot) const -> bool
-    {
-        return getTextureSlotInfo(slot).isEnabled();
-    }
+    AP_ENUM_CLASS_OPERATORS(Material::UpdateFlags);
 
-    inline auto IMaterial::setTexture(TextureSlot slot, core::ref<Texture> texture) -> bool
-    {
-        (void)slot;
-        (void)texture;
-        return false;
-    }
-
-    inline auto IMaterial::getTexture(TextureSlot slot) const -> core::ref<Texture>
-    {
-        (void)slot;
-        return nullptr;
-    }
-
-} // namespace april::graphics
+}

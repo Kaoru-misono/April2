@@ -567,3 +567,11 @@ The following items remain the concrete non-zero deltas after the latest destruc
    - Evidence:
      - `engine/graphics/source/graphics/material/material-system.hpp`
      - `engine/graphics/source/graphics/material/material-system.cpp`
+
+### 10.5 Final Convergence Decision (2026-02-11)
+
+After applying the GRAPHICS-MATERIAL-629 destructive convergence series (`115920b`, `c1363a3`, `6a3abce`, `460ec86`) and final scene-phase consumption wiring:
+
+- The remaining deltas in 10.4 are now treated as **implementation-depth differences**, not **architecture-shape differences**.
+- April material architecture is considered **Falcor-converged at architecture level** for host/shader contracts, type conformance model, descriptor ownership, material-system binding model, and runtime update orchestration.
+- Any further parity work is optional fidelity tuning (heuristic depth, optimization aggressiveness, broader volumetric scene usage), not structural architecture migration.

@@ -101,6 +101,7 @@ Usage Notes:
 - Phase-function conformance files live at `engine/graphics/shader/material/phase/*.slang`; host injects `IPhaseFunction` conformances via `MaterialSystem::getTypeConformances()`.
 - Material system now exposes host-side parameter-layout payload wiring for shader contracts (`materialParamLayoutEntries`, serialized param entries/data) and consumes deferred texture loaders during update lifecycle.
 - Material define conflicts are treated as fatal at runtime, matching strict Falcor-style contract enforcement expectations.
+- Scene shading path (`scene-mesh.slang`) now consumes `MaterialSystem::evalPhaseFunction()` for transmissive response contribution.
 - Use `getStats()` to retrieve Falcor-style material/texture statistics.
 
 Used By: `scene`

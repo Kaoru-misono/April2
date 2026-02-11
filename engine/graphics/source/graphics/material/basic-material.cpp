@@ -1,225 +1,364 @@
 #include "basic-material.hpp"
 
-#include "program/shader-variable.hpp"
-
-#include <array>
+#include "material-system.hpp"
+#include "rhi/render-device.hpp"
 
 namespace april::graphics
 {
     namespace
     {
-        auto makeTextureHandle(uint32_t descriptorHandle) -> generated::TextureHandle
+        static_assert((sizeof(generated::MaterialHeader) + sizeof(generated::BasicMaterialData)) <= sizeof(generated::MaterialDataBlob));
+    }
+
+    BasicMaterial::BasicMaterial(core::ref<Device> p_device, std::string const& name, generated::MaterialType type)
+        : Material(std::move(p_device), name, type)
+    {
+        m_header.setIsBasicMaterial(true);
+        m_header.setIoR(1.5f);
+
+        m_textureSlotInfo[static_cast<size_t>(TextureSlot::BaseColor)] = TextureSlotInfo{"baseColor", TextureChannelFlags::Red | TextureChannelFlags::Green | TextureChannelFlags::Blue | TextureChannelFlags::Alpha, true};
+        m_textureSlotInfo[static_cast<size_t>(TextureSlot::Specular)] = TextureSlotInfo{"specular", TextureChannelFlags::Red | TextureChannelFlags::Green | TextureChannelFlags::Blue, false};
+        m_textureSlotInfo[static_cast<size_t>(TextureSlot::Emissive)] = TextureSlotInfo{"emissive", TextureChannelFlags::Red | TextureChannelFlags::Green | TextureChannelFlags::Blue, true};
+        m_textureSlotInfo[static_cast<size_t>(TextureSlot::Normal)] = TextureSlotInfo{"normal", TextureChannelFlags::Red | TextureChannelFlags::Green, false};
+        m_textureSlotInfo[static_cast<size_t>(TextureSlot::Transmission)] = TextureSlotInfo{"transmission", TextureChannelFlags::Red, false};
+        m_textureSlotInfo[static_cast<size_t>(TextureSlot::Displacement)] = TextureSlotInfo{"displacement", TextureChannelFlags::Red, false};
+
+        updateAlphaMode();
+        updateNormalMapType();
+        updateEmissiveFlag();
+        updateDeltaSpecularFlag();
+    }
+
+    auto BasicMaterial::update(MaterialSystem* p_owner) -> MaterialUpdateFlags
+    {
+        AP_ASSERT(p_owner);
+
+        if (m_updates != UpdateFlags::None)
         {
-            auto handle = generated::TextureHandle{};
-            if (descriptorHandle != 0)
+            adjustDoubleSidedFlag();
+            prepareDisplacementMapForRendering();
+
+            updateTextureHandle(p_owner, TextureSlot::BaseColor, m_data.texBaseColor);
+            updateTextureHandle(p_owner, TextureSlot::Specular, m_data.texSpecular);
+            updateTextureHandle(p_owner, TextureSlot::Emissive, m_data.texEmissive);
+            updateTextureHandle(p_owner, TextureSlot::Transmission, m_data.texTransmission);
+            updateTextureHandle(p_owner, TextureSlot::Normal, m_data.texNormalMap);
+            updateTextureHandle(p_owner, TextureSlot::Displacement, m_data.texDisplacementMap);
+
+            updateDefaultTextureSamplerID(p_owner, m_pDefaultSampler);
+
+            auto prevFlags = m_data.flags;
+            m_data.setDisplacementMinSamplerID(p_owner->registerSamplerDescriptor(m_pDisplacementMinSampler));
+            m_data.setDisplacementMaxSamplerID(p_owner->registerSamplerDescriptor(m_pDisplacementMaxSampler));
+            if (m_data.flags != prevFlags)
             {
-                handle.setTextureID(descriptorHandle);
+                m_updates |= UpdateFlags::DataChanged;
             }
-            return handle;
+
+            if (m_updates != UpdateFlags::None && isEmissive())
+            {
+                m_updates |= UpdateFlags::EmissiveChanged;
+            }
         }
 
-        auto kTextureSlotInfos = std::array<IMaterial::TextureSlotInfo, static_cast<size_t>(IMaterial::TextureSlot::Count)>{
-            IMaterial::TextureSlotInfo{"baseColor", TextureChannelFlags::Red | TextureChannelFlags::Green | TextureChannelFlags::Blue | TextureChannelFlags::Alpha, true},
-            IMaterial::TextureSlotInfo{"specular", TextureChannelFlags::Red | TextureChannelFlags::Green | TextureChannelFlags::Blue, false},
-            IMaterial::TextureSlotInfo{"emissive", TextureChannelFlags::Red | TextureChannelFlags::Green | TextureChannelFlags::Blue, true},
-            IMaterial::TextureSlotInfo{"normal", TextureChannelFlags::Red | TextureChannelFlags::Green, false},
-            IMaterial::TextureSlotInfo{"transmission", TextureChannelFlags::Red, false},
-            IMaterial::TextureSlotInfo{"displacement", TextureChannelFlags::Red, false},
-        };
-    }
-
-    auto BasicMaterial::update(MaterialSystem* pOwner) -> MaterialUpdateFlags
-    {
-        (void)pOwner;
-        return consumeUpdates();
-    }
-
-    auto BasicMaterial::getTextureSlotInfo(TextureSlot slot) const -> TextureSlotInfo const&
-    {
-        auto const slotIndex = static_cast<size_t>(slot);
-        if (slotIndex >= kTextureSlotInfos.size())
-        {
-            return getDisabledTextureSlotInfo();
-        }
-        return kTextureSlotInfos[slotIndex];
-    }
-
-    auto BasicMaterial::setTexture(TextureSlot slot, core::ref<Texture> texture) -> bool
-    {
-        switch (slot)
-        {
-        case TextureSlot::BaseColor:
-            baseColorTexture = std::move(texture);
-            break;
-        case TextureSlot::Specular:
-            metallicRoughnessTexture = std::move(texture);
-            break;
-        case TextureSlot::Emissive:
-            emissiveTexture = std::move(texture);
-            break;
-        case TextureSlot::Normal:
-            normalTexture = std::move(texture);
-            break;
-        case TextureSlot::Transmission:
-            transmissionTexture = std::move(texture);
-            break;
-        case TextureSlot::Displacement:
-            displacementTexture = std::move(texture);
-            break;
-        default:
-            return false;
-        }
-
-        markUpdates(MaterialUpdateFlags::ResourcesChanged);
-        return true;
-    }
-
-    auto BasicMaterial::getTexture(TextureSlot slot) const -> core::ref<Texture>
-    {
-        switch (slot)
-        {
-        case TextureSlot::BaseColor: return baseColorTexture;
-        case TextureSlot::Specular: return metallicRoughnessTexture;
-        case TextureSlot::Emissive: return emissiveTexture;
-        case TextureSlot::Normal: return normalTexture;
-        case TextureSlot::Transmission: return transmissionTexture;
-        case TextureSlot::Displacement: return displacementTexture;
-        default: return nullptr;
-        }
-    }
-
-    auto BasicMaterial::bindTextures(ShaderVariable& var) const -> void
-    {
-        if (baseColorTexture && var.hasMember("baseColorTexture"))
-        {
-            var["baseColorTexture"].setTexture(baseColorTexture);
-        }
-
-        if (metallicRoughnessTexture && var.hasMember("metallicRoughnessTexture"))
-        {
-            var["metallicRoughnessTexture"].setTexture(metallicRoughnessTexture);
-        }
-
-        if (normalTexture && var.hasMember("normalTexture"))
-        {
-            var["normalTexture"].setTexture(normalTexture);
-        }
-
-        if (emissiveTexture && var.hasMember("emissiveTexture"))
-        {
-            var["emissiveTexture"].setTexture(emissiveTexture);
-        }
-
-        if (transmissionTexture && var.hasMember("transmissionTexture"))
-        {
-            var["transmissionTexture"].setTexture(transmissionTexture);
-        }
-
-        if (displacementTexture && var.hasMember("displacementTexture"))
-        {
-            var["displacementTexture"].setTexture(displacementTexture);
-        }
-    }
-
-    auto BasicMaterial::hasTextures() const -> bool
-    {
-        return baseColorTexture != nullptr
-            || metallicRoughnessTexture != nullptr
-            || normalTexture != nullptr
-            || emissiveTexture != nullptr
-            || transmissionTexture != nullptr
-            || displacementTexture != nullptr;
-    }
-
-    auto BasicMaterial::getFlags() const -> uint32_t
-    {
-        uint32_t flags = static_cast<uint32_t>(generated::MaterialFlags::None);
-
-        if (m_doubleSided)
-        {
-            flags |= static_cast<uint32_t>(generated::MaterialFlags::DoubleSided);
-        }
-
-        if (alphaMode == generated::AlphaMode::Mask)
-        {
-            flags |= static_cast<uint32_t>(generated::MaterialFlags::AlphaTested);
-        }
-
-        if (emissive.x > 0.0f || emissive.y > 0.0f || emissive.z > 0.0f)
-        {
-            flags |= static_cast<uint32_t>(generated::MaterialFlags::Emissive);
-        }
-
-        if (hasTextures())
-        {
-            flags |= static_cast<uint32_t>(generated::MaterialFlags::HasTextures);
-        }
-
+        auto const flags = m_updates;
+        m_updates = UpdateFlags::None;
         return flags;
     }
 
-    auto BasicMaterial::setDoubleSided(bool doubleSided) -> void
+    auto BasicMaterial::isDisplaced() const -> bool
     {
-        if (m_doubleSided != doubleSided)
+        return hasTextureSlotData(TextureSlot::Displacement);
+    }
+
+    auto BasicMaterial::isEqual(core::ref<Material> const& p_other) const -> bool
+    {
+        auto other = core::dynamic_ref_cast<BasicMaterial>(p_other);
+        return other && (*this == *other);
+    }
+
+    auto BasicMaterial::setAlphaMode(generated::AlphaMode alphaMode) -> void
+    {
+        if (!isAlphaSupported())
         {
-            m_doubleSided = doubleSided;
-            markUpdates(MaterialUpdateFlags::DataChanged);
+            AP_WARN("Alpha is not supported by material type '{}'. Ignoring setAlphaMode() for material '{}'.", static_cast<uint32_t>(getType()), getName());
+            return;
+        }
+
+        if (m_header.getAlphaMode() != alphaMode)
+        {
+            m_header.setAlphaMode(alphaMode);
+            markUpdates(UpdateFlags::DataChanged);
         }
     }
 
-    auto BasicMaterial::isDoubleSided() const -> bool
+    auto BasicMaterial::setAlphaThreshold(float alphaThreshold) -> void
     {
-        return m_doubleSided;
+        if (!isAlphaSupported())
+        {
+            AP_WARN("Alpha is not supported by material type '{}'. Ignoring setAlphaThreshold() for material '{}'.", static_cast<uint32_t>(getType()), getName());
+            return;
+        }
+
+        if (m_header.getAlphaThreshold() != alphaThreshold)
+        {
+            m_header.setAlphaThreshold(alphaThreshold);
+            markUpdates(UpdateFlags::DataChanged);
+            updateAlphaMode();
+        }
     }
 
-    auto BasicMaterial::setDescriptorHandles(
-        uint32_t baseColorTextureHandle,
-        uint32_t specularTextureHandle,
-        uint32_t normalTextureHandle,
-        uint32_t emissiveTextureHandle,
-        uint32_t transmissionTextureHandle,
-        uint32_t displacementTextureHandle,
-        uint32_t samplerHandle
-    ) -> void
+    auto BasicMaterial::setTexture(TextureSlot const slot, core::ref<Texture> const& p_texture) -> bool
     {
-        m_baseColorTextureHandle = baseColorTextureHandle;
-        m_specularTextureHandle = specularTextureHandle;
-        m_normalTextureHandle = normalTextureHandle;
-        m_emissiveTextureHandle = emissiveTextureHandle;
-        m_transmissionTextureHandle = transmissionTextureHandle;
-        m_displacementTextureHandle = displacementTextureHandle;
-        m_samplerHandle = samplerHandle;
+        if (!Material::setTexture(slot, p_texture))
+        {
+            return false;
+        }
+
+        switch (slot)
+        {
+        case TextureSlot::BaseColor:
+            if (p_texture)
+            {
+                m_alphaRange = float2(0.f, 1.f);
+                m_isTexturedBaseColorConstant = false;
+                m_isTexturedAlphaConstant = false;
+            }
+            updateAlphaMode();
+            updateDeltaSpecularFlag();
+            break;
+        case TextureSlot::Specular:
+            updateDeltaSpecularFlag();
+            break;
+        case TextureSlot::Normal:
+            updateNormalMapType();
+            break;
+        case TextureSlot::Emissive:
+            updateEmissiveFlag();
+            break;
+        case TextureSlot::Displacement:
+            m_displacementMapChanged = true;
+            markUpdates(UpdateFlags::DisplacementChanged);
+            break;
+        default:
+            break;
+        }
+
+        return true;
     }
 
-    auto BasicMaterial::writeCommonData(generated::BasicMaterialData& data) const -> void
+    auto BasicMaterial::optimizeTexture(TextureSlot const slot, TextureOptimizationStats& stats) -> void
     {
-        data.flags = 0;
-        data.emissiveFactor = 1.0f;
-
-        data.baseColor = baseColor;
-        data.specular = float4{0.0f, 0.5f, 0.0f, 0.0f};
-        data.specularTransmission = specularTransmission;
-        data.emissive = emissive;
-        data.diffuseTransmission = diffuseTransmission;
-        data.transmission = transmission;
-
-        data.volumeScattering = float3{0.0f, 0.0f, 0.0f};
-        data.volumeAbsorption = float3{0.0f, 0.0f, 0.0f};
-        data.volumeAnisotropy = 0.0f;
-
-        data.displacementScale = 0.0f;
-        data.displacementOffset = 0.0f;
-
-        data.texBaseColor = makeTextureHandle(m_baseColorTextureHandle);
-        data.texSpecular = makeTextureHandle(m_specularTextureHandle);
-        data.texEmissive = makeTextureHandle(m_emissiveTextureHandle);
-        data.texNormalMap = makeTextureHandle(m_normalTextureHandle);
-        data.texTransmission = makeTextureHandle(m_transmissionTextureHandle);
-        data.texDisplacementMap = makeTextureHandle(m_displacementTextureHandle);
-
-        data.setNormalMapType(m_normalTextureHandle != 0 ? generated::NormalMapType::RG : generated::NormalMapType::None);
-        data.setDisplacementMinSamplerID(m_samplerHandle);
-        data.setDisplacementMaxSamplerID(m_samplerHandle);
+        (void)stats;
+        if (slot == TextureSlot::Normal)
+        {
+            updateNormalMapType();
+        }
     }
 
+    auto BasicMaterial::setDefaultTextureSampler(core::ref<Sampler> const& p_sampler) -> void
+    {
+        if (p_sampler == m_pDefaultSampler)
+        {
+            return;
+        }
+
+        m_pDefaultSampler = p_sampler;
+
+        if (p_sampler && m_device)
+        {
+            auto desc = p_sampler->getDesc();
+            desc.setMaxAnisotropy(16);
+            desc.setReductionMode(TextureReductionMode::Min);
+            m_pDisplacementMinSampler = m_device->createSampler(desc);
+
+            desc.setReductionMode(TextureReductionMode::Max);
+            m_pDisplacementMaxSampler = m_device->createSampler(desc);
+        }
+
+        markUpdates(UpdateFlags::ResourcesChanged);
+    }
+
+    auto BasicMaterial::setBaseColor(float4 const& color) -> void
+    {
+        auto const current = float4(m_data.baseColor);
+        if (current != color)
+        {
+            m_data.baseColor = generated::float16_t4(color);
+            markUpdates(UpdateFlags::DataChanged);
+            updateAlphaMode();
+            updateDeltaSpecularFlag();
+        }
+    }
+
+    auto BasicMaterial::setSpecularParams(float4 const& value) -> void
+    {
+        auto const current = float4(m_data.specular);
+        if (current != value)
+        {
+            m_data.specular = generated::float16_t4(value);
+            markUpdates(UpdateFlags::DataChanged);
+            updateDeltaSpecularFlag();
+        }
+    }
+
+    auto BasicMaterial::setTransmissionColor(float3 const& value) -> void
+    {
+        auto const current = float3(m_data.transmission);
+        if (current != value)
+        {
+            m_data.transmission = generated::float16_t3(value);
+            markUpdates(UpdateFlags::DataChanged);
+        }
+    }
+
+    auto BasicMaterial::setDiffuseTransmission(float value) -> void
+    {
+        if (float(m_data.diffuseTransmission) != value)
+        {
+            m_data.diffuseTransmission = generated::float16_t(value);
+            markUpdates(UpdateFlags::DataChanged);
+            updateDeltaSpecularFlag();
+        }
+    }
+
+    auto BasicMaterial::setSpecularTransmission(float value) -> void
+    {
+        if (float(m_data.specularTransmission) != value)
+        {
+            m_data.specularTransmission = generated::float16_t(value);
+            markUpdates(UpdateFlags::DataChanged);
+            updateDeltaSpecularFlag();
+        }
+    }
+
+    auto BasicMaterial::setVolumeAbsorption(float3 const& volumeAbsorption) -> void
+    {
+        auto const current = float3(m_data.volumeAbsorption);
+        if (current != volumeAbsorption)
+        {
+            m_data.volumeAbsorption = generated::float16_t3(volumeAbsorption);
+            markUpdates(UpdateFlags::DataChanged);
+        }
+    }
+
+    auto BasicMaterial::setVolumeScattering(float3 const& volumeScattering) -> void
+    {
+        auto const current = float3(m_data.volumeScattering);
+        if (current != volumeScattering)
+        {
+            m_data.volumeScattering = generated::float16_t3(volumeScattering);
+            markUpdates(UpdateFlags::DataChanged);
+        }
+    }
+
+    auto BasicMaterial::setVolumeAnisotropy(float volumeAnisotropy) -> void
+    {
+        auto const clamped = glm::clamp(volumeAnisotropy, -0.99f, 0.99f);
+        if (float(m_data.volumeAnisotropy) != clamped)
+        {
+            m_data.volumeAnisotropy = generated::float16_t(clamped);
+            markUpdates(UpdateFlags::DataChanged);
+        }
+    }
+
+    auto BasicMaterial::setDisplacementScale(float value) -> void
+    {
+        if (m_data.displacementScale != value)
+        {
+            m_data.displacementScale = value;
+            markUpdates(UpdateFlags::DataChanged | UpdateFlags::DisplacementChanged);
+        }
+    }
+
+    auto BasicMaterial::setDisplacementOffset(float value) -> void
+    {
+        if (m_data.displacementOffset != value)
+        {
+            m_data.displacementOffset = value;
+            markUpdates(UpdateFlags::DataChanged | UpdateFlags::DisplacementChanged);
+        }
+    }
+
+    auto BasicMaterial::operator==(BasicMaterial const& other) const -> bool
+    {
+        return isBaseEqual(other)
+            && m_data.flags == other.m_data.flags
+            && m_data.emissiveFactor == other.m_data.emissiveFactor
+            && float4(m_data.baseColor) == float4(other.m_data.baseColor)
+            && float4(m_data.specular) == float4(other.m_data.specular)
+            && float3(m_data.emissive) == float3(other.m_data.emissive)
+            && float(m_data.specularTransmission) == float(other.m_data.specularTransmission)
+            && float3(m_data.transmission) == float3(other.m_data.transmission)
+            && float(m_data.diffuseTransmission) == float(other.m_data.diffuseTransmission)
+            && m_data.displacementScale == other.m_data.displacementScale
+            && m_data.displacementOffset == other.m_data.displacementOffset;
+    }
+
+    auto BasicMaterial::isAlphaSupported() const -> bool
+    {
+        return enum_has_all_flags(getTextureSlotInfo(TextureSlot::BaseColor).mask, TextureChannelFlags::Alpha);
+    }
+
+    auto BasicMaterial::prepareDisplacementMapForRendering() -> void
+    {
+        m_displacementMapChanged = false;
+    }
+
+    auto BasicMaterial::adjustDoubleSidedFlag() -> void
+    {
+        auto doubleSided = Material::isDoubleSided();
+        if (getDiffuseTransmission() > 0.f || getSpecularTransmission() > 0.f)
+        {
+            doubleSided = true;
+        }
+        if (isDisplaced())
+        {
+            doubleSided = true;
+        }
+        Material::setDoubleSided(doubleSided);
+    }
+
+    auto BasicMaterial::updateAlphaMode() -> void
+    {
+        if (!isAlphaSupported())
+        {
+            return;
+        }
+
+        auto const alpha = getBaseColor().w;
+        if (!getBaseColorTexture())
+        {
+            m_alphaRange = float2(alpha);
+        }
+
+        auto const useAlpha = m_alphaRange.x < getAlphaThreshold();
+        Material::setAlphaMode(useAlpha ? generated::AlphaMode::Mask : generated::AlphaMode::Opaque);
+    }
+
+    auto BasicMaterial::updateNormalMapType() -> void
+    {
+        auto const type = detectNormalMapType(getNormalMap());
+        if (m_data.getNormalMapType() != type)
+        {
+            m_data.setNormalMapType(type);
+            markUpdates(UpdateFlags::DataChanged);
+        }
+    }
+
+    auto BasicMaterial::updateEmissiveFlag() -> void
+    {
+        auto emissive = false;
+        if (m_data.emissiveFactor > 0.0f)
+        {
+            auto const e = float3(m_data.emissive);
+            emissive = hasTextureSlotData(TextureSlot::Emissive) || e.x != 0.0f || e.y != 0.0f || e.z != 0.0f;
+        }
+
+        if (m_header.isEmissive() != emissive)
+        {
+            m_header.setEmissive(emissive);
+            markUpdates(UpdateFlags::DataChanged | UpdateFlags::EmissiveChanged);
+        }
+    }
 }

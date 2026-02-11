@@ -46,7 +46,7 @@ namespace april::graphics
         auto update(MaterialSystem* pOwner) -> MaterialUpdateFlags override;
         auto getDataBlob() const -> generated::MaterialDataBlob override;
         auto getType() const -> generated::MaterialType override;
-        auto getTypeName() const -> std::string override;
+        auto isEqual(core::ref<Material> const& pOther) const -> bool override;
         auto getTypeConformances() const -> TypeConformanceList override;
         auto getShaderModules() const -> ProgramDesc::ShaderModuleList override;
 

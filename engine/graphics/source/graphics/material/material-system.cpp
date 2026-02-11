@@ -275,11 +275,11 @@ auto MaterialSystem::update(bool forceUpdate) -> MaterialUpdateFlags
         ensureBufferCapacity(static_cast<uint32_t>(m_materials.size()));
     }
 
-    if (forceUpdate || hasFlag(updateFlags, MaterialUpdateFlags::DataChanged) || m_dirty)
+    if (forceUpdate || enum_has_any_flags(updateFlags, MaterialUpdateFlags::DataChanged) || m_dirty)
     {
         for (uint32_t i = 0; i < m_materials.size(); ++i)
         {
-            if (forceUpdate || hasFlag(m_materialsUpdateFlags[i], MaterialUpdateFlags::DataChanged) || m_dirty)
+            if (forceUpdate || enum_has_any_flags(m_materialsUpdateFlags[i], MaterialUpdateFlags::DataChanged) || m_dirty)
             {
                 uploadMaterial(i);
             }
@@ -417,7 +417,7 @@ auto MaterialSystem::getStats() const -> MaterialStats
             continue;
         }
 
-        auto const alphaMasked = (material->getFlags() & static_cast<uint32_t>(generated::MaterialFlags::AlphaTested)) != 0;
+        auto const alphaMasked = material->getAlphaMode() == generated::AlphaMode::Mask;
         if (!alphaMasked)
         {
             ++stats.materialOpaqueCount;
@@ -784,38 +784,38 @@ auto MaterialSystem::optimizeMaterials() -> uint32_t
             continue;
         }
 
-        if (length(basicMaterial->emissive) <= 0.0f && basicMaterial->emissiveTexture)
+        if (length(float3(basicMaterial->getData().emissive)) <= 0.0f && basicMaterial->getEmissiveTexture())
         {
-            basicMaterial->emissiveTexture = nullptr;
+            basicMaterial->setEmissiveTexture(nullptr);
             ++optimized;
         }
-        else if (basicMaterial->emissiveTexture)
+        else if (basicMaterial->getEmissiveTexture())
         {
-            if (m_textureAnalyzer.canPrune(basicMaterial->emissiveTexture, MaterialTextureSemantic::Emissive))
+            if (m_textureAnalyzer.canPrune(basicMaterial->getEmissiveTexture(), MaterialTextureSemantic::Emissive))
             {
-                basicMaterial->emissiveTexture = nullptr;
+                basicMaterial->setEmissiveTexture(nullptr);
                 ++optimized;
             }
         }
 
-        if (basicMaterial->specularTransmission <= 0.0f && basicMaterial->diffuseTransmission <= 0.0f && basicMaterial->transmissionTexture)
+        if (basicMaterial->getSpecularTransmission() <= 0.0f && basicMaterial->getDiffuseTransmission() <= 0.0f && basicMaterial->getTransmissionTexture())
         {
-            basicMaterial->transmissionTexture = nullptr;
+            basicMaterial->setTransmissionTexture(nullptr);
             ++optimized;
         }
 
         if (auto standardMaterial = core::dynamic_ref_cast<StandardMaterial>(material))
         {
-            if (standardMaterial->normalScale == 0.0f && standardMaterial->normalTexture)
+            if (standardMaterial->normalScale == 0.0f && standardMaterial->getNormalMap())
             {
-                standardMaterial->normalTexture = nullptr;
+                standardMaterial->setNormalMap(nullptr);
                 ++optimized;
             }
-            else if (standardMaterial->normalTexture)
+            else if (standardMaterial->getNormalMap())
             {
-                if (m_textureAnalyzer.canPrune(standardMaterial->normalTexture, MaterialTextureSemantic::Normal))
+                if (m_textureAnalyzer.canPrune(standardMaterial->getNormalMap(), MaterialTextureSemantic::Normal))
                 {
-                    standardMaterial->normalTexture = nullptr;
+                    standardMaterial->setNormalMap(nullptr);
                     ++optimized;
                 }
             }
@@ -976,19 +976,6 @@ auto MaterialSystem::uploadMaterial(uint32_t materialId) -> void
             m_cpuMaterialData[materialId] = {};
         }
         return;
-    }
-
-    if (auto basicMaterial = core::dynamic_ref_cast<BasicMaterial>(material))
-    {
-        basicMaterial->setDescriptorHandles(
-            registerTextureDescriptor(basicMaterial->baseColorTexture),
-            registerTextureDescriptor(basicMaterial->metallicRoughnessTexture),
-            registerTextureDescriptor(basicMaterial->normalTexture),
-            registerTextureDescriptor(basicMaterial->emissiveTexture),
-            registerTextureDescriptor(basicMaterial->transmissionTexture),
-            registerTextureDescriptor(basicMaterial->displacementTexture),
-            registerSamplerDescriptor(material->getDefaultTextureSampler())
-        );
     }
 
     auto const blob = material->getDataBlob();
