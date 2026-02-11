@@ -535,7 +535,7 @@ This section re-checks the same Falcor references after the latest implementatio
 The following items remain the concrete non-zero deltas after the latest destructive convergence pass:
 
 1. **TextureManager runtime integration depth is still partial**
-   - `MaterialTextureManager` now owns descriptor registration/lookup and deferred loaders are consumed inside `MaterialSystem::update()`; remaining gap is deeper Falcor-equivalent texture invalidation/analysis policy breadth.
+   - `MaterialTextureManager` now owns descriptor registration/lookup, deferred loaders are consumed inside `MaterialSystem::update()`, and replacement invalidates stale texture views; remaining gap is broader Falcor-equivalent invalidation/streaming policy depth.
    - Evidence:
      - `engine/graphics/source/graphics/material/material-texture-manager.hpp`
      - `engine/graphics/source/graphics/material/material-texture-manager.cpp`
@@ -563,7 +563,7 @@ The following items remain the concrete non-zero deltas after the latest destruc
      - `engine/graphics/source/graphics/rhi/parameter-block.cpp`
 
 5. **Material optimization path lacks Falcor-level analyzers**
-   - `removeDuplicateMaterials()` / `optimizeMaterials()` APIs now include initial texture-impact optimization rules (emissive/normal neutralization pruning), but still lack Falcor-level deep texture-analysis/rewrite passes.
+   - `removeDuplicateMaterials()` / `optimizeMaterials()` now include texture-impact optimization rules and constant-texture pruning (1x1 emissive/normal analysis), but still lack full Falcor-level deep rewrite/packing passes.
    - Evidence:
      - `engine/graphics/source/graphics/material/material-system.hpp`
      - `engine/graphics/source/graphics/material/material-system.cpp`

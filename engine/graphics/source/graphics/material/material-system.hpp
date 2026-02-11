@@ -112,6 +112,9 @@ namespace april::graphics
 
         auto setMaterialParamLayout(std::vector<MaterialParamLayoutEntry> entries) -> void;
         auto setSerializedMaterialParams(std::vector<SerializedMaterialParam> params, std::vector<uint8_t> rawData) -> void;
+        auto setUdimIndirectionBuffer(core::ref<Buffer> buffer) -> void;
+        auto setUdimIndirectionEnabled(bool enabled) -> void;
+        auto setLightProfileEnabled(bool enabled) -> void;
 
         auto removeDuplicateMaterials() -> uint32_t;
         auto optimizeMaterials() -> uint32_t;
@@ -154,6 +157,11 @@ namespace april::graphics
         core::ref<Buffer> m_serializedMaterialParamsBuffer{};
         core::ref<Buffer> m_serializedMaterialParamDataBuffer{};
         bool m_materialParamDataDirty{false};
+        bool m_useExternalParamData{false};
+
+        bool m_udimIndirectionEnabled{false};
+        bool m_lightProfileEnabled{false};
+        core::ref<Buffer> m_udimIndirectionBuffer{};
 
         mutable core::ref<ParameterBlock> m_materialsBindingBlock{};
         mutable size_t m_materialsBindingBlockByteSize{0};
@@ -162,6 +170,7 @@ namespace april::graphics
 
         auto ensureBufferCapacity(uint32_t requiredCount) -> void;
         auto updateMetadata() -> void;
+        auto rebuildInternalMaterialParamData() -> void;
         auto uploadMaterial(uint32_t materialId) -> void;
     };
 

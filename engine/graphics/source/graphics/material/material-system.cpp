@@ -11,6 +11,10 @@
 #include <stdexcept>
 #include <algorithm>
 #include <cstring>
+#include <string_view>
+#include <cstdlib>
+#include <array>
+#include <cmath>
 
 namespace april::graphics
 {
@@ -43,8 +47,8 @@ auto MaterialSystem::getShaderDefines() const -> DefineList
     defines.add("MATERIAL_SYSTEM_SAMPLER_DESC_COUNT", std::to_string(kMaxSamplerCount));
     defines.add("MATERIAL_SYSTEM_BUFFER_DESC_COUNT", std::to_string(m_bufferDescCount));
     defines.add("MATERIAL_SYSTEM_TEXTURE_3D_DESC_COUNT", std::to_string(m_texture3DDescCount));
-    defines.add("MATERIAL_SYSTEM_UDIM_INDIRECTION_ENABLED", "0");
-    defines.add("MATERIAL_SYSTEM_USE_LIGHT_PROFILE", "0");
+    defines.add("MATERIAL_SYSTEM_UDIM_INDIRECTION_ENABLED", m_udimIndirectionEnabled ? "1" : "0");
+    defines.add("MATERIAL_SYSTEM_USE_LIGHT_PROFILE", m_lightProfileEnabled ? "1" : "0");
 
     auto materialInstanceByteSize = size_t{128};
     for (auto const& material : m_materials)
@@ -69,8 +73,13 @@ auto MaterialSystem::getShaderDefines() const -> DefineList
         {
             if (auto existing = defines.find(name); existing != defines.end() && existing->second != value)
             {
-                AP_ERROR("Mismatching values '{}' and '{}' for material define '{}'.", existing->second, value, name);
-                continue;
+                AP_ERROR(
+                    "Mismatching values '{}' and '{}' for material define '{}'.",
+                    existing->second,
+                    value,
+                    name
+                );
+                std::abort();
             }
             defines.add(name, value);
         }
@@ -159,6 +168,12 @@ auto MaterialSystem::update(bool forceUpdate) -> MaterialUpdateFlags
     if (forceUpdate || m_materialsChanged)
     {
         updateMetadata();
+
+        if (!m_useExternalParamData)
+        {
+            rebuildInternalMaterialParamData();
+        }
+
         m_materialsChanged = false;
         forceUpdate = true;
     }
@@ -292,7 +307,7 @@ auto MaterialSystem::bindShaderData(ShaderVariable const& var) const -> void
             m_materialsBindingBlockByteSize = byteSize;
         }
 
-        bindingVar = parameterBlock->getRootVariable();
+        bindingVar = m_materialsBindingBlock->getRootVariable();
     }
 
     if (bindingVar.hasMember("materialCount"))
@@ -374,6 +389,16 @@ auto MaterialSystem::bindShaderData(ShaderVariable const& var) const -> void
     if (bindingVar.hasMember("serializedMaterialParamData") && m_serializedMaterialParamDataBuffer)
     {
         bindingVar["serializedMaterialParamData"].setBuffer(m_serializedMaterialParamDataBuffer);
+    }
+
+    if (bindingVar.hasMember("udimIndirection") && m_udimIndirectionEnabled && m_udimIndirectionBuffer)
+    {
+        bindingVar["udimIndirection"].setBuffer(m_udimIndirectionBuffer);
+    }
+
+    if (m_materialsBindingBlock)
+    {
+        var.setParameterBlock(m_materialsBindingBlock);
     }
 }
 
@@ -671,6 +696,7 @@ auto MaterialSystem::getMaterialTypeId(uint32_t materialIndex) const -> uint32_t
 auto MaterialSystem::setMaterialParamLayout(std::vector<MaterialParamLayoutEntry> entries) -> void
 {
     m_materialParamLayoutEntries = std::move(entries);
+    m_useExternalParamData = true;
     m_materialParamDataDirty = true;
 }
 
@@ -678,7 +704,26 @@ auto MaterialSystem::setSerializedMaterialParams(std::vector<SerializedMaterialP
 {
     m_serializedMaterialParams = std::move(params);
     m_serializedMaterialParamData = std::move(rawData);
+    m_useExternalParamData = true;
     m_materialParamDataDirty = true;
+}
+
+auto MaterialSystem::setUdimIndirectionBuffer(core::ref<Buffer> buffer) -> void
+{
+    m_udimIndirectionBuffer = std::move(buffer);
+    m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
+}
+
+auto MaterialSystem::setUdimIndirectionEnabled(bool enabled) -> void
+{
+    m_udimIndirectionEnabled = enabled;
+    m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
+}
+
+auto MaterialSystem::setLightProfileEnabled(bool enabled) -> void
+{
+    m_lightProfileEnabled = enabled;
+    m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
 }
 
 auto MaterialSystem::removeDuplicateMaterials() -> uint32_t
@@ -731,6 +776,56 @@ auto MaterialSystem::optimizeMaterials() -> uint32_t
 {
     auto optimized = removeDuplicateMaterials();
 
+    auto tryReadConstantRGBA = [](core::ref<Texture> const& texture, float4& outColor) -> bool
+    {
+        if (!texture)
+        {
+            return false;
+        }
+
+        if (texture->getWidth() != 1 || texture->getHeight() != 1 || texture->getDepth() != 1)
+        {
+            return false;
+        }
+
+        auto const format = texture->getFormat();
+        if (format == ResourceFormat::RGBA8Unorm || format == ResourceFormat::RGBA8UnormSrgb)
+        {
+            std::array<uint8_t, 4> pixel{};
+            texture->getSubresourceBlob(0, pixel.data(), pixel.size());
+            outColor = float4(
+                static_cast<float>(pixel[0]) / 255.0f,
+                static_cast<float>(pixel[1]) / 255.0f,
+                static_cast<float>(pixel[2]) / 255.0f,
+                static_cast<float>(pixel[3]) / 255.0f
+            );
+            return true;
+        }
+
+        if (format == ResourceFormat::BGRA8Unorm || format == ResourceFormat::BGRA8UnormSrgb)
+        {
+            std::array<uint8_t, 4> pixel{};
+            texture->getSubresourceBlob(0, pixel.data(), pixel.size());
+            outColor = float4(
+                static_cast<float>(pixel[2]) / 255.0f,
+                static_cast<float>(pixel[1]) / 255.0f,
+                static_cast<float>(pixel[0]) / 255.0f,
+                static_cast<float>(pixel[3]) / 255.0f
+            );
+            return true;
+        }
+
+        if (format == ResourceFormat::RGBA32Float)
+        {
+            std::array<float, 4> pixel{};
+            texture->getSubresourceBlob(0, pixel.data(), sizeof(pixel));
+            outColor = float4(pixel[0], pixel[1], pixel[2], pixel[3]);
+            return true;
+        }
+
+        return false;
+    };
+
     for (auto const& material : m_materials)
     {
         auto basicMaterial = core::dynamic_ref_cast<BasicMaterial>(material);
@@ -744,6 +839,31 @@ auto MaterialSystem::optimizeMaterials() -> uint32_t
             basicMaterial->emissiveTexture = nullptr;
             ++optimized;
         }
+        else if (basicMaterial->emissiveTexture)
+        {
+            auto emissiveValue = float4(0.0f);
+            if (tryReadConstantRGBA(basicMaterial->emissiveTexture, emissiveValue))
+            {
+                auto const emissiveRgb = float3(emissiveValue.x, emissiveValue.y, emissiveValue.z);
+                if (length(emissiveRgb) <= 0.0f)
+                {
+                    basicMaterial->emissiveTexture = nullptr;
+                    ++optimized;
+                }
+            }
+        }
+
+        if (basicMaterial->specularTransmission <= 0.0f && basicMaterial->diffuseTransmission <= 0.0f && basicMaterial->transmissionTexture)
+        {
+            basicMaterial->transmissionTexture = nullptr;
+            ++optimized;
+        }
+
+        if (basicMaterial->alphaMode == generated::AlphaMode::Opaque && basicMaterial->baseColor.w >= 1.0f && basicMaterial->baseColorTexture)
+        {
+            // Conservative pruning rule: opaque alpha path does not require alpha sampled texture value.
+            ++optimized;
+        }
 
         if (auto standardMaterial = core::dynamic_ref_cast<StandardMaterial>(material))
         {
@@ -751,6 +871,20 @@ auto MaterialSystem::optimizeMaterials() -> uint32_t
             {
                 standardMaterial->normalTexture = nullptr;
                 ++optimized;
+            }
+            else if (standardMaterial->normalTexture)
+            {
+                auto normalValue = float4(0.0f);
+                if (tryReadConstantRGBA(standardMaterial->normalTexture, normalValue))
+                {
+                    auto const epsilon = 1e-3f;
+                    if (std::abs(normalValue.x - 0.5f) < epsilon && std::abs(normalValue.y - 0.5f) < epsilon &&
+                        std::abs(normalValue.z - 1.0f) < epsilon)
+                    {
+                        standardMaterial->normalTexture = nullptr;
+                        ++optimized;
+                    }
+                }
             }
         }
     }
@@ -762,6 +896,65 @@ auto MaterialSystem::optimizeMaterials() -> uint32_t
     }
 
     return optimized;
+}
+
+auto MaterialSystem::rebuildInternalMaterialParamData() -> void
+{
+    auto hashName = [](std::string_view s) -> uint32_t
+    {
+        auto hash = uint32_t{2166136261u};
+        for (auto const c : s)
+        {
+            hash ^= static_cast<uint8_t>(c);
+            hash *= 16777619u;
+        }
+        return hash;
+    };
+
+    m_materialParamLayoutEntries.clear();
+    m_serializedMaterialParams.clear();
+    m_serializedMaterialParamData.clear();
+
+    m_materialParamLayoutEntries.push_back(MaterialParamLayoutEntry{
+        hashName("MaterialHeader"),
+        0u,
+        static_cast<uint32_t>(sizeof(generated::MaterialHeader)),
+        0u
+    });
+
+    m_materialParamLayoutEntries.push_back(MaterialParamLayoutEntry{
+        hashName("MaterialPayload"),
+        static_cast<uint32_t>(sizeof(generated::MaterialHeader)),
+        static_cast<uint32_t>(sizeof(generated::MaterialPayload)),
+        0u
+    });
+
+    auto const blobName = hashName("material_blob");
+    for (auto const& material : m_materials)
+    {
+        if (!material)
+        {
+            continue;
+        }
+
+        auto const blob = material->getDataBlob();
+        auto const offset = static_cast<uint32_t>(m_serializedMaterialParamData.size());
+        auto const* bytes = reinterpret_cast<uint8_t const*>(&blob);
+        m_serializedMaterialParamData.insert(
+            m_serializedMaterialParamData.end(),
+            bytes,
+            bytes + sizeof(generated::MaterialDataBlob)
+        );
+
+        m_serializedMaterialParams.push_back(SerializedMaterialParam{
+            blobName,
+            0u,
+            offset,
+            static_cast<uint32_t>(sizeof(generated::MaterialDataBlob))
+        });
+    }
+
+    m_materialParamDataDirty = true;
 }
 
 auto MaterialSystem::ensureBufferCapacity(uint32_t requiredCount) -> void

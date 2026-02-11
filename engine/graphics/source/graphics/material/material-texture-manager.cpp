@@ -37,6 +37,15 @@ namespace april::graphics
             return false;
         }
 
+        if (auto const& previous = m_descriptors[handle])
+        {
+            if (previous.get() != texture.get())
+            {
+                m_indicesByTexture.erase(previous.get());
+                previous->invalidateViews();
+            }
+        }
+
         m_descriptors[handle] = texture;
         m_indicesByTexture[texture.get()] = handle;
         return true;
