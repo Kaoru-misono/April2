@@ -14,11 +14,29 @@
 #include <vector>
 #include <unordered_map>
 #include <map>
+#include <cstdint>
 
 namespace april::graphics
 {
     class Device;
+    class ParameterBlock;
     class ShaderVariable;
+
+    struct MaterialParamLayoutEntry
+    {
+        uint32_t nameHash{0};
+        uint32_t offset{0};
+        uint32_t size{0};
+        uint32_t type{0};
+    };
+
+    struct SerializedMaterialParam
+    {
+        uint32_t nameHash{0};
+        uint32_t type{0};
+        uint32_t dataOffset{0};
+        uint32_t dataSize{0};
+    };
 
     struct MaterialStats
     {
@@ -75,6 +93,8 @@ namespace april::graphics
 
         auto addTexture(core::ref<Texture> texture) -> DescriptorHandle;
         auto replaceTexture(DescriptorHandle handle, core::ref<Texture> texture) -> bool;
+        auto enqueueDeferredTextureLoad(MaterialTextureManager::DeferredTextureLoader loader) -> void;
+        auto enqueueDeferredTexture3DLoad(MaterialTextureManager::DeferredTextureLoader loader) -> void;
         auto addSampler(core::ref<Sampler> sampler) -> DescriptorHandle;
         auto replaceSampler(DescriptorHandle handle, core::ref<Sampler> sampler) -> bool;
         auto addBuffer(core::ref<Buffer> buffer) -> DescriptorHandle;
@@ -89,6 +109,9 @@ namespace april::graphics
 
         auto getMaterialTypeRegistry() const -> MaterialTypeRegistry const&;
         auto getMaterialTypeId(uint32_t materialIndex) const -> uint32_t;
+
+        auto setMaterialParamLayout(std::vector<MaterialParamLayoutEntry> entries) -> void;
+        auto setSerializedMaterialParams(std::vector<SerializedMaterialParam> params, std::vector<uint8_t> rawData) -> void;
 
         auto removeDuplicateMaterials() -> uint32_t;
         auto optimizeMaterials() -> uint32_t;
@@ -123,6 +146,17 @@ namespace april::graphics
         uint32_t m_textureDescCount{1};
         uint32_t m_bufferDescCount{1};
         uint32_t m_texture3DDescCount{1};
+
+        std::vector<MaterialParamLayoutEntry> m_materialParamLayoutEntries{};
+        std::vector<SerializedMaterialParam> m_serializedMaterialParams{};
+        std::vector<uint8_t> m_serializedMaterialParamData{};
+        core::ref<Buffer> m_materialParamLayoutBuffer{};
+        core::ref<Buffer> m_serializedMaterialParamsBuffer{};
+        core::ref<Buffer> m_serializedMaterialParamDataBuffer{};
+        bool m_materialParamDataDirty{false};
+
+        mutable core::ref<ParameterBlock> m_materialsBindingBlock{};
+        mutable size_t m_materialsBindingBlockByteSize{0};
 
         static constexpr uint32_t kInitialBufferCapacity = 64;
 

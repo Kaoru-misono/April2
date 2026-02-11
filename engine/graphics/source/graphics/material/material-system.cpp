@@ -150,6 +150,12 @@ auto MaterialSystem::getMaterialCount() const -> uint32_t
 
 auto MaterialSystem::update(bool forceUpdate) -> MaterialUpdateFlags
 {
+    if (m_textureManager.resolveDeferred(kMaxTextureCount) || m_texture3DManager.resolveDeferred(kMaxTextureCount))
+    {
+        m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
+        forceUpdate = true;
+    }
+
     if (forceUpdate || m_materialsChanged)
     {
         updateMetadata();
@@ -197,6 +203,58 @@ auto MaterialSystem::update(bool forceUpdate) -> MaterialUpdateFlags
     updateFlags |= m_materialUpdates;
     m_materialUpdates = MaterialUpdateFlags::None;
 
+    if (m_materialParamDataDirty)
+    {
+        auto uploadStructured = [this](size_t elementSize, size_t elementCount, void const* data) -> core::ref<Buffer>
+        {
+            if (elementCount == 0)
+            {
+                return nullptr;
+            }
+
+            return core::make_ref<Buffer>(
+                m_device,
+                static_cast<uint32_t>(elementSize),
+                static_cast<uint32_t>(elementCount),
+                BufferUsage::ShaderResource,
+                MemoryType::Upload,
+                data,
+                false
+            );
+        };
+
+        m_materialParamLayoutBuffer = uploadStructured(
+            sizeof(MaterialParamLayoutEntry),
+            m_materialParamLayoutEntries.size(),
+            m_materialParamLayoutEntries.empty() ? nullptr : m_materialParamLayoutEntries.data()
+        );
+
+        m_serializedMaterialParamsBuffer = uploadStructured(
+            sizeof(SerializedMaterialParam),
+            m_serializedMaterialParams.size(),
+            m_serializedMaterialParams.empty() ? nullptr : m_serializedMaterialParams.data()
+        );
+
+        if (!m_serializedMaterialParamData.empty())
+        {
+            m_serializedMaterialParamDataBuffer = core::make_ref<Buffer>(
+                m_device,
+                1,
+                static_cast<uint32_t>(m_serializedMaterialParamData.size()),
+                BufferUsage::ShaderResource,
+                MemoryType::Upload,
+                m_serializedMaterialParamData.data(),
+                false
+            );
+        }
+        else
+        {
+            m_serializedMaterialParamDataBuffer = nullptr;
+        }
+
+        m_materialParamDataDirty = false;
+    }
+
     if (!m_materials.empty())
     {
         ensureBufferCapacity(static_cast<uint32_t>(m_materials.size()));
@@ -227,6 +285,13 @@ auto MaterialSystem::bindShaderData(ShaderVariable const& var) const -> void
     auto bindingVar = var;
     if (auto parameterBlock = var.getParameterBlock())
     {
+        auto const byteSize = parameterBlock->getElementSize();
+        if (!m_materialsBindingBlock || m_materialsBindingBlockByteSize != byteSize)
+        {
+            m_materialsBindingBlock = ParameterBlock::create(m_device, parameterBlock->getReflection());
+            m_materialsBindingBlockByteSize = byteSize;
+        }
+
         bindingVar = parameterBlock->getRootVariable();
     }
 
@@ -284,6 +349,31 @@ auto MaterialSystem::bindShaderData(ShaderVariable const& var) const -> void
                 bindingVar["materialTextures3D"][i].setTexture(texture);
             }
         }
+    }
+
+    if (bindingVar.hasMember("materialParamLayoutEntryCount"))
+    {
+        bindingVar["materialParamLayoutEntryCount"].set(static_cast<uint32_t>(m_materialParamLayoutEntries.size()));
+    }
+
+    if (bindingVar.hasMember("serializedMaterialParamCount"))
+    {
+        bindingVar["serializedMaterialParamCount"].set(static_cast<uint32_t>(m_serializedMaterialParams.size()));
+    }
+
+    if (bindingVar.hasMember("materialParamLayoutEntries") && m_materialParamLayoutBuffer)
+    {
+        bindingVar["materialParamLayoutEntries"].setBuffer(m_materialParamLayoutBuffer);
+    }
+
+    if (bindingVar.hasMember("serializedMaterialParamEntries") && m_serializedMaterialParamsBuffer)
+    {
+        bindingVar["serializedMaterialParamEntries"].setBuffer(m_serializedMaterialParamsBuffer);
+    }
+
+    if (bindingVar.hasMember("serializedMaterialParamData") && m_serializedMaterialParamDataBuffer)
+    {
+        bindingVar["serializedMaterialParamData"].setBuffer(m_serializedMaterialParamDataBuffer);
     }
 }
 
@@ -445,6 +535,16 @@ auto MaterialSystem::addTexture(core::ref<Texture> texture) -> DescriptorHandle
     return handle;
 }
 
+auto MaterialSystem::enqueueDeferredTextureLoad(MaterialTextureManager::DeferredTextureLoader loader) -> void
+{
+    m_textureManager.enqueueDeferred(std::move(loader));
+}
+
+auto MaterialSystem::enqueueDeferredTexture3DLoad(MaterialTextureManager::DeferredTextureLoader loader) -> void
+{
+    m_texture3DManager.enqueueDeferred(std::move(loader));
+}
+
 auto MaterialSystem::replaceTexture(DescriptorHandle handle, core::ref<Texture> texture) -> bool
 {
     if (!m_textureManager.replaceTexture(handle, texture))
@@ -568,6 +668,19 @@ auto MaterialSystem::getMaterialTypeId(uint32_t materialIndex) const -> uint32_t
     return static_cast<uint32_t>(m_cpuMaterialData[materialIndex].header.getMaterialType());
 }
 
+auto MaterialSystem::setMaterialParamLayout(std::vector<MaterialParamLayoutEntry> entries) -> void
+{
+    m_materialParamLayoutEntries = std::move(entries);
+    m_materialParamDataDirty = true;
+}
+
+auto MaterialSystem::setSerializedMaterialParams(std::vector<SerializedMaterialParam> params, std::vector<uint8_t> rawData) -> void
+{
+    m_serializedMaterialParams = std::move(params);
+    m_serializedMaterialParamData = std::move(rawData);
+    m_materialParamDataDirty = true;
+}
+
 auto MaterialSystem::removeDuplicateMaterials() -> uint32_t
 {
     auto removed = uint32_t{0};
@@ -616,7 +729,39 @@ auto MaterialSystem::removeDuplicateMaterials() -> uint32_t
 
 auto MaterialSystem::optimizeMaterials() -> uint32_t
 {
-    return removeDuplicateMaterials();
+    auto optimized = removeDuplicateMaterials();
+
+    for (auto const& material : m_materials)
+    {
+        auto basicMaterial = core::dynamic_ref_cast<BasicMaterial>(material);
+        if (!basicMaterial)
+        {
+            continue;
+        }
+
+        if (length(basicMaterial->emissive) <= 0.0f && basicMaterial->emissiveTexture)
+        {
+            basicMaterial->emissiveTexture = nullptr;
+            ++optimized;
+        }
+
+        if (auto standardMaterial = core::dynamic_ref_cast<StandardMaterial>(material))
+        {
+            if (standardMaterial->normalScale == 0.0f && standardMaterial->normalTexture)
+            {
+                standardMaterial->normalTexture = nullptr;
+                ++optimized;
+            }
+        }
+    }
+
+    if (optimized > 0)
+    {
+        m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
+        m_dirty = true;
+    }
+
+    return optimized;
 }
 
 auto MaterialSystem::ensureBufferCapacity(uint32_t requiredCount) -> void

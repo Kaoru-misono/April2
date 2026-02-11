@@ -25,6 +25,7 @@ namespace april::graphics
 
         auto enqueueDeferred(DeferredTextureLoader loader) -> void;
         auto resolveDeferred(size_t maxCount) -> bool;
+        auto hasDeferred() const -> bool;
 
         auto forEach(std::function<void(core::ref<Texture> const&)> const& visitor) const -> void;
 

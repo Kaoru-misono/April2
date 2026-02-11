@@ -98,6 +98,11 @@ namespace april::graphics
         return changed;
     }
 
+    auto MaterialTextureManager::hasDeferred() const -> bool
+    {
+        return !m_deferred.empty();
+    }
+
     auto MaterialTextureManager::forEach(std::function<void(core::ref<Texture> const&)> const& visitor) const -> void
     {
         for (auto const& texture : m_descriptors)

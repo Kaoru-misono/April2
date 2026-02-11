@@ -535,21 +535,21 @@ This section re-checks the same Falcor references after the latest implementatio
 The following items remain the concrete non-zero deltas after the latest destructive convergence pass:
 
 1. **TextureManager runtime integration depth is still partial**
-   - `MaterialTextureManager` exists and owns descriptor registration/lookup, but deferred loader flow is not yet wired into a persistent runtime update path (`enqueueDeferred()` / `resolveDeferred()` are defined but not consumed by material-system lifecycle orchestration).
+   - `MaterialTextureManager` now owns descriptor registration/lookup and deferred loaders are consumed inside `MaterialSystem::update()`; remaining gap is deeper Falcor-equivalent texture invalidation/analysis policy breadth.
    - Evidence:
      - `engine/graphics/source/graphics/material/material-texture-manager.hpp`
      - `engine/graphics/source/graphics/material/material-texture-manager.cpp`
      - `engine/graphics/source/graphics/material/material-system.cpp`
 
 2. **Material parameter layout contract is scaffolded, not end-to-end**
-   - Shader contracts for `MaterialParamLayout` and `SerializedMaterialParams` are present and referenced by material modules, but host-side marshaling, upload, and decode path is not yet fully implemented.
+   - Shader contracts for `MaterialParamLayout` and `SerializedMaterialParams` are present and host now supports marshaled layout/serialized payload upload + binding hooks (`setMaterialParamLayout()`, `setSerializedMaterialParams()`); remaining gap is full editor/asset-driven production data population.
    - Evidence:
      - `engine/graphics/shader/material/material-param-layout.slang`
      - `engine/graphics/shader/material/serialized-material-params.slang`
      - `engine/graphics/source/graphics/material/standard-material.cpp`
 
 3. **Phase-function path is contract-complete but runtime-thin**
-   - `IPhaseFunction` and isotropic/Henyey-Greenstein implementations exist, and host type-conformance injection is in place, but volumetric runtime usage breadth remains limited.
+   - `IPhaseFunction` and isotropic/Henyey-Greenstein implementations exist, host type-conformance injection is in place, and material-system runtime now exposes phase evaluation helper; remaining gap is wider volumetric pipeline consumption coverage.
    - Evidence:
      - `engine/graphics/shader/material/phase/i-phase-function.slang`
      - `engine/graphics/shader/material/phase/isotropic-phase-function.slang`
@@ -557,13 +557,13 @@ The following items remain the concrete non-zero deltas after the latest destruc
      - `engine/graphics/source/graphics/material/material-system.cpp`
 
 4. **ParameterBlock lifecycle ownership remains partial**
-   - Binding now upgrades nested parameter-block variables to root scope during bind, but `MaterialSystem` still does not own a dedicated reflected materials block object with Falcor-style create/validate/rebind lifecycle.
+   - Binding now upgrades nested parameter-block variables to root scope and `MaterialSystem` maintains a dedicated reflected materials binding block with byte-size validation/recreation; remaining gap is full decoupling so all binding writes flow through the owned block instance.
    - Evidence:
      - `engine/graphics/source/graphics/material/material-system.cpp`
      - `engine/graphics/source/graphics/rhi/parameter-block.cpp`
 
 5. **Material optimization path lacks Falcor-level analyzers**
-   - `removeDuplicateMaterials()` / `optimizeMaterials()` APIs exist, but no deep texture-analysis/material-rewrite optimization pipeline is wired yet.
+   - `removeDuplicateMaterials()` / `optimizeMaterials()` APIs now include initial texture-impact optimization rules (emissive/normal neutralization pruning), but still lack Falcor-level deep texture-analysis/rewrite passes.
    - Evidence:
      - `engine/graphics/source/graphics/material/material-system.hpp`
      - `engine/graphics/source/graphics/material/material-system.cpp`

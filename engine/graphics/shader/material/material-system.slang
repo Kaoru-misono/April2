@@ -5,6 +5,11 @@ import material.basic_material_data;
 import material.material_types;
 import material.texture_handle;
 import material.texture_sampler;
+import material.material_param_layout;
+import material.serialized_material_params;
+import material.phase.i_phase_function;
+import material.phase.isotropic_phase_function;
+import material.phase.henyey_greenstein_phase_function;
 
 #if !defined(MATERIAL_SYSTEM_TEXTURE_DESC_COUNT) || !defined(MATERIAL_SYSTEM_SAMPLER_DESC_COUNT) || !defined(MATERIAL_SYSTEM_BUFFER_DESC_COUNT)
 #error "MaterialSystem defines are not set!"
@@ -23,6 +28,11 @@ struct MaterialSystem
     ByteAddressBuffer materialBuffers[MATERIAL_SYSTEM_BUFFER_DESC_COUNT];
     Texture3D<float4> materialTextures3D[MATERIAL_SYSTEM_TEXTURE_3D_DESC_COUNT];
     StructuredBuffer<int> udimIndirection;
+    uint materialParamLayoutEntryCount;
+    uint serializedMaterialParamCount;
+    StructuredBuffer<MaterialParamLayoutEntry> materialParamLayoutEntries;
+    StructuredBuffer<SerializedMaterialParam> serializedMaterialParamEntries;
+    ByteAddressBuffer serializedMaterialParamData;
 
     uint getMaterialCount()
     {
@@ -110,6 +120,22 @@ struct MaterialSystem
     float evalIoR(const uint materialID)
     {
         return getMaterialHeader(materialID).getIoR();
+    }
+
+    float evalPhaseFunction(const uint materialID, const float cosTheta)
+    {
+        if (isBasicMaterial(materialID))
+        {
+            BasicMaterialData md = getBasicMaterialData(materialID);
+            if (any(md.volumeScattering > 0.0f) || any(md.volumeAbsorption > 0.0f))
+            {
+                HenyeyGreensteinPhaseFunction hg = HenyeyGreensteinPhaseFunction(md.volumeAnisotropy);
+                return hg.eval(cosTheta);
+            }
+        }
+
+        IsotropicPhaseFunction isotropic;
+        return isotropic.eval(cosTheta);
     }
 
     TextureHandle getResolvedTextureHandle(TextureHandle handle, inout float2 uv)

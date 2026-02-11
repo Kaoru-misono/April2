@@ -86,7 +86,7 @@ Include: `#include <graphics/material/material-system.hpp>`
 Purpose: Material registry and GPU buffer manager.
 
 Key Types: `Device`, `ShaderVariable`, `MaterialSystem`, `MaterialStats`
-Key APIs: `MaterialSystem::addMaterial()`, `MaterialSystem::update()`, `MaterialSystem::bindShaderData()`, `MaterialSystem::getTypeConformances()`, `MaterialSystem::registerTextureDescriptor()`, `MaterialSystem::registerSamplerDescriptor()`, `MaterialSystem::registerBufferDescriptor()`, `MaterialSystem::registerTexture3DDescriptor()`, `MaterialSystem::addTexture()/replaceTexture()`, `MaterialSystem::addSampler()/replaceSampler()`, `MaterialSystem::addBuffer()/replaceBuffer()`, `MaterialSystem::addTexture3D()/replaceTexture3D()`, `MaterialSystem::removeDuplicateMaterials()`, `MaterialSystem::optimizeMaterials()`, `MaterialSystem::getShaderDefines()`, `MaterialSystem::getStats()`, `MaterialTextureManager::registerTexture()/replaceTexture()/resolveDeferred()`
+Key APIs: `MaterialSystem::addMaterial()`, `MaterialSystem::update()`, `MaterialSystem::bindShaderData()`, `MaterialSystem::getTypeConformances()`, `MaterialSystem::registerTextureDescriptor()`, `MaterialSystem::registerSamplerDescriptor()`, `MaterialSystem::registerBufferDescriptor()`, `MaterialSystem::registerTexture3DDescriptor()`, `MaterialSystem::addTexture()/replaceTexture()`, `MaterialSystem::enqueueDeferredTextureLoad()`, `MaterialSystem::addSampler()/replaceSampler()`, `MaterialSystem::addBuffer()/replaceBuffer()`, `MaterialSystem::addTexture3D()/replaceTexture3D()`, `MaterialSystem::setMaterialParamLayout()`, `MaterialSystem::setSerializedMaterialParams()`, `MaterialSystem::removeDuplicateMaterials()`, `MaterialSystem::optimizeMaterials()`, `MaterialSystem::getShaderDefines()`, `MaterialSystem::getStats()`, `MaterialTextureManager::registerTexture()/replaceTexture()/resolveDeferred()`
 
 Usage Notes:
 - Call `update()` after modifying material data.
@@ -99,6 +99,7 @@ Usage Notes:
 - Shader-side `IMaterialInstance` now follows Falcor-style template signatures for eval/sample paths (`ISampleGenerator`-based), and `BSDFProperties` carries split albedo channels plus guide-normal/specular reflectance fields.
 - Shader module set now includes Falcor-style parameter serialization/layout scaffolding (`material-param-layout.slang`, `serialized-material-params.slang`) for future host parity wiring.
 - Phase-function conformance files live at `engine/graphics/shader/material/phase/*.slang`; host injects `IPhaseFunction` conformances via `MaterialSystem::getTypeConformances()`.
+- Material system now exposes host-side parameter-layout payload wiring for shader contracts (`materialParamLayoutEntries`, serialized param entries/data) and consumes deferred texture loaders during update lifecycle.
 - Use `getStats()` to retrieve Falcor-style material/texture statistics.
 
 Used By: `scene`

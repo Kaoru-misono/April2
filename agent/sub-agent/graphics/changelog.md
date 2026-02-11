@@ -17,6 +17,8 @@
   - Introduced `MaterialTextureManager` abstraction in host material path and routed texture descriptor ownership through it (including deferred-loader queue support scaffold).
   - Added phase-function shader contract files (`IPhaseFunction`, isotropic, Henyey-Greenstein) and injected corresponding host type conformances from `MaterialSystem`.
   - Improved material binding lifecycle to upgrade through nested parameter-block root variables when binding shader data.
+  - Wired deferred texture loader resolution into `MaterialSystem::update()`, added host marshaling/upload hooks for `MaterialParamLayout` and `SerializedMaterialParams`, and extended material optimization with initial texture-impact pruning rules.
+  - Added owned reflected material binding-block lifecycle state in `MaterialSystem` (size tracking + recreation on reflection mismatch) and shader-side phase evaluation helper for volumetric phase usage.
 - GRAPHICS-MATERIAL-628 follow-up parity fixes:
   - Removed shader-side `StandardMaterialData` usage; shader pipeline now consistently uses `MaterialDataBlob` + `BasicMaterialData`.
   - Added/activated `texture-handle.slang` and split `basic-material-data.slang`; material payload fields now map to Falcor-style texture handle sampling (`sampleTexture(TextureHandle, ...)`).
