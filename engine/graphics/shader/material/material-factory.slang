@@ -1,4 +1,4 @@
-// Material factory extensions on MaterialSystemContext.
+// Material factory extensions on MaterialSystem.
 
 import material.material_types;
 import material.material_data;
@@ -9,13 +9,13 @@ import material.shading_data;
 import material.texture_sampler;
 import material.material_instance_hints;
 
-extension MaterialSystemContext
+extension MaterialSystem
 {
     [ForceInline]
     IMaterial getMaterial(const uint materialID)
     {
-        MaterialType type = MaterialType(materials[materialID].header.materialType);
-        return createDynamicObject<IMaterial, uint>(int(type), materialID);
+        MaterialType type = getMaterialType(materialID);
+        return createDynamicObject<IMaterial, MaterialDataBlob>(int(type), getMaterialDataBlob(materialID));
     }
 
     [ForceInline]

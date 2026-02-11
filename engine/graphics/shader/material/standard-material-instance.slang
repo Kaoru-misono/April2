@@ -2,6 +2,7 @@
 
 import material.material_types;
 import material.material_data;
+import material.basic_material_data;
 import material.shading_data;
 import material.i_material_instance;
 import material.standard_bsdf;
@@ -52,16 +53,18 @@ struct Float3SampleGenerator : ISampleGenerator
     }
 };
 
-struct StandardMaterialInstance : IMaterialInstance
+struct StandardMaterialInstance : MaterialInstanceBase, IMaterialInstance
 {
-    StandardMaterialData data;
+    MaterialHeader header;
+    BasicMaterialData data;
     float3 sampledBaseColor;
     float3 sampledEmissive;
     float sampledMetallic;
     float sampledRoughness;
 
-    __init(StandardMaterialData data_, float3 baseColor, float3 emissive, float metallic, float roughness)
+    __init(MaterialHeader header_, BasicMaterialData data_, float3 baseColor, float3 emissive, float metallic, float roughness)
     {
+        header = header_;
         data = data_;
         sampledBaseColor = baseColor;
         sampledEmissive = emissive;
@@ -69,54 +72,47 @@ struct StandardMaterialInstance : IMaterialInstance
         sampledRoughness = roughness;
     }
 
-    MaterialType getType()
-    {
-        return MaterialType(data.header.materialType);
-    }
-
     IBSDF getBSDF(ShadingData sd)
     {
         float3 wi = sd.toLocal(sd.V);
 
-        StandardMaterialData mtlData = data;
-        mtlData.metallic = sampledMetallic;
-        mtlData.roughness = sampledRoughness;
+        BasicMaterialData mtlData = data;
+        mtlData.specular.g = sampledRoughness;
+        mtlData.specular.b = sampledMetallic;
 
         StandardBSDFData bsdfData = createStandardBSDFData(mtlData, sampledBaseColor, sd);
-        return StandardBSDF(wi, data.header, bsdfData);
+        return StandardBSDF(wi, header, bsdfData);
     }
 
-    float3 eval(ShadingData sd, float3 wo)
+    float3 eval<S : ISampleGenerator>(ShadingData sd, float3 wo, inout S sg)
     {
         float3 wi = sd.toLocal(sd.V);
         float3 woLocal = sd.toLocal(wo);
         IBSDF bsdf = getBSDF(sd);
-        DummySampleGenerator sg;
         BSDFContext bc;
         return bsdf.eval(wi, woLocal, sg, bc);
     }
 
-    float3 evalAD(DiffMaterialData diffData, ShadingData sd, float3 wo)
+    float3 evalAD<S : ISampleGenerator>(DiffMaterialData diffData, ShadingData sd, float3 wo, inout S sg)
     {
-        return eval(sd, wo);
+        return eval(sd, wo, sg);
     }
 
-    bool sample(ShadingData sd, float3 u, out float3 wo, out float pdf, out float3 weight, out uint lobeType)
+    bool sample<S : ISampleGenerator>(ShadingData sd, inout S sg, out BSDFSample result, bool useImportanceSampling = true)
     {
         float3 wi = sd.toLocal(sd.V);
         IBSDF bsdf = getBSDF(sd);
-        Float3SampleGenerator sg = Float3SampleGenerator(u);
         BSDFContext bc;
         float3 woLocal = float3(0.0f);
-        pdf = 0.0f;
-        weight = float3(0.0f);
-        lobeType = (uint)LobeType::None;
-        bool valid = bsdf.sample(wi, woLocal, pdf, weight, lobeType, sg, bc);
-        wo = sd.toWorld(woLocal);
+        result.pdf = 0.0f;
+        result.weight = float3(0.0f);
+        result.lobeType = (uint)LobeType::None;
+        bool valid = bsdf.sample(wi, woLocal, result.pdf, result.weight, result.lobeType, sg, bc);
+        result.wo = sd.toWorld(woLocal);
         return valid;
     }
 
-    float evalPdf(ShadingData sd, float3 wo)
+    float evalPdf(ShadingData sd, float3 wo, bool useImportanceSampling = true)
     {
         float3 wi = sd.toLocal(sd.V);
         float3 woLocal = sd.toLocal(wo);
@@ -130,46 +126,23 @@ struct StandardMaterialInstance : IMaterialInstance
         BSDFProperties p;
         p.emission = sampledEmissive;
         p.roughness = sampledRoughness;
-        p.albedo = getAlbedo(sd);
-        p.flags = 0;
+        p.guideNormal = sd.N;
+        p.diffuseReflectionAlbedo = lerp(sampledBaseColor, float3(0.0f), sampledMetallic);
+        p.diffuseTransmissionAlbedo = float3(0.0f);
+        p.specularReflectionAlbedo = lerp(float3(0.04f), sampledBaseColor, sampledMetallic);
+        p.specularTransmissionAlbedo = float3(data.specularTransmission) * data.transmission;
+        p.specularReflectance = p.specularReflectionAlbedo;
+        p.flags = data.specularTransmission > 0.0f || data.diffuseTransmission > 0.0f ? (uint)BSDFProperties::Flags::IsTransmissive : 0u;
         return p;
     }
 
     uint getLobeTypes(ShadingData sd)
     {
-        StandardMaterialData mtlData = data;
-        mtlData.metallic = sampledMetallic;
-        mtlData.roughness = sampledRoughness;
+        BasicMaterialData mtlData = data;
+        mtlData.specular.g = sampledRoughness;
+        mtlData.specular.b = sampledMetallic;
         StandardBSDFData bsdfData = createStandardBSDFData(mtlData, sampledBaseColor, sd);
         return StandardBSDF::getLobeTypes(bsdfData);
     }
 
-    bool hasVolumeProperties()
-    {
-        return false;
-    }
-
-    VolumeProperties getVolumeProperties()
-    {
-        VolumeProperties p;
-        p.sigmaA = 0.0f;
-        p.sigmaS = 0.0f;
-        p.g = 0.0f;
-        return p;
-    }
-
-    float3 getEmission(ShadingData sd)
-    {
-        return sampledEmissive;
-    }
-
-    float3 getAlbedo(ShadingData sd)
-    {
-        return lerp(sampledBaseColor, float3(0.0f), sampledMetallic);
-    }
-
-    float getRoughness(ShadingData sd)
-    {
-        return sampledRoughness;
-    }
 };

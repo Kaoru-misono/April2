@@ -2,6 +2,7 @@
 
 import material.material_types;
 import material.material_data;
+import material.basic_material_data;
 import material.shading_data;
 import material.material_system;
 import material.i_material;
@@ -12,56 +13,42 @@ import material.standard_material_instance;
 
 struct StandardMaterial : IMaterial
 {
-    uint materialID;
+    MaterialDataBlob materialBlob;
     typedef StandardMaterialInstance MaterialInstance;
 
-    __init(uint materialID_)
+    __init(MaterialDataBlob materialBlob_)
     {
-        materialID = materialID_;
+        materialBlob = materialBlob_;
     }
 
     MaterialType getType()
     {
-        return MaterialType::Standard;
+        return materialBlob.header.getMaterialType();
     }
 
     StandardMaterialInstance setupMaterialInstance(
-        const MaterialSystemContext ms,
+        const MaterialSystem ms,
         const ShadingData sd,
         const ITextureSampler lod,
         uint hints = (uint)MaterialInstanceHints::None
     )
     {
-        StandardMaterialData data = ms.getMaterialData(materialID);
-        SamplerState sampler = ms.getMaterialSampler(data);
+        BasicMaterialData data = reinterpret<BasicMaterialData, MaterialPayload>(materialBlob.payload);
+        SamplerState sampler = ms.getTextureSampler(materialBlob.header.getDefaultTextureSamplerID());
 
-        float4 baseColor = data.baseColor;
-        if ((data.header.flags & (uint)MaterialFlags.HasTextures) != 0)
-        {
-            baseColor *= ms.sampleMaterialTexture(data.baseColorTextureHandle, sampler, sd.uv, lod);
-        }
+        float4 baseColor = ms.sampleTexture(data.texBaseColor, sampler, sd.uv, float4(data.baseColor), lod);
+        float4 specular = ms.sampleTexture(data.texSpecular, sampler, sd.uv, float4(data.specular), lod);
+        float3 emissive = ms.sampleTexture(data.texEmissive, sampler, sd.uv, float4(data.emissive, 1.0f), lod).rgb * data.emissiveFactor;
 
-        float metallic = data.metallic;
-        float roughness = data.roughness;
-        if ((data.header.flags & (uint)MaterialFlags.HasTextures) != 0)
-        {
-            float4 mrSample = ms.sampleMaterialTexture(data.metallicRoughnessTextureHandle, sampler, sd.uv, lod);
-            roughness *= mrSample.g;
-            metallic *= mrSample.b;
-        }
+        float metallic = saturate(specular.b);
+        float roughness = saturate(specular.g);
 
-        float3 emissive = data.emissive;
-        if ((data.header.flags & (uint)MaterialFlags.Emissive) != 0)
-        {
-            emissive *= ms.sampleMaterialTexture(data.emissiveTextureHandle, sampler, sd.uv, lod).rgb;
-        }
-
-        return StandardMaterialInstance(data, baseColor.rgb, emissive, metallic, roughness);
+        return StandardMaterialInstance(materialBlob.header, data, baseColor.rgb, emissive, metallic, roughness);
     }
 
     StandardMaterialInstance setupDiffMaterialInstance(
         out DiffMaterialData diffData,
-        const MaterialSystemContext ms,
+        const MaterialSystem ms,
         const ShadingData sd,
         const ITextureSampler lod,
         uint hints = (uint)MaterialInstanceHints::None
@@ -71,12 +58,13 @@ struct StandardMaterial : IMaterial
         return setupMaterialInstance(ms, sd, lod, hints);
     }
 
-    VolumeProperties getHomogeneousVolumeProperties(const MaterialSystemContext ms, const uint materialID)
+    VolumeProperties getHomogeneousVolumeProperties(const MaterialSystem ms, const uint materialID)
     {
+        BasicMaterialData data = reinterpret<BasicMaterialData, MaterialPayload>(materialBlob.payload);
         VolumeProperties p;
-        p.sigmaA = 0.0f;
-        p.sigmaS = 0.0f;
-        p.g = 0.0f;
+        p.sigmaA = data.volumeAbsorption;
+        p.sigmaS = data.volumeScattering;
+        p.g = data.volumeAnisotropy;
         return p;
     }
 };

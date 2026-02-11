@@ -1,7 +1,7 @@
-// Material header/blob layout aligned with Falcor MaterialData.slang.
+// Shared material header/blob layout for codegen.
 
-import material.material_types;
-import material.texture_handle;
+import material_types;
+import texture_handle;
 
 uint PACK_BITS(uint numBits, uint offset, uint value, uint field)
 {
@@ -42,10 +42,6 @@ struct MaterialHeader
     static const uint kDeltaSpecularFlagOffset = kEnableLightProfileOffset + 1;
 
     static const uint kIoROffset = 0;
-    static const uint kTotalHeaderBitsX = kIsBasicMaterialFlagOffset + 1;
-    static const uint kTotalHeaderBitsY = kDeltaSpecularFlagOffset + 1;
-    static const uint kTotalHeaderBitsZ = kIoROffset + kIoRBits;
-    static const uint kTotalHeaderBitsW = 0;
 
     [mutating]
     void setMaterialType(MaterialType type) { packedData.x = PACK_BITS(kMaterialTypeBits, kMaterialTypeOffset, packedData.x, uint(type)); }

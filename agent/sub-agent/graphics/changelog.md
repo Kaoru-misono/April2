@@ -1,12 +1,41 @@
 # Graphics Changelog
 
 ## Unreleased
-- Added material ABI versioning in `MaterialHeader` (`abiVersion` + reserved fields) and expanded layout checks in generated C++ headers to guard size/offset compatibility.
+- GRAPHICS-MATERIAL-629 zero-delta parity execution:
+  - Introduced shared Slang codegen schemas under `engine/graphics/shader/shared/material/*.shared.slang` and switched generation to produce Falcor-style generated contracts (`MaterialHeader`, `MaterialDataBlob`, `BasicMaterialData`, `TextureHandle`).
+  - Removed `AlphaMode::Blend` from generated/shared material type contract to match Falcor header bit budget (`kAlphaModeBits = 1`); host import paths now normalize `BLEND` to `MASK` during migration.
+  - Updated material instance hint contract to Falcor-compatible semantics (`DisableNormalMapping`, `AdjustShadingNormal`) and helper predicates.
+  - Reworked scene-material binding path so scene shader consumes `ParameterBlock<MaterialSystem> materials` and host binds through `MaterialSystem::bindShaderData()` instead of manually binding standalone material texture/sampler arrays in `SceneRenderer`.
+  - Extended `MaterialSystem` Falcor-style define emission (`MATERIAL_SYSTEM_*` set, dynamic `FALCOR_MATERIAL_INSTANCE_SIZE`, define conflict checks) and metadata behavior (`dynamic` material subset updates, cached module/conformance aggregation).
+  - Added host 3D texture descriptor registration/access APIs and shader-side strict define checks for optional material-system channels (`MATERIAL_SYSTEM_TEXTURE_3D_DESC_COUNT`, `MATERIAL_SYSTEM_UDIM_INDIRECTION_ENABLED`, `MATERIAL_SYSTEM_USE_LIGHT_PROFILE`).
+  - Added Falcor-style resource mutation entry points on host material system (`add*/replace*` for texture/sampler/buffer/texture3D), each marking `ResourcesChanged`.
+  - Tightened shader contract enforcement by requiring host-injected `FALCOR_MATERIAL_INSTANCE_SIZE` in `i-material-instance.slang`.
+  - Realigned shader `IMaterialInstance` contract and BSDF property payload toward Falcor style: template-based `eval/sample` signatures with sample generators, canonical BSDF property fields (guide normal + split albedo terms + specular reflectance), and scene pass updated to consume the new interface.
+  - Material type registry extension allocation now uses monotonic IDs with lock protection and explicit `kMaterialTypeBits` budget guarding.
+  - Applied destructive parity convergence: removed active Unlit material path (host/shader files and runtime creation branch), dropped asset `materialType` dispatch metadata from `MaterialAsset`, and removed JSON serialization APIs from `IMaterial` contract.
+  - Added Falcor-style material utility hooks in host `MaterialSystem` (`removeDuplicateMaterials()`, `optimizeMaterials()`) and introduced shader-side param-layout scaffolding files (`material-param-layout.slang`, `serialized-material-params.slang`) to close contract-shape gaps.
+  - Introduced `MaterialTextureManager` abstraction in host material path and routed texture descriptor ownership through it (including deferred-loader queue support scaffold).
+  - Added phase-function shader contract files (`IPhaseFunction`, isotropic, Henyey-Greenstein) and injected corresponding host type conformances from `MaterialSystem`.
+  - Improved material binding lifecycle to upgrade through nested parameter-block root variables when binding shader data.
+- GRAPHICS-MATERIAL-628 follow-up parity fixes:
+  - Removed shader-side `StandardMaterialData` usage; shader pipeline now consistently uses `MaterialDataBlob` + `BasicMaterialData`.
+  - Added/activated `texture-handle.slang` and split `basic-material-data.slang`; material payload fields now map to Falcor-style texture handle sampling (`sampleTexture(TextureHandle, ...)`).
+  - Material dynamic dispatch now uses `createDynamicObject<IMaterial, MaterialDataBlob>` in `material-factory.slang`.
+  - Host upload path now stores `generated::MaterialDataBlob` in `MaterialSystem` (replacing `generated::StandardMaterialData`) and updates descriptor binding order for BasicMaterial textures.
+  - Removed local header adapter `material-header-accessors.hpp`; bit-packed header access is sourced directly from Slang-generated contracts.
+- GRAPHICS-MATERIAL-628: Material framework host path was re-aligned to Falcor-style lifecycle and responsibilities:
+  - `IMaterial` now uses `update(MaterialSystem*)` + `getDataBlob()` as the primary update/dataflow API.
+  - `IMaterial` now supports update callback registration and default texture sampler ownership (`registerUpdateCallback()`, `setDefaultTextureSampler()`).
+  - `MaterialSystem` now uses Falcor-style `update(forceUpdate)` + per-material update aggregation and `bindShaderData()`.
+  - Removed host `MaterialSystemConfig`/`MaterialSystemDiagnostics` path; replaced with Falcor-style `MaterialStats` and fixed descriptor limits (`kMaxSamplerCount`, `kMaxTextureCount`).
+  - Shader define contract moved to `MATERIAL_SYSTEM_TEXTURE_DESC_COUNT`, `MATERIAL_SYSTEM_SAMPLER_DESC_COUNT`, `MATERIAL_SYSTEM_BUFFER_DESC_COUNT`.
+  - Descriptor overflow behavior is fail-fast (throw) rather than clamp-to-zero adaptation.
+  - Added `texture-handle.slang` as Falcor-style texture handle abstraction scaffold.
+  - `StandardMaterialData` layout updated to include `transmissionTextureHandle` and remove legacy buffer/reserved descriptor fields.
 - Extended `MaterialSystem` with descriptor-table registration/access APIs for textures, samplers, and buffers; `StandardMaterialData` now carries descriptor handles with safe fallback to invalid handle `0`.
 - Added host material-type registry and extension path (`Standard`, `Unlit`) plus shader-side material factory/instance flow for interface-based forward shading.
 - Inspector now exposes material debug surface values (GPU material index, material type name/id) through render resource mapping APIs.
 - Added `Program::validateConformancesPreflight()` to detect missing `IMaterialInstance` conformances before shader link (warning-only).
-- Descriptor table capacities are now host-configurable via `MaterialSystemConfig` and synchronized to shaders via `MATERIAL_TEXTURE_TABLE_SIZE`, `MATERIAL_SAMPLER_TABLE_SIZE`, `MATERIAL_BUFFER_TABLE_SIZE` defines.
 - Added `MaterialSystem::getDiagnostics()` for material count by type, descriptor usage/capacity, and overflow counters.
 - Inspector now shows Material System diagnostics section with descriptor usage and overflow warnings.
 - Added `MaterialUpdateFlags` and per-material dirty tracking (`isDirty()`, `markDirty()`, `clearDirty()`) for selective GPU updates.

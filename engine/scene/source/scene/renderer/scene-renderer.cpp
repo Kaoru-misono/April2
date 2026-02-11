@@ -4,13 +4,11 @@
 #include <graphics/material/standard-material.hpp>
 #include <graphics/rhi/depth-stencil-state.hpp>
 
+#include <algorithm>
 #include <cstdlib>
 
 namespace april::scene
 {
-    static constexpr uint32_t kMaterialTextureTableSize = 128;
-    static constexpr uint32_t kMaterialSamplerTableSize = 8;
-
     SceneRenderer::SceneRenderer(core::ref<graphics::Device> device, asset::AssetManager* assetManager)
         : m_device(std::move(device))
         , m_resources(m_device, assetManager)
@@ -43,8 +41,6 @@ namespace april::scene
             auto const shaderModules = materialSystem->getShaderModules();
             progDesc.addShaderModules(shaderModules);
             programDefines.add(materialSystem->getShaderDefines());
-            // Enforce material instance storage budget expected by shader interfaces.
-            programDefines.add("FALCOR_MATERIAL_INSTANCE_SIZE", "256");
 
             auto const typeConformances = materialSystem->getTypeConformances();
             progDesc.addTypeConformances(typeConformances);
@@ -199,7 +195,7 @@ namespace april::scene
         auto* materialSystem = m_resources.getMaterialSystem();
         if (materialSystem)
         {
-            materialSystem->updateGpuBuffers();
+            materialSystem->update();
         }
 
         pContext->resourceBarrier(m_sceneColor.get(), graphics::Resource::State::RenderTarget);
@@ -238,37 +234,12 @@ namespace april::scene
         rootVar["perFrame"]["viewProj"].setBlob(&m_viewProjectionMatrix, sizeof(float4x4));
         rootVar["perFrame"]["cameraPos"].setBlob(&m_cameraPosition, sizeof(float3));
 
-        // Bind material data buffer
+        // Bind full material-system data/resources.
         auto* materialSystem = m_resources.getMaterialSystem();
-        if (materialSystem && materialSystem->getMaterialDataBuffer())
-        {
-            rootVar["materials"].setBuffer(materialSystem->getMaterialDataBuffer());
-        }
 
-        for (uint32_t textureIndex = 0; textureIndex < kMaterialTextureTableSize; ++textureIndex)
+        if (materialSystem)
         {
-            auto texture = m_defaultWhiteTexture;
-            if (materialSystem && textureIndex != 0)
-            {
-                if (auto registered = materialSystem->getTextureDescriptorResource(textureIndex))
-                {
-                    texture = registered;
-                }
-            }
-            rootVar["materialTextures"][textureIndex].setTexture(texture);
-        }
-
-        for (uint32_t samplerIndex = 0; samplerIndex < kMaterialSamplerTableSize; ++samplerIndex)
-        {
-            auto sampler = m_defaultSampler;
-            if (materialSystem && samplerIndex != 0)
-            {
-                if (auto registered = materialSystem->getSamplerDescriptorResource(samplerIndex))
-                {
-                    sampler = registered;
-                }
-            }
-            rootVar["materialSamplers"][samplerIndex].setSampler(sampler);
+            materialSystem->bindShaderData(rootVar["materials"]);
         }
 
         auto warnMissingSlot = [&](RenderID meshId, uint32_t slotIndex)

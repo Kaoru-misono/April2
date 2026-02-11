@@ -11,13 +11,9 @@ import material.shading_utils;
 import material.texture_sampler;
 import material.material_instance_hints;
 
-// Descriptor table capacities - host-provided via defines, with defaults.
-#ifndef MATERIAL_TEXTURE_TABLE_SIZE
-#define MATERIAL_TEXTURE_TABLE_SIZE 128
-#endif
-
-#ifndef MATERIAL_SAMPLER_TABLE_SIZE
-#define MATERIAL_SAMPLER_TABLE_SIZE 8
+// Material system defines must be injected from host.
+#if !defined(MATERIAL_SYSTEM_TEXTURE_DESC_COUNT) || !defined(MATERIAL_SYSTEM_SAMPLER_DESC_COUNT) || !defined(MATERIAL_SYSTEM_BUFFER_DESC_COUNT)
+#error "MaterialSystem defines are not set!"
 #endif
 
 struct VSIn
@@ -52,10 +48,13 @@ struct PerInstance
 
 ParameterBlock<PerFrame> perFrame;
 ParameterBlock<PerInstance> perInstance;
-StructuredBuffer<StandardMaterialData> materials;
+ParameterBlock<MaterialSystem> materials;
 
-Texture2D materialTextures[kMaterialTextureTableSize];
-SamplerState materialSamplers[kMaterialSamplerTableSize];
+struct SceneDummySampleGenerator : ISampleGenerator
+{
+    float next1D() { return 0.5f; }
+    float2 next2D() { return float2(0.5f, 0.5f); }
+};
 
 [shader("vertex")]
 VSOut vsMain(VSIn input)
@@ -72,12 +71,7 @@ VSOut vsMain(VSIn input)
 [shader("fragment")]
 float4 psMain(VSOut input, bool isFrontFace : SV_IsFrontFace) : SV_Target
 {
-    MaterialSystemContext materialSystem;
-    materialSystem.materials = materials;
-    materialSystem.materialTextures = materialTextures;
-    materialSystem.materialSamplers = materialSamplers;
-
-    StandardMaterialData mtl = materialSystem.getMaterialData(perInstance.materialIndex);
+    MaterialHeader mtl = materials.getMaterialHeader(perInstance.materialIndex);
 
     float3 N = normalize(input.normal);
     float3 V = normalize(perFrame.cameraPos - input.worldPos);
@@ -91,19 +85,21 @@ float4 psMain(VSOut input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         N,
         isFrontFace,
         perInstance.materialIndex,
-        mtl.header,
+        mtl,
         1.0f
     );
 
     ImplicitLodTextureSampler lod;
-    IMaterialInstance materialInstance = materialSystem.getMaterialInstance(sd, lod, (uint)MaterialInstanceHints::None);
-    float3 baseAlbedo = materialInstance.getAlbedo(sd);
-    float roughness = materialInstance.getRoughness(sd);
-    float3 emissive = materialInstance.getEmission(sd);
+    IMaterialInstance materialInstance = materials.getMaterialInstance(sd, lod, (uint)MaterialInstanceHints::None);
+    BSDFProperties props = materialInstance.getProperties(sd);
+    float3 baseAlbedo = props.albedo;
+    float roughness = props.roughness;
+    float3 emissive = props.emission;
 
     // Basic PBR lighting
     float3 L = normalize(float3(1.0, 1.0, 1.0));  // Fixed directional light
-    float3 bsdf = materialInstance.eval(sd, L);
+    SceneDummySampleGenerator sg;
+    float3 bsdf = materialInstance.eval(sd, L, sg);
 
     // Ambient
     float3 ambient = baseAlbedo * 0.03;

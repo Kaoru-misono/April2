@@ -2,8 +2,92 @@
 
 #include "program/shader-variable.hpp"
 
+#include <array>
+
 namespace april::graphics
 {
+    namespace
+    {
+        auto makeTextureHandle(uint32_t descriptorHandle) -> generated::TextureHandle
+        {
+            auto handle = generated::TextureHandle{};
+            if (descriptorHandle != 0)
+            {
+                handle.setTextureID(descriptorHandle);
+            }
+            return handle;
+        }
+
+        auto kTextureSlotInfos = std::array<IMaterial::TextureSlotInfo, static_cast<size_t>(IMaterial::TextureSlot::Count)>{
+            IMaterial::TextureSlotInfo{"baseColor", TextureChannelFlags::Red | TextureChannelFlags::Green | TextureChannelFlags::Blue | TextureChannelFlags::Alpha, true},
+            IMaterial::TextureSlotInfo{"specular", TextureChannelFlags::Red | TextureChannelFlags::Green | TextureChannelFlags::Blue, false},
+            IMaterial::TextureSlotInfo{"emissive", TextureChannelFlags::Red | TextureChannelFlags::Green | TextureChannelFlags::Blue, true},
+            IMaterial::TextureSlotInfo{"normal", TextureChannelFlags::Red | TextureChannelFlags::Green, false},
+            IMaterial::TextureSlotInfo{"transmission", TextureChannelFlags::Red, false},
+            IMaterial::TextureSlotInfo{"displacement", TextureChannelFlags::Red, false},
+        };
+    }
+
+    auto BasicMaterial::update(MaterialSystem* pOwner) -> MaterialUpdateFlags
+    {
+        (void)pOwner;
+        return consumeUpdates();
+    }
+
+    auto BasicMaterial::getTextureSlotInfo(TextureSlot slot) const -> TextureSlotInfo const&
+    {
+        auto const slotIndex = static_cast<size_t>(slot);
+        if (slotIndex >= kTextureSlotInfos.size())
+        {
+            return getDisabledTextureSlotInfo();
+        }
+        return kTextureSlotInfos[slotIndex];
+    }
+
+    auto BasicMaterial::setTexture(TextureSlot slot, core::ref<Texture> texture) -> bool
+    {
+        switch (slot)
+        {
+        case TextureSlot::BaseColor:
+            baseColorTexture = std::move(texture);
+            break;
+        case TextureSlot::Specular:
+            metallicRoughnessTexture = std::move(texture);
+            break;
+        case TextureSlot::Emissive:
+            emissiveTexture = std::move(texture);
+            break;
+        case TextureSlot::Normal:
+            normalTexture = std::move(texture);
+            break;
+        case TextureSlot::Transmission:
+            transmissionTexture = std::move(texture);
+            break;
+        case TextureSlot::Displacement:
+            displacementTexture = std::move(texture);
+            break;
+        default:
+            return false;
+        }
+
+        markUpdates(MaterialUpdateFlags::ResourcesChanged);
+        return true;
+    }
+
+    auto BasicMaterial::getTexture(TextureSlot slot) const -> core::ref<Texture>
+    {
+        switch (slot)
+        {
+        case TextureSlot::BaseColor: return baseColorTexture;
+        case TextureSlot::Specular: return metallicRoughnessTexture;
+        case TextureSlot::Emissive: return emissiveTexture;
+        case TextureSlot::Normal: return normalTexture;
+        case TextureSlot::Transmission: return transmissionTexture;
+        case TextureSlot::Displacement: return displacementTexture;
+        default: return nullptr;
+        }
+    }
+
     auto BasicMaterial::bindTextures(ShaderVariable& var) const -> void
     {
         if (baseColorTexture && var.hasMember("baseColorTexture"))
@@ -21,14 +105,19 @@ namespace april::graphics
             var["normalTexture"].setTexture(normalTexture);
         }
 
-        if (occlusionTexture && var.hasMember("occlusionTexture"))
-        {
-            var["occlusionTexture"].setTexture(occlusionTexture);
-        }
-
         if (emissiveTexture && var.hasMember("emissiveTexture"))
         {
             var["emissiveTexture"].setTexture(emissiveTexture);
+        }
+
+        if (transmissionTexture && var.hasMember("transmissionTexture"))
+        {
+            var["transmissionTexture"].setTexture(transmissionTexture);
+        }
+
+        if (displacementTexture && var.hasMember("displacementTexture"))
+        {
+            var["displacementTexture"].setTexture(displacementTexture);
         }
     }
 
@@ -37,8 +126,9 @@ namespace april::graphics
         return baseColorTexture != nullptr
             || metallicRoughnessTexture != nullptr
             || normalTexture != nullptr
-            || occlusionTexture != nullptr
-            || emissiveTexture != nullptr;
+            || emissiveTexture != nullptr
+            || transmissionTexture != nullptr
+            || displacementTexture != nullptr;
     }
 
     auto BasicMaterial::getFlags() const -> uint32_t
@@ -73,7 +163,7 @@ namespace april::graphics
         if (m_doubleSided != doubleSided)
         {
             m_doubleSided = doubleSided;
-            markDirty(MaterialUpdateFlags::DataChanged);
+            markUpdates(MaterialUpdateFlags::DataChanged);
         }
     }
 
@@ -84,86 +174,52 @@ namespace april::graphics
 
     auto BasicMaterial::setDescriptorHandles(
         uint32_t baseColorTextureHandle,
-        uint32_t metallicRoughnessTextureHandle,
+        uint32_t specularTextureHandle,
         uint32_t normalTextureHandle,
-        uint32_t occlusionTextureHandle,
         uint32_t emissiveTextureHandle,
-        uint32_t samplerHandle,
-        uint32_t bufferHandle
+        uint32_t transmissionTextureHandle,
+        uint32_t displacementTextureHandle,
+        uint32_t samplerHandle
     ) -> void
     {
         m_baseColorTextureHandle = baseColorTextureHandle;
-        m_metallicRoughnessTextureHandle = metallicRoughnessTextureHandle;
+        m_specularTextureHandle = specularTextureHandle;
         m_normalTextureHandle = normalTextureHandle;
-        m_occlusionTextureHandle = occlusionTextureHandle;
         m_emissiveTextureHandle = emissiveTextureHandle;
+        m_transmissionTextureHandle = transmissionTextureHandle;
+        m_displacementTextureHandle = displacementTextureHandle;
         m_samplerHandle = samplerHandle;
-        m_bufferHandle = bufferHandle;
     }
 
-    auto BasicMaterial::writeCommonData(generated::StandardMaterialData& data) const -> void
+    auto BasicMaterial::writeCommonData(generated::BasicMaterialData& data) const -> void
     {
-        data.header.abiVersion = generated::kMaterialAbiVersion;
-        data.header.flags = getFlags();
-        data.header.alphaMode = static_cast<uint32_t>(alphaMode);
-        data.header.reserved0 = 0;
-        data.header.reserved1 = 0;
-        data.header.reserved2 = 0;
+        data.flags = 0;
+        data.emissiveFactor = 1.0f;
 
         data.baseColor = baseColor;
-        data.ior = ior;
+        data.specular = float4{0.0f, 0.5f, 0.0f, 0.0f};
         data.specularTransmission = specularTransmission;
         data.emissive = emissive;
         data.diffuseTransmission = diffuseTransmission;
         data.transmission = transmission;
-        data.alphaCutoff = alphaCutoff;
 
-        data.baseColorTextureHandle = m_baseColorTextureHandle;
-        data.metallicRoughnessTextureHandle = m_metallicRoughnessTextureHandle;
-        data.normalTextureHandle = m_normalTextureHandle;
-        data.occlusionTextureHandle = m_occlusionTextureHandle;
-        data.emissiveTextureHandle = m_emissiveTextureHandle;
-        data.samplerHandle = m_samplerHandle;
-        data.bufferHandle = m_bufferHandle;
-        data.reservedDescriptorHandle = 0;
+        data.volumeScattering = float3{0.0f, 0.0f, 0.0f};
+        data.volumeAbsorption = float3{0.0f, 0.0f, 0.0f};
+        data.volumeAnisotropy = 0.0f;
+
+        data.displacementScale = 0.0f;
+        data.displacementOffset = 0.0f;
+
+        data.texBaseColor = makeTextureHandle(m_baseColorTextureHandle);
+        data.texSpecular = makeTextureHandle(m_specularTextureHandle);
+        data.texEmissive = makeTextureHandle(m_emissiveTextureHandle);
+        data.texNormalMap = makeTextureHandle(m_normalTextureHandle);
+        data.texTransmission = makeTextureHandle(m_transmissionTextureHandle);
+        data.texDisplacementMap = makeTextureHandle(m_displacementTextureHandle);
+
+        data.setNormalMapType(m_normalTextureHandle != 0 ? generated::NormalMapType::RG : generated::NormalMapType::None);
+        data.setDisplacementMinSamplerID(m_samplerHandle);
+        data.setDisplacementMaxSamplerID(m_samplerHandle);
     }
 
-    auto BasicMaterial::serializeCommonParameters(nlohmann::json& outJson) const -> void
-    {
-        outJson["baseColor"] = baseColor;
-        outJson["ior"] = ior;
-        outJson["specularTransmission"] = specularTransmission;
-        outJson["emissive"] = emissive;
-        outJson["diffuseTransmission"] = diffuseTransmission;
-        outJson["transmission"] = transmission;
-        outJson["alphaCutoff"] = alphaCutoff;
-        outJson["doubleSided"] = m_doubleSided;
-
-        switch (alphaMode)
-        {
-        case generated::AlphaMode::Opaque: outJson["alphaMode"] = "OPAQUE"; break;
-        case generated::AlphaMode::Mask: outJson["alphaMode"] = "MASK"; break;
-        case generated::AlphaMode::Blend: outJson["alphaMode"] = "BLEND"; break;
-        }
-    }
-
-    auto BasicMaterial::deserializeCommonParameters(nlohmann::json const& inJson) -> void
-    {
-        if (inJson.contains("baseColor")) baseColor = inJson["baseColor"].get<float4>();
-        if (inJson.contains("ior")) ior = inJson["ior"].get<float>();
-        if (inJson.contains("specularTransmission")) specularTransmission = inJson["specularTransmission"].get<float>();
-        if (inJson.contains("emissive")) emissive = inJson["emissive"].get<float3>();
-        if (inJson.contains("diffuseTransmission")) diffuseTransmission = inJson["diffuseTransmission"].get<float>();
-        if (inJson.contains("transmission")) transmission = inJson["transmission"].get<float3>();
-        if (inJson.contains("alphaCutoff")) alphaCutoff = inJson["alphaCutoff"].get<float>();
-        if (inJson.contains("doubleSided")) m_doubleSided = inJson["doubleSided"].get<bool>();
-
-        if (inJson.contains("alphaMode"))
-        {
-            auto const mode = inJson["alphaMode"].get<std::string>();
-            if (mode == "OPAQUE") alphaMode = generated::AlphaMode::Opaque;
-            else if (mode == "MASK") alphaMode = generated::AlphaMode::Mask;
-            else if (mode == "BLEND") alphaMode = generated::AlphaMode::Blend;
-        }
-    }
 }

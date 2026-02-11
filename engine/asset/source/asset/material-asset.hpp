@@ -19,7 +19,7 @@ namespace april::asset
         float alphaCutoff{0.5f};
 
         // Render State
-        std::string alphaMode{"OPAQUE"};  // "OPAQUE", "MASK", "BLEND"
+        std::string alphaMode{"OPAQUE"};  // "OPAQUE", "MASK"
         bool doubleSided{false};
     };
 
@@ -51,9 +51,6 @@ namespace april::asset
     {
     public:
         MaterialAsset() : Asset(AssetType::Material) {}
-
-        // Material type name (e.g., "Standard", "Unlit") - explicit metadata, not path-derived.
-        std::string materialType{"Standard"};
 
         MaterialParameters parameters{};
         MaterialTextures textures{};

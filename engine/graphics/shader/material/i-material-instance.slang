@@ -4,6 +4,7 @@ import material.shading_data;
 import material.material_types;
 import material.bsdf.i_bsdf;
 import material.bsdf.bsdf_sample;
+import material.bsdf.sample_generator;
 import material.material_instance_hints;
 
 struct DiffMaterialData
@@ -27,30 +28,40 @@ struct BSDFSample
 };
 
 #ifndef FALCOR_MATERIAL_INSTANCE_SIZE
-#define FALCOR_MATERIAL_INSTANCE_SIZE 256
+#error Missing FALCOR_MATERIAL_INSTANCE_SIZE
 #endif
 
 [anyValueSize(FALCOR_MATERIAL_INSTANCE_SIZE)]
 interface IMaterialInstance
 {
-    MaterialType getType();
+    float3 eval<S : ISampleGenerator>(ShadingData sd, float3 wo, inout S sg);
+    float3 evalAD<S : ISampleGenerator>(DiffMaterialData diffData, ShadingData sd, float3 wo, inout S sg);
 
-    IBSDF getBSDF(ShadingData sd);
+    bool sample<S : ISampleGenerator>(ShadingData sd, inout S sg, out BSDFSample result, bool useImportanceSampling = true);
 
-    float3 eval(ShadingData sd, float3 wo);
-    float3 evalAD(DiffMaterialData diffData, ShadingData sd, float3 wo);
-
-    bool sample(ShadingData sd, float3 u, out float3 wo, out float pdf, out float3 weight, out uint lobeType);
-
-    float evalPdf(ShadingData sd, float3 wo);
+    float evalPdf(ShadingData sd, float3 wo, bool useImportanceSampling = true);
 
     BSDFProperties getProperties(ShadingData sd);
     uint getLobeTypes(ShadingData sd);
 
     bool hasVolumeProperties();
     VolumeProperties getVolumeProperties();
+};
 
-    float3 getEmission(ShadingData sd);
-    float3 getAlbedo(ShadingData sd);
-    float getRoughness(ShadingData sd);
+[open]
+struct MaterialInstanceBase
+{
+    bool hasVolumeProperties()
+    {
+        return false;
+    }
+
+    VolumeProperties getVolumeProperties()
+    {
+        VolumeProperties result;
+        result.sigmaA = 0.0f;
+        result.sigmaS = 0.0f;
+        result.g = 0.0f;
+        return result;
+    }
 };

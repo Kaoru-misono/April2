@@ -7,4 +7,4 @@ version = 0.1.0
 public = core, asset
 
 [codegen]
-cmd = python scripts/slang-codegen.py --input-dir shader/material --output-dir source/graphics/generated/material
+cmd = python scripts/slang-codegen.py --shared-input-dir shader/shared/material --shared-shader-output-dir shader/material/generated --shared-cpp-output-dir source/graphics/generated/material

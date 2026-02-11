@@ -1,4 +1,4 @@
-# Graphics Public Interfaces
+﻿# Graphics Public Interfaces
 
 ## Purpose
 Rendering and RHI abstractions plus materials and shader program support.
@@ -54,13 +54,13 @@ Include: `#include <graphics/material/i-material.hpp>`
 Purpose: Material interface for GPU data and texture bindings.
 
 Key Types: `ShaderVariable`, `Texture`, `IMaterial`, `MaterialUpdateFlags`
-Key APIs: `IMaterial::writeData(...)`, `IMaterial::bindTextures(...)`, `IMaterial::getTypeConformances()`, `IMaterial::getFlags()`, `IMaterial::getTypeName()`, `IMaterial::isDirty()`, `IMaterial::markDirty()`, `IMaterial::clearDirty()`, `IMaterial::serializeParameters()`, `IMaterial::deserializeParameters()`
+Key APIs: `IMaterial::update(...)`, `IMaterial::getDataBlob()`, `IMaterial::registerUpdateCallback(...)`, `IMaterial::setDefaultTextureSampler(...)`, `IMaterial::getDefaultTextureSampler()`, `IMaterial::setTexture(...)`, `IMaterial::getTexture(...)`, `IMaterial::getTextureSlotInfo(...)`, `IMaterial::getTypeConformances()`, `IMaterial::getDefines()`
 
 Usage Notes:
 - Implement this interface for new material types.
 - Use with `MaterialSystem` to populate GPU buffers.
-- Call `markDirty()` when material properties change; `MaterialSystem::updateGpuBuffers()` clears dirty flags after upload.
-- Use `serializeParameters()` / `deserializeParameters()` for JSON round-trip in editor/tooling.
+- Material update flow is Falcor-style: edits mark update flags, and `MaterialSystem::update()` consumes per-material updates and uploads changed data.
+- `IMaterial` no longer exposes JSON serialization APIs; runtime contract stays strictly render-facing.
 
 Used By: `scene`
 
@@ -68,10 +68,10 @@ Used By: `scene`
 Location: `engine/graphics/source/graphics/material/basic-material.hpp`
 Include: `#include <graphics/material/basic-material.hpp>`
 
-Purpose: Shared host-side base implementation for non-layered material behavior (flags, texture slots, descriptor handles, and common serialization) aligned with Falcor BasicMaterial architecture.
+Purpose: Shared host-side base implementation for non-layered material behavior (flags, texture slots, descriptor handles, and common data wiring) aligned with Falcor BasicMaterial architecture.
 
 Key Types: `BasicMaterial`
-Key APIs: `BasicMaterial::bindTextures(...)`, `BasicMaterial::setDescriptorHandles(...)`, `BasicMaterial::writeCommonData(...)`, `BasicMaterial::serializeCommonParameters(...)`, `BasicMaterial::deserializeCommonParameters(...)`
+Key APIs: `BasicMaterial::bindTextures(...)`, `BasicMaterial::setDescriptorHandles(...)`, `BasicMaterial::writeCommonData(...)`
 
 Usage Notes:
 - Derive concrete materials (for example `StandardMaterial`) from this base instead of duplicating common payload/texture logic.
@@ -85,16 +85,21 @@ Include: `#include <graphics/material/material-system.hpp>`
 
 Purpose: Material registry and GPU buffer manager.
 
-Key Types: `Device`, `ShaderVariable`, `MaterialSystem`, `MaterialSystemConfig`, `MaterialSystemDiagnostics`
-Key APIs: `MaterialSystem::addMaterial()`, `MaterialSystem::updateGpuBuffers()`, `MaterialSystem::bindToShader()`, `MaterialSystem::getTypeConformances()`, `MaterialSystem::registerTextureDescriptor()`, `MaterialSystem::registerSamplerDescriptor()`, `MaterialSystem::registerBufferDescriptor()`, `MaterialSystem::getShaderDefines()`, `MaterialSystem::getDiagnostics()`
+Key Types: `Device`, `ShaderVariable`, `MaterialSystem`, `MaterialStats`
+Key APIs: `MaterialSystem::addMaterial()`, `MaterialSystem::update()`, `MaterialSystem::bindShaderData()`, `MaterialSystem::getTypeConformances()`, `MaterialSystem::registerTextureDescriptor()`, `MaterialSystem::registerSamplerDescriptor()`, `MaterialSystem::registerBufferDescriptor()`, `MaterialSystem::registerTexture3DDescriptor()`, `MaterialSystem::addTexture()/replaceTexture()`, `MaterialSystem::addSampler()/replaceSampler()`, `MaterialSystem::addBuffer()/replaceBuffer()`, `MaterialSystem::addTexture3D()/replaceTexture3D()`, `MaterialSystem::removeDuplicateMaterials()`, `MaterialSystem::optimizeMaterials()`, `MaterialSystem::getShaderDefines()`, `MaterialSystem::getStats()`, `MaterialTextureManager::registerTexture()/replaceTexture()/resolveDeferred()`
 
 Usage Notes:
-- Call `updateGpuBuffers()` after modifying material data.
-- Material GPU ABI uses `generated::MaterialHeader` with `abiVersion` and reserved words for forward-compatible layout growth.
+- Call `update()` after modifying material data.
+- Material GPU ABI uses Falcor-style `generated::MaterialDataBlob` (`MaterialHeader` 16B bit-packed + `MaterialPayload` 112B).
 - Descriptor handles use `MaterialSystem::DescriptorHandle`, with `kInvalidDescriptorHandle` as the fallback for missing resources.
 - Material type metadata is exposed through `MaterialTypeRegistry` (`resolveTypeId()`, `resolveTypeName()`) and per-material lookup via `MaterialSystem::getMaterialTypeId()`.
-- Constructor accepts optional `MaterialSystemConfig` to set descriptor table capacities; call `getShaderDefines()` when compiling material-aware shaders to synchronize capacities.
-- Use `getDiagnostics()` to retrieve material counts by type, descriptor usage/capacity, and overflow statistics.
+- Descriptor capacities are computed from material metadata and fixed Falcor-style limits; call `getShaderDefines()` to sync shader compilation contract.
+- `bindShaderData()` is the single host authority for binding material-system resources (`materialCount`, `materialData`, descriptor arrays) to shader variables.
+- Shader-side material contracts now require host-provided `FALCOR_MATERIAL_INSTANCE_SIZE` and `MATERIAL_SYSTEM_*` define set (including optional 3D/UDIM/light-profile toggles).
+- Shader-side `IMaterialInstance` now follows Falcor-style template signatures for eval/sample paths (`ISampleGenerator`-based), and `BSDFProperties` carries split albedo channels plus guide-normal/specular reflectance fields.
+- Shader module set now includes Falcor-style parameter serialization/layout scaffolding (`material-param-layout.slang`, `serialized-material-params.slang`) for future host parity wiring.
+- Phase-function conformance files live at `engine/graphics/shader/material/phase/*.slang`; host injects `IPhaseFunction` conformances via `MaterialSystem::getTypeConformances()`.
+- Use `getStats()` to retrieve Falcor-style material/texture statistics.
 
 Used By: `scene`
 
@@ -102,11 +107,12 @@ Used By: `scene`
 Location: `engine/graphics/source/graphics/material/*`, `engine/graphics/shader/material/*`
 
 Steps:
-- Add host material class implementing `IMaterial` (example: `UnlitMaterial`).
+- Add host material class implementing `IMaterial` only when it maps to Falcor material architecture contracts.
 - Register/resolve stable type id through `MaterialTypeRegistry` in `MaterialSystem`.
-- Keep file layout Falcor-aligned: split `i-material.slang` / `i-material-instance.slang`, split `standard-material.slang` / `standard-material-instance.slang`, and split `unlit-material.slang` / `unlit-material-instance.slang`.
+- Update shared Slang schema in `engine/graphics/shader/shared/material/*.shared.slang` when changing exported ABI contracts, then regenerate headers via module codegen.
+- Keep file layout Falcor-aligned: split `i-material.slang` / `i-material-instance.slang`, and keep material implementation files aligned to active Falcor material families.
 - Add Slang material object implementing `IMaterial` plus a material instance implementing `IMaterialInstance`.
-- Route instance creation through `MaterialSystem` dynamic dispatch (`createDynamicObject<IMaterial, StandardMaterialData>`) and extension-style factory helpers in `material-factory.slang`.
+- Route instance creation through `MaterialSystem` dynamic dispatch (`createDynamicObject<IMaterial, MaterialDataBlob>`) and extension-style factory helpers in `material-factory.slang`.
 - Use `texture-sampler.slang` + `material-instance-hints.slang` contracts for `(sd, lod, hints)` instance construction signatures.
 - Ensure host `getTypeConformances()` contributes `<Type, IMaterial>` and `<TypeInstance, IMaterialInstance>` mappings and `getShaderModules()` supplies type-deduplicated module list.
 
@@ -326,3 +332,4 @@ Usage Notes:
 - Create with a `VertexLayout` and vertex/index buffers, then bind in render pass.
 
 Used By: `editor`
+

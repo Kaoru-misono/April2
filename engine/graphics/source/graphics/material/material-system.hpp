@@ -1,8 +1,9 @@
-// MaterialSystem - Manages materials and GPU buffers for rendering.
+// MaterialSystem - Falcor-aligned material system core.
 
 #pragma once
 
 #include "i-material.hpp"
+#include "material-texture-manager.hpp"
 #include "material-type-registry.hpp"
 #include "rhi/buffer.hpp"
 #include "rhi/sampler.hpp"
@@ -19,118 +20,46 @@ namespace april::graphics
     class Device;
     class ShaderVariable;
 
-    /**
-     * Descriptor table configuration for the material system.
-     * These values must match between host and shader.
-     */
-    struct MaterialSystemConfig
+    struct MaterialStats
     {
-        uint32_t textureTableSize = 128;
-        uint32_t samplerTableSize = 8;
-        uint32_t bufferTableSize = 16;
+        uint64_t materialTypeCount = 0;
+        uint64_t materialCount = 0;
+        uint64_t materialOpaqueCount = 0;
+        uint64_t materialMemoryInBytes = 0;
+        uint64_t textureCount = 0;
+        uint64_t textureCompressedCount = 0;
+        uint64_t textureTexelCount = 0;
+        uint64_t textureTexelChannelCount = 0;
+        uint64_t textureMemoryInBytes = 0;
     };
 
-    /**
-     * Material system diagnostics for debugging and profiling.
-     */
-    struct MaterialSystemDiagnostics
-    {
-        uint32_t totalMaterialCount = 0;
-        uint32_t standardMaterialCount = 0;
-        uint32_t unlitMaterialCount = 0;
-        uint32_t otherMaterialCount = 0;
-
-        uint32_t textureDescriptorCount = 0;
-        uint32_t textureDescriptorCapacity = 0;
-        uint32_t samplerDescriptorCount = 0;
-        uint32_t samplerDescriptorCapacity = 0;
-        uint32_t bufferDescriptorCount = 0;
-        uint32_t bufferDescriptorCapacity = 0;
-
-        uint32_t textureOverflowCount = 0;
-        uint32_t samplerOverflowCount = 0;
-        uint32_t bufferOverflowCount = 0;
-        uint32_t invalidHandleCount = 0;
-    };
-
-    /**
-     * Material system for managing materials and their GPU data.
-     *
-     * Responsibilities:
-     * - Store and manage all materials
-     * - Maintain GPU buffer with material data
-     * - Aggregate type conformances from all materials
-     * - Bind material data to shaders
-     */
     class MaterialSystem : public core::Object
     {
         APRIL_OBJECT(MaterialSystem)
     public:
-        explicit MaterialSystem(core::ref<Device> device, MaterialSystemConfig config = {});
+        static constexpr size_t kMaxSamplerCount = 1ull << 8;
+        static constexpr size_t kMaxTextureCount = 1ull << 30;
+
+        explicit MaterialSystem(core::ref<Device> device);
         ~MaterialSystem() override = default;
 
-        /**
-         * Get shader defines for descriptor table capacities.
-         * Pass these to shader compilation to synchronize host/shader limits.
-         */
         auto getShaderDefines() const -> DefineList;
 
-        /**
-         * Get configuration for this material system.
-         */
-        auto getConfig() const -> MaterialSystemConfig const& { return m_config; }
-
-        /**
-         * Get current diagnostics snapshot.
-         */
-        auto getDiagnostics() const -> MaterialSystemDiagnostics;
-
-        /**
-         * Add a material to the system.
-         * @param material Material to add.
-         * @return Index of the material in the GPU buffer.
-         */
         auto addMaterial(core::ref<IMaterial> material) -> uint32_t;
-
-        /**
-         * Remove a material from the system.
-         * @param index Index of the material to remove.
-         */
         auto removeMaterial(uint32_t index) -> void;
-
-        /**
-         * Get a material by index.
-         * @param index Material index.
-         * @return Material at the given index, or null if not found.
-         */
         auto getMaterial(uint32_t index) const -> core::ref<IMaterial>;
-
-        /**
-         * Get the total number of materials.
-         */
         auto getMaterialCount() const -> uint32_t;
 
-        /**
-         * Update GPU buffers with current material data.
-         * Call this after modifying material properties.
-         */
-        auto updateGpuBuffers() -> void;
+        auto update(bool forceUpdate = false) -> MaterialUpdateFlags;
+        auto bindShaderData(ShaderVariable const& var) const -> void;
 
-        /**
-         * Bind material data buffer to a shader variable.
-         * @param var Shader variable for the material data buffer.
-         */
-        auto bindToShader(ShaderVariable& var) const -> void;
-
-        /**
-         * Get the material data buffer.
-         */
+        auto getStats() const -> MaterialStats;
         auto getMaterialDataBuffer() const -> core::ref<Buffer>;
+        auto getTextureDescriptorCount() const -> uint32_t { return m_textureDescCount; }
+        auto getSamplerDescriptorCount() const -> uint32_t { return static_cast<uint32_t>(kMaxSamplerCount); }
+        auto getBufferDescriptorCount() const -> uint32_t { return m_bufferDescCount; }
+        auto getTexture3DDescriptorCount() const -> uint32_t { return m_texture3DDescCount; }
 
-        /**
-         * Get aggregated type conformances from all materials.
-         * Call this when setting up shader compilation.
-         */
         auto getTypeConformances() const -> TypeConformanceList;
         auto getTypeConformances(generated::MaterialType type) const -> TypeConformanceList;
         auto getShaderModules() const -> ProgramDesc::ShaderModuleList;
@@ -142,67 +71,64 @@ namespace april::graphics
         auto registerTextureDescriptor(core::ref<Texture> texture) -> DescriptorHandle;
         auto registerSamplerDescriptor(core::ref<Sampler> sampler) -> DescriptorHandle;
         auto registerBufferDescriptor(core::ref<Buffer> buffer) -> DescriptorHandle;
+        auto registerTexture3DDescriptor(core::ref<Texture> texture) -> DescriptorHandle;
+
+        auto addTexture(core::ref<Texture> texture) -> DescriptorHandle;
+        auto replaceTexture(DescriptorHandle handle, core::ref<Texture> texture) -> bool;
+        auto addSampler(core::ref<Sampler> sampler) -> DescriptorHandle;
+        auto replaceSampler(DescriptorHandle handle, core::ref<Sampler> sampler) -> bool;
+        auto addBuffer(core::ref<Buffer> buffer) -> DescriptorHandle;
+        auto replaceBuffer(DescriptorHandle handle, core::ref<Buffer> buffer) -> bool;
+        auto addTexture3D(core::ref<Texture> texture) -> DescriptorHandle;
+        auto replaceTexture3D(DescriptorHandle handle, core::ref<Texture> texture) -> bool;
 
         auto getTextureDescriptorResource(DescriptorHandle handle) const -> core::ref<Texture>;
         auto getSamplerDescriptorResource(DescriptorHandle handle) const -> core::ref<Sampler>;
         auto getBufferDescriptorResource(DescriptorHandle handle) const -> core::ref<Buffer>;
+        auto getTexture3DDescriptorResource(DescriptorHandle handle) const -> core::ref<Texture>;
+
         auto getMaterialTypeRegistry() const -> MaterialTypeRegistry const&;
         auto getMaterialTypeId(uint32_t materialIndex) const -> uint32_t;
 
-        /**
-         * Mark the system as needing an update.
-         * Called automatically when materials are added/removed.
-         */
-        auto markDirty() -> void;
-
-        /**
-         * Check if the system needs updating.
-         */
-        auto isDirty() const -> bool;
+        auto removeDuplicateMaterials() -> uint32_t;
+        auto optimizeMaterials() -> uint32_t;
 
     private:
         core::ref<Device> m_device;
-        MaterialSystemConfig m_config{};
+        core::ref<Sampler> m_defaultTextureSampler{};
 
         std::vector<core::ref<IMaterial>> m_materials;
         std::unordered_map<IMaterial*, uint32_t> m_materialIndices;
 
         core::ref<Buffer> m_materialDataBuffer;
-        std::vector<generated::StandardMaterialData> m_cpuMaterialData;
+        std::vector<generated::MaterialDataBlob> m_cpuMaterialData;
         MaterialTypeRegistry m_materialTypeRegistry{};
 
-        std::vector<core::ref<Texture>> m_textureDescriptors;
         std::vector<core::ref<Sampler>> m_samplerDescriptors;
         std::vector<core::ref<Buffer>> m_bufferDescriptors;
-        std::unordered_map<Texture*, DescriptorHandle> m_textureDescriptorIndices;
+        MaterialTextureManager m_textureManager{};
+        MaterialTextureManager m_texture3DManager{};
         std::unordered_map<Sampler*, DescriptorHandle> m_samplerDescriptorIndices;
         std::unordered_map<Buffer*, DescriptorHandle> m_bufferDescriptorIndices;
 
-        // Overflow tracking for diagnostics.
-        mutable uint32_t m_textureOverflowCount{0};
-        mutable uint32_t m_samplerOverflowCount{0};
-        mutable uint32_t m_bufferOverflowCount{0};
-        mutable uint32_t m_invalidHandleCount{0};
-
+        std::vector<MaterialUpdateFlags> m_materialsUpdateFlags;
+        std::vector<uint32_t> m_dynamicMaterialIndices;
+        MaterialUpdateFlags m_materialUpdates{MaterialUpdateFlags::None};
+        bool m_materialsChanged{true};
         bool m_dirty{true};
-        mutable bool m_codeCacheDirty{true};
 
         mutable std::map<generated::MaterialType, TypeConformanceList> m_typeConformancesByType;
         mutable ProgramDesc::ShaderModuleList m_shaderModules;
 
+        uint32_t m_textureDescCount{1};
+        uint32_t m_bufferDescCount{1};
+        uint32_t m_texture3DDescCount{1};
+
         static constexpr uint32_t kInitialBufferCapacity = 64;
 
         auto ensureBufferCapacity(uint32_t requiredCount) -> void;
-        auto writeMaterialData(uint32_t index) -> void;
-        auto rebuildMaterialData() -> void;
-        auto validateAndClampDescriptorHandle(
-            uint32_t& handle,
-            uint32_t maxCount,
-            uint32_t& overflowCounter,
-            uint32_t materialIndex,
-            char const* slotName
-        ) const -> void;
-        auto rebuildCodeCache() const -> void;
+        auto updateMetadata() -> void;
+        auto uploadMaterial(uint32_t materialId) -> void;
     };
 
 } // namespace april::graphics

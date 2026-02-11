@@ -15,7 +15,7 @@ interface IMaterial
     MaterialType getType();
 
     MaterialInstance setupMaterialInstance(
-        const MaterialSystemContext ms,
+        const MaterialSystem ms,
         const ShadingData sd,
         const ITextureSampler lod,
         uint hints = (uint)MaterialInstanceHints::None
@@ -23,11 +23,11 @@ interface IMaterial
 
     MaterialInstance setupDiffMaterialInstance(
         out DiffMaterialData diffData,
-        const MaterialSystemContext ms,
+        const MaterialSystem ms,
         const ShadingData sd,
         const ITextureSampler lod,
         uint hints = (uint)MaterialInstanceHints::None
     );
 
-    VolumeProperties getHomogeneousVolumeProperties(const MaterialSystemContext ms, const uint materialID);
+    VolumeProperties getHomogeneousVolumeProperties(const MaterialSystem ms, const uint materialID);
 };

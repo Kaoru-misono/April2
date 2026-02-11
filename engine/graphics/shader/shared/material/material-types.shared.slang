@@ -1,5 +1,4 @@
-// Material type definitions for the April Engine material system.
-// Based on NVIDIA Falcor's material system architecture.
+// Shared material type definitions for codegen.
 
 // @export-cpp
 enum class LobeType : uint

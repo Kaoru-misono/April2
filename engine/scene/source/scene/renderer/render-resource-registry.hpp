@@ -9,7 +9,6 @@
 #include <core/log/logger.hpp>
 #include <graphics/material/material-system.hpp>
 #include <graphics/material/standard-material.hpp>
-#include <graphics/material/unlit-material.hpp>
 #include <graphics/resources/static-mesh.hpp>
 #include <graphics/rhi/render-device.hpp>
 

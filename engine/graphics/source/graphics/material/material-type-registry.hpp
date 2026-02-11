@@ -2,6 +2,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <mutex>
 
 namespace april::graphics
 {
@@ -22,7 +23,7 @@ namespace april::graphics
     private:
         std::unordered_map<std::string, MaterialTypeId> m_typeIdsByName{};
         std::unordered_map<MaterialTypeId, std::string> m_typeNamesById{};
-
-        static auto hashTypeName(std::string const& typeName) -> MaterialTypeId;
+        MaterialTypeId m_nextExtensionTypeId{1};
+        mutable std::mutex m_mutex{};
     };
 }

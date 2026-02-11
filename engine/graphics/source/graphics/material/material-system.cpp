@@ -3,120 +3,80 @@
 #include "material-system.hpp"
 #include "basic-material.hpp"
 #include "standard-material.hpp"
-#include "unlit-material.hpp"
 #include "program/shader-variable.hpp"
+#include "rhi/parameter-block.hpp"
 #include "rhi/render-device.hpp"
 
-#include <core/log/logger.hpp>
-#include <core/error/assert.hpp>
 #include <format>
 #include <stdexcept>
+#include <algorithm>
+#include <cstring>
 
 namespace april::graphics
 {
 
-MaterialSystem::MaterialSystem(core::ref<Device> device, MaterialSystemConfig config)
+MaterialSystem::MaterialSystem(core::ref<Device> device)
     : m_device(std::move(device))
-    , m_config(config)
 {
     m_materials.reserve(kInitialBufferCapacity);
     m_cpuMaterialData.reserve(kInitialBufferCapacity);
 
-    m_textureDescriptors.emplace_back();
     m_samplerDescriptors.emplace_back();
     m_bufferDescriptors.emplace_back();
+
+    if (m_device)
+    {
+        m_defaultTextureSampler = m_device->getDefaultSampler();
+    }
 
     m_materialTypeRegistry.registerBuiltIn(
         "Standard",
         static_cast<uint32_t>(generated::MaterialType::Standard)
     );
-    m_materialTypeRegistry.registerBuiltIn(
-        "Unlit",
-        static_cast<uint32_t>(generated::MaterialType::Unlit)
-    );
-
-    AP_INFO("MaterialSystem: initialized with texture={}, sampler={}, buffer={} table capacities",
-        m_config.textureTableSize, m_config.samplerTableSize, m_config.bufferTableSize);
 }
 
 auto MaterialSystem::getShaderDefines() const -> DefineList
 {
     auto defines = DefineList{};
-    defines["MATERIAL_TEXTURE_TABLE_SIZE"] = std::to_string(m_config.textureTableSize);
-    defines["MATERIAL_SAMPLER_TABLE_SIZE"] = std::to_string(m_config.samplerTableSize);
-    defines["MATERIAL_BUFFER_TABLE_SIZE"] = std::to_string(m_config.bufferTableSize);
-    // Match IMaterialInstance anyValueSize constraint for dynamic object storage.
-    defines["FALCOR_MATERIAL_INSTANCE_SIZE"] = "256";
-    return defines;
-}
 
-auto MaterialSystem::getDiagnostics() const -> MaterialSystemDiagnostics
-{
-    auto diag = MaterialSystemDiagnostics{};
+    defines.add("MATERIAL_SYSTEM_TEXTURE_DESC_COUNT", std::to_string(m_textureDescCount));
+    defines.add("MATERIAL_SYSTEM_SAMPLER_DESC_COUNT", std::to_string(kMaxSamplerCount));
+    defines.add("MATERIAL_SYSTEM_BUFFER_DESC_COUNT", std::to_string(m_bufferDescCount));
+    defines.add("MATERIAL_SYSTEM_TEXTURE_3D_DESC_COUNT", std::to_string(m_texture3DDescCount));
+    defines.add("MATERIAL_SYSTEM_UDIM_INDIRECTION_ENABLED", "0");
+    defines.add("MATERIAL_SYSTEM_USE_LIGHT_PROFILE", "0");
 
-    diag.totalMaterialCount = static_cast<uint32_t>(m_materials.size());
+    auto materialInstanceByteSize = size_t{128};
+    for (auto const& material : m_materials)
+    {
+        if (!material)
+        {
+            continue;
+        }
+        materialInstanceByteSize = std::max(materialInstanceByteSize, material->getMaterialInstanceByteSize());
+    }
+    defines.add("FALCOR_MATERIAL_INSTANCE_SIZE", std::to_string(materialInstanceByteSize));
 
     for (auto const& material : m_materials)
     {
-        if (!material) continue;
+        if (!material)
+        {
+            continue;
+        }
 
-        if (core::dynamic_ref_cast<StandardMaterial>(material))
+        auto materialDefines = material->getDefines();
+        for (auto const& [name, value] : materialDefines)
         {
-            ++diag.standardMaterialCount;
-        }
-        else if (core::dynamic_ref_cast<UnlitMaterial>(material))
-        {
-            ++diag.unlitMaterialCount;
-        }
-        else
-        {
-            ++diag.otherMaterialCount;
+            if (auto existing = defines.find(name); existing != defines.end() && existing->second != value)
+            {
+                AP_ERROR("Mismatching values '{}' and '{}' for material define '{}'.", existing->second, value, name);
+                continue;
+            }
+            defines.add(name, value);
         }
     }
 
-    diag.textureDescriptorCount = static_cast<uint32_t>(m_textureDescriptors.size());
-    diag.textureDescriptorCapacity = m_config.textureTableSize;
-    diag.samplerDescriptorCount = static_cast<uint32_t>(m_samplerDescriptors.size());
-    diag.samplerDescriptorCapacity = m_config.samplerTableSize;
-    diag.bufferDescriptorCount = static_cast<uint32_t>(m_bufferDescriptors.size());
-    diag.bufferDescriptorCapacity = m_config.bufferTableSize;
-
-    diag.textureOverflowCount = m_textureOverflowCount;
-    diag.samplerOverflowCount = m_samplerOverflowCount;
-    diag.bufferOverflowCount = m_bufferOverflowCount;
-    diag.invalidHandleCount = m_invalidHandleCount;
-
-    return diag;
-}
-
-auto MaterialSystem::validateAndClampDescriptorHandle(
-    uint32_t& handle,
-    uint32_t maxCount,
-    uint32_t& overflowCounter,
-    uint32_t materialIndex,
-    char const* slotName
-) const -> void
-{
-    if (handle < maxCount)
-    {
-        return;
-    }
-
-    // Debug fail-fast: assert in debug builds to catch issues early.
-    AP_ASSERT(false, "Descriptor overflow: handle {} >= capacity {} for slot '{}'", handle, maxCount, slotName);
-
-    // Runtime fallback: clamp to fallback slot 0 and log warning.
-    AP_WARN(
-        "MaterialSystem: descriptor overflow for material {} slot '{}' (handle={}, capacity={}), using fallback 0",
-        materialIndex,
-        slotName,
-        handle,
-        maxCount
-    );
-
-    handle = kInvalidDescriptorHandle;
-    ++overflowCounter;
-    ++m_invalidHandleCount;
+    return defines;
 }
 
 auto MaterialSystem::addMaterial(core::ref<IMaterial> material) -> uint32_t
@@ -127,21 +87,31 @@ auto MaterialSystem::addMaterial(core::ref<IMaterial> material) -> uint32_t
         return UINT32_MAX;
     }
 
-    // Check if material already exists
     auto it = m_materialIndices.find(material.get());
     if (it != m_materialIndices.end())
     {
         return it->second;
     }
 
+    if (material->getDefaultTextureSampler() == nullptr)
+    {
+        material->setDefaultTextureSampler(m_defaultTextureSampler);
+    }
+
+    material->registerUpdateCallback([this](auto flags)
+    {
+        m_materialUpdates |= flags;
+    });
+
     auto const index = static_cast<uint32_t>(m_materials.size());
     m_materials.push_back(material);
     m_materialIndices[material.get()] = index;
 
-    // Add placeholder for CPU data
     m_cpuMaterialData.emplace_back();
+    m_materialsUpdateFlags.emplace_back(MaterialUpdateFlags::None);
 
-    markDirty();
+    m_materialsChanged = true;
+    m_dirty = true;
     return index;
 }
 
@@ -153,17 +123,15 @@ auto MaterialSystem::removeMaterial(uint32_t index) -> void
         return;
     }
 
-    auto material = m_materials[index];
+    auto const material = m_materials[index];
     if (material)
     {
         m_materialIndices.erase(material.get());
     }
 
-    // For now, we don't compact the array to maintain indices
-    // Instead, we null out the entry
     m_materials[index] = nullptr;
-
-    markDirty();
+    m_materialsChanged = true;
+    m_dirty = true;
 }
 
 auto MaterialSystem::getMaterial(uint32_t index) const -> core::ref<IMaterial>
@@ -180,81 +148,189 @@ auto MaterialSystem::getMaterialCount() const -> uint32_t
     return static_cast<uint32_t>(m_materials.size());
 }
 
-auto MaterialSystem::updateGpuBuffers() -> void
+auto MaterialSystem::update(bool forceUpdate) -> MaterialUpdateFlags
 {
-    // Check if any materials have pending updates.
-    auto anyDirty = m_dirty;
-    if (!anyDirty)
+    if (forceUpdate || m_materialsChanged)
     {
-        for (auto const& material : m_materials)
-        {
-            if (material && material->isDirty())
-            {
-                anyDirty = true;
-                break;
-            }
-        }
+        updateMetadata();
+        m_materialsChanged = false;
+        forceUpdate = true;
     }
 
-    if (!anyDirty)
-        return;
+    m_materialsUpdateFlags.resize(m_materials.size());
+    std::fill(m_materialsUpdateFlags.begin(), m_materialsUpdateFlags.end(), MaterialUpdateFlags::None);
 
-    if (m_dirty)
+    auto updateFlags = MaterialUpdateFlags::None;
+    auto updateMaterial = [this, &updateFlags](uint32_t index)
     {
-        rebuildMaterialData();
-
-        if (m_cpuMaterialData.empty())
+        if (index >= m_materials.size())
         {
-            m_dirty = false;
             return;
         }
 
-        ensureBufferCapacity(static_cast<uint32_t>(m_cpuMaterialData.size()));
-
-        if (m_materialDataBuffer)
+        auto& material = m_materials[index];
+        if (!material)
         {
-            auto const dataSize = m_cpuMaterialData.size() * sizeof(generated::StandardMaterialData);
-            m_materialDataBuffer->setBlob(m_cpuMaterialData.data(), 0, dataSize);
+            return;
         }
 
-        for (auto const& material : m_materials)
+        auto const flags = material->update(this);
+        m_materialsUpdateFlags[index] = flags;
+        updateFlags |= flags;
+    };
+
+    if (forceUpdate || m_materialUpdates != MaterialUpdateFlags::None)
+    {
+        for (uint32_t i = 0; i < static_cast<uint32_t>(m_materials.size()); ++i)
         {
-            if (material)
+            updateMaterial(i);
+        }
+    }
+    else
+    {
+        for (auto const i : m_dynamicMaterialIndices)
+        {
+            updateMaterial(i);
+        }
+    }
+
+    updateFlags |= m_materialUpdates;
+    m_materialUpdates = MaterialUpdateFlags::None;
+
+    if (!m_materials.empty())
+    {
+        ensureBufferCapacity(static_cast<uint32_t>(m_materials.size()));
+    }
+
+    if (forceUpdate || hasFlag(updateFlags, MaterialUpdateFlags::DataChanged) || m_dirty)
+    {
+        for (uint32_t i = 0; i < m_materials.size(); ++i)
+        {
+            if (forceUpdate || hasFlag(m_materialsUpdateFlags[i], MaterialUpdateFlags::DataChanged) || m_dirty)
             {
-                material->clearDirty();
+                uploadMaterial(i);
             }
         }
-
         m_dirty = false;
+    }
+
+    return updateFlags;
+}
+
+auto MaterialSystem::bindShaderData(ShaderVariable const& var) const -> void
+{
+    if (!var.isValid())
+    {
         return;
     }
 
-    for (uint32_t i = 0; i < m_materials.size(); ++i)
+    auto bindingVar = var;
+    if (auto parameterBlock = var.getParameterBlock())
     {
-        auto const& material = m_materials[i];
-        if (!material || !material->isDirty())
+        bindingVar = parameterBlock->getRootVariable();
+    }
+
+    if (bindingVar.hasMember("materialCount"))
+    {
+        bindingVar["materialCount"].set(getMaterialCount());
+    }
+
+    if (m_materialDataBuffer && bindingVar.hasMember("materialData"))
+    {
+        bindingVar["materialData"].setBuffer(m_materialDataBuffer);
+    }
+
+    if (bindingVar.hasMember("materialSamplers"))
+    {
+        for (uint32_t i = 0; i < getSamplerDescriptorCount(); ++i)
+        {
+            auto sampler = getSamplerDescriptorResource(i);
+            if (!sampler)
+            {
+                sampler = m_defaultTextureSampler;
+            }
+            bindingVar["materialSamplers"][i].setSampler(sampler);
+        }
+    }
+
+    if (bindingVar.hasMember("materialTextures"))
+    {
+        for (uint32_t i = 0; i < getTextureDescriptorCount(); ++i)
+        {
+            if (auto texture = getTextureDescriptorResource(i))
+            {
+                bindingVar["materialTextures"][i].setTexture(texture);
+            }
+        }
+    }
+
+    if (bindingVar.hasMember("materialBuffers"))
+    {
+        for (uint32_t i = 0; i < getBufferDescriptorCount(); ++i)
+        {
+            if (auto buffer = getBufferDescriptorResource(i))
+            {
+                bindingVar["materialBuffers"][i].setBuffer(buffer);
+            }
+        }
+    }
+
+    if (bindingVar.hasMember("materialTextures3D"))
+    {
+        for (uint32_t i = 0; i < getTexture3DDescriptorCount(); ++i)
+        {
+            if (auto texture = getTexture3DDescriptorResource(i))
+            {
+                bindingVar["materialTextures3D"][i].setTexture(texture);
+            }
+        }
+    }
+}
+
+auto MaterialSystem::getStats() const -> MaterialStats
+{
+    auto stats = MaterialStats{};
+
+    stats.materialCount = static_cast<uint64_t>(m_materials.size());
+    stats.materialMemoryInBytes = static_cast<uint64_t>(m_materials.size()) * sizeof(generated::MaterialDataBlob);
+    stats.materialTypeCount = static_cast<uint64_t>(m_typeConformancesByType.size());
+
+    for (auto const& material : m_materials)
+    {
+        if (!material)
         {
             continue;
         }
 
-        writeMaterialData(i);
-
-        if (m_materialDataBuffer)
+        auto const alphaMasked = (material->getFlags() & static_cast<uint32_t>(generated::MaterialFlags::AlphaTested)) != 0;
+        if (!alphaMasked)
         {
-            auto const offset = static_cast<size_t>(i) * sizeof(generated::StandardMaterialData);
-            m_materialDataBuffer->setBlob(&m_cpuMaterialData[i], offset, sizeof(generated::StandardMaterialData));
+            ++stats.materialOpaqueCount;
+        }
+    }
+
+    stats.textureCount = static_cast<uint64_t>(m_textureManager.size() > 0 ? m_textureManager.size() - 1 : 0);
+    m_textureManager.forEach([&](core::ref<Texture> const& texture)
+    {
+        if (!texture)
+        {
+            return;
         }
 
-        material->clearDirty();
-    }
-}
+        auto const format = texture->getFormat();
+        if (isCompressedFormat(format))
+        {
+            ++stats.textureCompressedCount;
+        }
 
-auto MaterialSystem::bindToShader(ShaderVariable& var) const -> void
-{
-    if (m_materialDataBuffer && var.isValid())
-    {
-        var.setBuffer(m_materialDataBuffer);
-    }
+        auto const channels = getChannelMask(format);
+        auto const channelBits = getNumChannelBits(format, channels);
+        auto const texels = static_cast<uint64_t>(texture->getWidth()) * texture->getHeight() * texture->getDepth();
+        stats.textureTexelCount += texels;
+        stats.textureTexelChannelCount += texels * channelBits;
+    });
+
+    return stats;
 }
 
 auto MaterialSystem::getMaterialDataBuffer() const -> core::ref<Buffer>
@@ -264,57 +340,49 @@ auto MaterialSystem::getMaterialDataBuffer() const -> core::ref<Buffer>
 
 auto MaterialSystem::getTypeConformances() const -> TypeConformanceList
 {
-    rebuildCodeCache();
-
     TypeConformanceList conformances;
     for (auto const& [type, list] : m_typeConformancesByType)
     {
+        (void)type;
         conformances.add(list);
     }
+
+    // Falcor-style phase-function conformances used by volumetric paths.
+    conformances.add("IsotropicPhaseFunction", "IPhaseFunction");
+    conformances.add("HenyeyGreensteinPhaseFunction", "IPhaseFunction");
+
     return conformances;
 }
 
 auto MaterialSystem::getTypeConformances(generated::MaterialType type) const -> TypeConformanceList
 {
-    rebuildCodeCache();
-
-    auto it = m_typeConformancesByType.find(type);
-    if (it == m_typeConformancesByType.end())
+    if (auto const it = m_typeConformancesByType.find(type); it != m_typeConformancesByType.end())
     {
-        throw std::runtime_error(std::format("No type conformances for material type '{}'.", static_cast<uint32_t>(type)));
+        return it->second;
     }
 
-    return it->second;
+    AP_ERROR("No type conformances for material type '{}'.", static_cast<uint32_t>(type));
+    return {};
 }
 
 auto MaterialSystem::getShaderModules() const -> ProgramDesc::ShaderModuleList
 {
-    rebuildCodeCache();
     return m_shaderModules;
 }
 
 auto MaterialSystem::getShaderModules(ProgramDesc::ShaderModuleList& modules) const -> void
 {
-    rebuildCodeCache();
-    modules.insert(modules.end(), m_shaderModules.begin(), m_shaderModules.end());
+    auto materialModules = getShaderModules();
+    modules.insert(modules.end(), materialModules.begin(), materialModules.end());
 }
 
 auto MaterialSystem::registerTextureDescriptor(core::ref<Texture> texture) -> DescriptorHandle
 {
-    if (!texture)
+    auto const handle = m_textureManager.registerTexture(texture, kMaxTextureCount);
+    if (handle == kInvalidDescriptorHandle && texture)
     {
-        return kInvalidDescriptorHandle;
+        AP_ERROR("MaterialSystem texture descriptor overflow.");
     }
-
-    auto const iter = m_textureDescriptorIndices.find(texture.get());
-    if (iter != m_textureDescriptorIndices.end())
-    {
-        return iter->second;
-    }
-
-    auto const handle = static_cast<DescriptorHandle>(m_textureDescriptors.size());
-    m_textureDescriptors.push_back(texture);
-    m_textureDescriptorIndices[texture.get()] = handle;
     return handle;
 }
 
@@ -329,6 +397,12 @@ auto MaterialSystem::registerSamplerDescriptor(core::ref<Sampler> sampler) -> De
     if (iter != m_samplerDescriptorIndices.end())
     {
         return iter->second;
+    }
+
+    if (m_samplerDescriptors.size() >= kMaxSamplerCount)
+    {
+        AP_ERROR("MaterialSystem sampler descriptor overflow.");
+        return kInvalidDescriptorHandle;
     }
 
     auto const handle = static_cast<DescriptorHandle>(m_samplerDescriptors.size());
@@ -356,14 +430,102 @@ auto MaterialSystem::registerBufferDescriptor(core::ref<Buffer> buffer) -> Descr
     return handle;
 }
 
-auto MaterialSystem::getTextureDescriptorResource(DescriptorHandle handle) const -> core::ref<Texture>
+auto MaterialSystem::registerTexture3DDescriptor(core::ref<Texture> texture) -> DescriptorHandle
 {
-    if (handle == kInvalidDescriptorHandle || handle >= m_textureDescriptors.size())
+    return m_texture3DManager.registerTexture(texture, kMaxTextureCount);
+}
+
+auto MaterialSystem::addTexture(core::ref<Texture> texture) -> DescriptorHandle
+{
+    auto const handle = registerTextureDescriptor(texture);
+    if (handle != kInvalidDescriptorHandle)
     {
-        return nullptr;
+        m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
+    }
+    return handle;
+}
+
+auto MaterialSystem::replaceTexture(DescriptorHandle handle, core::ref<Texture> texture) -> bool
+{
+    if (!m_textureManager.replaceTexture(handle, texture))
+    {
+        return false;
     }
 
-    return m_textureDescriptors[handle];
+    m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
+    return true;
+}
+
+auto MaterialSystem::addSampler(core::ref<Sampler> sampler) -> DescriptorHandle
+{
+    auto const handle = registerSamplerDescriptor(sampler);
+    if (handle != kInvalidDescriptorHandle)
+    {
+        m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
+    }
+    return handle;
+}
+
+auto MaterialSystem::replaceSampler(DescriptorHandle handle, core::ref<Sampler> sampler) -> bool
+{
+    if (handle == kInvalidDescriptorHandle || handle >= m_samplerDescriptors.size() || !sampler)
+    {
+        return false;
+    }
+
+    m_samplerDescriptors[handle] = sampler;
+    m_samplerDescriptorIndices[sampler.get()] = handle;
+    m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
+    return true;
+}
+
+auto MaterialSystem::addBuffer(core::ref<Buffer> buffer) -> DescriptorHandle
+{
+    auto const handle = registerBufferDescriptor(buffer);
+    if (handle != kInvalidDescriptorHandle)
+    {
+        m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
+    }
+    return handle;
+}
+
+auto MaterialSystem::replaceBuffer(DescriptorHandle handle, core::ref<Buffer> buffer) -> bool
+{
+    if (handle == kInvalidDescriptorHandle || handle >= m_bufferDescriptors.size() || !buffer)
+    {
+        return false;
+    }
+
+    m_bufferDescriptors[handle] = buffer;
+    m_bufferDescriptorIndices[buffer.get()] = handle;
+    m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
+    return true;
+}
+
+auto MaterialSystem::addTexture3D(core::ref<Texture> texture) -> DescriptorHandle
+{
+    auto const handle = registerTexture3DDescriptor(texture);
+    if (handle != kInvalidDescriptorHandle)
+    {
+        m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
+    }
+    return handle;
+}
+
+auto MaterialSystem::replaceTexture3D(DescriptorHandle handle, core::ref<Texture> texture) -> bool
+{
+    if (!m_texture3DManager.replaceTexture(handle, texture))
+    {
+        return false;
+    }
+
+    m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
+    return true;
+}
+
+auto MaterialSystem::getTextureDescriptorResource(DescriptorHandle handle) const -> core::ref<Texture>
+{
+    return m_textureManager.getTexture(handle);
 }
 
 auto MaterialSystem::getSamplerDescriptorResource(DescriptorHandle handle) const -> core::ref<Sampler>
@@ -386,6 +548,11 @@ auto MaterialSystem::getBufferDescriptorResource(DescriptorHandle handle) const 
     return m_bufferDescriptors[handle];
 }
 
+auto MaterialSystem::getTexture3DDescriptorResource(DescriptorHandle handle) const -> core::ref<Texture>
+{
+    return m_texture3DManager.getTexture(handle);
+}
+
 auto MaterialSystem::getMaterialTypeRegistry() const -> MaterialTypeRegistry const&
 {
     return m_materialTypeRegistry;
@@ -398,116 +565,144 @@ auto MaterialSystem::getMaterialTypeId(uint32_t materialIndex) const -> uint32_t
         return MaterialTypeRegistry::kInvalidMaterialTypeId;
     }
 
-    return m_cpuMaterialData[materialIndex].header.materialType;
+    return static_cast<uint32_t>(m_cpuMaterialData[materialIndex].header.getMaterialType());
 }
 
-auto MaterialSystem::markDirty() -> void
+auto MaterialSystem::removeDuplicateMaterials() -> uint32_t
 {
-    m_dirty = true;
-    m_codeCacheDirty = true;
-}
+    auto removed = uint32_t{0};
+    auto canonicalByBlob = std::unordered_map<size_t, uint32_t>{};
 
-auto MaterialSystem::isDirty() const -> bool
-{
-    return m_dirty;
-}
-
-auto MaterialSystem::rebuildCodeCache() const -> void
-{
-    if (!m_codeCacheDirty)
+    for (uint32_t i = 0; i < static_cast<uint32_t>(m_materials.size()); ++i)
     {
-        return;
-    }
-
-    m_typeConformancesByType.clear();
-    m_shaderModules.clear();
-
-    for (auto const& material : m_materials)
-    {
+        auto const& material = m_materials[i];
         if (!material)
         {
             continue;
         }
 
-        auto type = material->getType();
-        if (m_typeConformancesByType.contains(type))
+        auto const blob = material->getDataBlob();
+        auto const hash = core::hash(
+            static_cast<uint32_t>(material->getType()),
+            std::string_view(reinterpret_cast<char const*>(&blob), sizeof(blob))
+        );
+
+        if (auto const it = canonicalByBlob.find(hash); it != canonicalByBlob.end())
         {
+            m_materials[i] = m_materials[it->second];
+            ++removed;
             continue;
         }
 
-        m_typeConformancesByType[type] = material->getTypeConformances();
-
-        auto modules = material->getShaderModules();
-        m_shaderModules.insert(m_shaderModules.end(), modules.begin(), modules.end());
+        canonicalByBlob.emplace(hash, i);
     }
 
-    m_codeCacheDirty = false;
+    if (removed > 0)
+    {
+        m_materialIndices.clear();
+        for (uint32_t i = 0; i < static_cast<uint32_t>(m_materials.size()); ++i)
+        {
+            if (m_materials[i])
+            {
+                m_materialIndices[m_materials[i].get()] = i;
+            }
+        }
+        m_materialsChanged = true;
+        m_dirty = true;
+    }
+
+    return removed;
+}
+
+auto MaterialSystem::optimizeMaterials() -> uint32_t
+{
+    return removeDuplicateMaterials();
 }
 
 auto MaterialSystem::ensureBufferCapacity(uint32_t requiredCount) -> void
 {
     if (requiredCount == 0)
+    {
         return;
+    }
 
-    auto const requiredSize = requiredCount * sizeof(generated::StandardMaterialData);
-
-    // Check if we need to resize
+    auto const requiredSize = requiredCount * sizeof(generated::MaterialDataBlob);
     if (m_materialDataBuffer && m_materialDataBuffer->getSize() >= requiredSize)
+    {
         return;
+    }
 
-    // Calculate new capacity (grow by 2x or to required, whichever is larger)
-    auto newCount = m_materialDataBuffer ?
-        static_cast<uint32_t>(m_materialDataBuffer->getSize() / sizeof(generated::StandardMaterialData)) :
-        kInitialBufferCapacity;
+    auto newCount = m_materialDataBuffer
+        ? static_cast<uint32_t>(m_materialDataBuffer->getSize() / sizeof(generated::MaterialDataBlob))
+        : kInitialBufferCapacity;
 
     while (newCount < requiredCount)
+    {
         newCount *= 2;
+    }
 
-    auto const newSize = newCount * sizeof(generated::StandardMaterialData);
-
-    // Create new buffer
     auto const usage = BufferUsage::ShaderResource;
     m_materialDataBuffer = core::make_ref<Buffer>(
         m_device,
-        static_cast<uint32_t>(sizeof(generated::StandardMaterialData)),
+        static_cast<uint32_t>(sizeof(generated::MaterialDataBlob)),
         newCount,
         usage,
         MemoryType::Upload,
         nullptr,
-        false  // no UAV counter
+        false
     );
-
-    AP_INFO("MaterialSystem: Resized material buffer to {} materials ({} bytes)", newCount, newSize);
 }
 
-auto MaterialSystem::rebuildMaterialData() -> void
+auto MaterialSystem::updateMetadata() -> void
 {
-    m_cpuMaterialData.resize(m_materials.size());
+    m_typeConformancesByType.clear();
+    m_shaderModules.clear();
+    m_dynamicMaterialIndices.clear();
 
-    m_textureOverflowCount = 0;
-    m_samplerOverflowCount = 0;
-    m_bufferOverflowCount = 0;
-    m_invalidHandleCount = 0;
-
-    for (size_t i = 0; i < m_materials.size(); ++i)
+    size_t maxTextures = 1;
+    size_t maxBuffers = 1;
+    size_t maxTexture3D = 1;
+    for (size_t materialIndex = 0; materialIndex < m_materials.size(); ++materialIndex)
     {
-        writeMaterialData(static_cast<uint32_t>(i));
+        auto const& material = m_materials[materialIndex];
+        if (!material)
+        {
+            continue;
+        }
+
+        if (material->isDynamic())
+        {
+            m_dynamicMaterialIndices.push_back(static_cast<uint32_t>(materialIndex));
+        }
+
+        m_typeConformancesByType[material->getType()] = material->getTypeConformances();
+
+        auto modules = material->getShaderModules();
+        m_shaderModules.insert(m_shaderModules.end(), modules.begin(), modules.end());
+
+        maxTextures += material->getMaxTextureCount();
+        maxBuffers += material->getMaxBufferCount();
+        maxTexture3D += material->getMaxTexture3DCount();
     }
+
+    m_textureDescCount = static_cast<uint32_t>(std::min(maxTextures, kMaxTextureCount));
+    m_bufferDescCount = static_cast<uint32_t>(maxBuffers);
+    m_texture3DDescCount = static_cast<uint32_t>(maxTexture3D);
 }
 
-auto MaterialSystem::writeMaterialData(uint32_t index) -> void
+auto MaterialSystem::uploadMaterial(uint32_t materialId) -> void
 {
-    if (index >= m_materials.size())
+    if (materialId >= m_materials.size())
     {
         return;
     }
 
-    auto const& material = m_materials[index];
+    auto const& material = m_materials[materialId];
     if (!material)
     {
-        if (index < m_cpuMaterialData.size())
+        if (materialId < m_cpuMaterialData.size())
         {
-            m_cpuMaterialData[index] = {};
+            m_cpuMaterialData[materialId] = {};
         }
         return;
     }
@@ -518,25 +713,29 @@ auto MaterialSystem::writeMaterialData(uint32_t index) -> void
             registerTextureDescriptor(basicMaterial->baseColorTexture),
             registerTextureDescriptor(basicMaterial->metallicRoughnessTexture),
             registerTextureDescriptor(basicMaterial->normalTexture),
-            registerTextureDescriptor(basicMaterial->occlusionTexture),
             registerTextureDescriptor(basicMaterial->emissiveTexture),
-            kInvalidDescriptorHandle,
-            kInvalidDescriptorHandle
+            registerTextureDescriptor(basicMaterial->transmissionTexture),
+            registerTextureDescriptor(basicMaterial->displacementTexture),
+            registerSamplerDescriptor(material->getDefaultTextureSampler())
         );
     }
 
-    material->writeData(m_cpuMaterialData[index]);
+    auto const blob = material->getDataBlob();
 
-    auto& data = m_cpuMaterialData[index];
-    data.header.materialType = static_cast<uint32_t>(material->getType());
+    if (materialId >= m_cpuMaterialData.size())
+    {
+        m_cpuMaterialData.resize(materialId + 1);
+    }
 
-    validateAndClampDescriptorHandle(data.baseColorTextureHandle, m_config.textureTableSize, m_textureOverflowCount, index, "baseColor");
-    validateAndClampDescriptorHandle(data.metallicRoughnessTextureHandle, m_config.textureTableSize, m_textureOverflowCount, index, "metallicRoughness");
-    validateAndClampDescriptorHandle(data.normalTextureHandle, m_config.textureTableSize, m_textureOverflowCount, index, "normal");
-    validateAndClampDescriptorHandle(data.occlusionTextureHandle, m_config.textureTableSize, m_textureOverflowCount, index, "occlusion");
-    validateAndClampDescriptorHandle(data.emissiveTextureHandle, m_config.textureTableSize, m_textureOverflowCount, index, "emissive");
-    validateAndClampDescriptorHandle(data.samplerHandle, m_config.samplerTableSize, m_samplerOverflowCount, index, "sampler");
-    validateAndClampDescriptorHandle(data.bufferHandle, m_config.bufferTableSize, m_bufferOverflowCount, index, "buffer");
+    auto& data = m_cpuMaterialData[materialId];
+    data = blob;
+    data.header.setMaterialType(material->getType());
+
+    if (m_materialDataBuffer)
+    {
+        auto const offset = static_cast<size_t>(materialId) * sizeof(generated::MaterialDataBlob);
+        m_materialDataBuffer->setBlob(&data, offset, sizeof(generated::MaterialDataBlob));
+    }
 }
 
 } // namespace april::graphics

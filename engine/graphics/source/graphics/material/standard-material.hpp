@@ -43,15 +43,14 @@ namespace april::graphics
         ) -> core::ref<StandardMaterial>;
 
         // IMaterial interface
+        auto update(MaterialSystem* pOwner) -> MaterialUpdateFlags override;
+        auto getDataBlob() const -> generated::MaterialDataBlob override;
         auto getType() const -> generated::MaterialType override;
         auto getTypeName() const -> std::string override;
-        auto writeData(generated::StandardMaterialData& data) const -> void override;
         auto getTypeConformances() const -> TypeConformanceList override;
         auto getShaderModules() const -> ProgramDesc::ShaderModuleList override;
-        auto serializeParameters(nlohmann::json& outJson) const -> void override;
-        auto deserializeParameters(nlohmann::json const& inJson) -> bool override;
 
-        // PBR Parameters (matches generated::StandardMaterialData)
+        // PBR parameters stored in generated::BasicMaterialData::specular.
         float metallic{0.0f};
         float roughness{0.5f};
         float normalScale{1.0f};

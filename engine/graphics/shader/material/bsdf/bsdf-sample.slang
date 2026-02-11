@@ -85,16 +85,46 @@ struct RoughnessInformation
 // BSDF properties for denoising and other purposes.
 struct BSDFProperties
 {
-    float3 albedo;              // Overall albedo
-    float roughness;            // Linear roughness
-    float3 emission;            // Emitted radiance
-    uint flags;                 // Property flags
+    float3 emission;
+    float roughness;
+    float3 guideNormal;
+    uint flags;
+
+    float3 diffuseReflectionAlbedo;
+    float3 diffuseTransmissionAlbedo;
+    float3 specularReflectionAlbedo;
+    float3 specularTransmissionAlbedo;
+
+    float3 specularReflectance;
+
+    enum Flags : uint
+    {
+        IsTransmissive = 0x1,
+    };
+
+    property isTransmissive : bool
+    {
+        get { return (flags & (uint)Flags::IsTransmissive) != 0; }
+    }
+
+    property albedo : float3
+    {
+        get
+        {
+            return diffuseReflectionAlbedo + diffuseTransmissionAlbedo + specularReflectionAlbedo + specularTransmissionAlbedo;
+        }
+    }
 
     __init()
     {
-        albedo = float3(0.0f);
-        roughness = 0.0f;
         emission = float3(0.0f);
-        flags = 0;
+        roughness = 0.0f;
+        guideNormal = float3(0.0f);
+        flags = 0u;
+        diffuseReflectionAlbedo = float3(0.0f);
+        diffuseTransmissionAlbedo = float3(0.0f);
+        specularReflectionAlbedo = float3(0.0f);
+        specularTransmissionAlbedo = float3(0.0f);
+        specularReflectance = float3(0.0f);
     }
 };

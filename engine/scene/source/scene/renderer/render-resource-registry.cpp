@@ -238,28 +238,8 @@ namespace april::scene
 
         auto const& assetPath = materialAsset->getAssetPath();
 
-        // Use explicit materialType from asset metadata (no path-based heuristics).
-        auto const& materialTypeName = materialAsset->materialType;
-
         core::ref<graphics::IMaterial> material{};
-        if (materialTypeName == "Unlit")
-        {
-            auto unlit = core::make_ref<graphics::UnlitMaterial>();
-            unlit->color = materialAsset->parameters.baseColorFactor;
-            unlit->emissive = materialAsset->parameters.emissiveFactor;
-            unlit->setDoubleSided(materialAsset->parameters.doubleSided);
-            material = unlit;
-        }
-        else
-        {
-            // Default to Standard material for "Standard" or unknown types.
-            if (materialTypeName != "Standard" && !materialTypeName.empty())
-            {
-                AP_WARN("[RenderResourceRegistry] Unknown material type '{}' in asset: {}; defaulting to Standard",
-                    materialTypeName, assetPath);
-            }
-            material = graphics::StandardMaterial::createFromAsset(m_device, *materialAsset);
-        }
+        material = graphics::StandardMaterial::createFromAsset(m_device, *materialAsset);
 
         if (!material)
         {
@@ -383,7 +363,6 @@ namespace april::scene
         material->baseColorTexture = loadTexture(textures.baseColorTexture);
         material->metallicRoughnessTexture = loadTexture(textures.metallicRoughnessTexture);
         material->normalTexture = loadTexture(textures.normalTexture);
-        material->occlusionTexture = loadTexture(textures.occlusionTexture);
         material->emissiveTexture = loadTexture(textures.emissiveTexture);
     }
 }

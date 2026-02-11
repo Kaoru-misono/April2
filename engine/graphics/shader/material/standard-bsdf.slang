@@ -3,6 +3,7 @@
 
 import material.material_types;
 import material.material_data;
+import material.basic_material_data;
 import material.shading_data;
 import material.bsdf.math_constants;
 import material.bsdf.math_helpers;
@@ -28,18 +29,18 @@ struct StandardBSDFData
     float specularTransmission; // Blend between opaque and transmissive BSDF
 };
 
-// Create StandardBSDFData from StandardMaterialData.
-StandardBSDFData createStandardBSDFData(StandardMaterialData mtl, float3 baseColor, ShadingData sd)
+// Create StandardBSDFData from BasicMaterialData.
+StandardBSDFData createStandardBSDFData(BasicMaterialData mtl, float3 baseColor, ShadingData sd)
 {
     StandardBSDFData data;
 
     // Derive dielectric F0 from IoR, matching Falcor's StandardMaterial path.
-    float ior = max(mtl.ior, 1.0001f);
+    float ior = max(sd.mtl.getIoR(), 1.0001f);
     float f = (ior - 1.0f) / (ior + 1.0f);
     float3 dielectricF0 = float3(f * f);
 
-    float metallic = saturate(mtl.metallic);
-    float roughness = saturate(mtl.roughness);
+    float metallic = saturate(mtl.specular.b);
+    float roughness = saturate(mtl.specular.g);
 
     // Derive diffuse and specular from metallic workflow.
     data.specular = lerp(dielectricF0, baseColor, metallic);
@@ -90,7 +91,7 @@ struct StandardBSDF : IBSDF
         if (alpha < kMinGGXAlpha)
             alpha = 0.0f;  // Use delta distribution
 
-        uint activeLobes = mtl.activeLobes;
+        uint activeLobes = mtl.getActiveLobes();
 
         specularReflection = SpecularMicrofacetBRDF(data.specular, alpha, activeLobes);
 
