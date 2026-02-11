@@ -112,6 +112,31 @@ namespace april::graphics
         return !m_deferred.empty();
     }
 
+    auto MaterialTextureManager::getStats() const -> Stats
+    {
+        auto stats = Stats{};
+        for (auto const& p_texture : m_descriptors)
+        {
+            if (!p_texture)
+            {
+                continue;
+            }
+
+            ++stats.textureCount;
+            if (isCompressedFormat(p_texture->getFormat()))
+            {
+                ++stats.textureCompressedCount;
+            }
+
+            auto const texelCount = static_cast<uint64_t>(p_texture->getWidth()) * p_texture->getHeight() * p_texture->getDepth();
+            stats.textureTexelCount += texelCount;
+            stats.textureTexelChannelCount += texelCount * static_cast<uint64_t>(getFormatChannelCount(p_texture->getFormat()));
+            stats.textureMemoryInBytes += p_texture->getTextureSizeInBytes();
+        }
+
+        return stats;
+    }
+
     auto MaterialTextureManager::forEach(std::function<void(core::ref<Texture> const&)> const& visitor) const -> void
     {
         for (auto const& texture : m_descriptors)

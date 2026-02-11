@@ -1,6 +1,7 @@
 #include "basic-material.hpp"
 
 #include "material-system.hpp"
+#include "rhi/command-context.hpp"
 #include "rhi/render-device.hpp"
 
 namespace april::graphics
@@ -8,6 +9,11 @@ namespace april::graphics
     namespace
     {
         static_assert((sizeof(generated::MaterialHeader) + sizeof(generated::BasicMaterialData)) <= sizeof(generated::MaterialDataBlob));
+        static_assert(static_cast<uint32_t>(generated::ShadingModel::Count) <= (1u << generated::BasicMaterialData::kShadingModelBits));
+        static_assert(static_cast<uint32_t>(generated::NormalMapType::Count) <= (1u << generated::BasicMaterialData::kNormalMapTypeBits));
+        static_assert(generated::BasicMaterialData::kTotalFlagsBits <= 32);
+
+        auto constexpr kMaxVolumeAnisotropy = 0.99f;
     }
 
     BasicMaterial::BasicMaterial(core::ref<Device> p_device, std::string const& name, generated::MaterialType type)
@@ -16,12 +22,7 @@ namespace april::graphics
         m_header.setIsBasicMaterial(true);
         m_header.setIoR(1.5f);
 
-        m_textureSlotInfo[static_cast<size_t>(TextureSlot::BaseColor)] = TextureSlotInfo{"baseColor", TextureChannelFlags::Red | TextureChannelFlags::Green | TextureChannelFlags::Blue | TextureChannelFlags::Alpha, true};
-        m_textureSlotInfo[static_cast<size_t>(TextureSlot::Specular)] = TextureSlotInfo{"specular", TextureChannelFlags::Red | TextureChannelFlags::Green | TextureChannelFlags::Blue, false};
-        m_textureSlotInfo[static_cast<size_t>(TextureSlot::Emissive)] = TextureSlotInfo{"emissive", TextureChannelFlags::Red | TextureChannelFlags::Green | TextureChannelFlags::Blue, true};
-        m_textureSlotInfo[static_cast<size_t>(TextureSlot::Normal)] = TextureSlotInfo{"normal", TextureChannelFlags::Red | TextureChannelFlags::Green, false};
-        m_textureSlotInfo[static_cast<size_t>(TextureSlot::Transmission)] = TextureSlotInfo{"transmission", TextureChannelFlags::Red, false};
-        m_textureSlotInfo[static_cast<size_t>(TextureSlot::Displacement)] = TextureSlotInfo{"displacement", TextureChannelFlags::Red, false};
+        m_textureSlotInfo[static_cast<size_t>(TextureSlot::Displacement)] = TextureSlotInfo{"displacement", TextureChannelFlags::RGB, false};
 
         updateAlphaMode();
         updateNormalMapType();
@@ -48,8 +49,8 @@ namespace april::graphics
             updateDefaultTextureSamplerID(p_owner, m_pDefaultSampler);
 
             auto prevFlags = m_data.flags;
-            m_data.setDisplacementMinSamplerID(p_owner->registerSamplerDescriptor(m_pDisplacementMinSampler));
-            m_data.setDisplacementMaxSamplerID(p_owner->registerSamplerDescriptor(m_pDisplacementMaxSampler));
+            m_data.setDisplacementMinSamplerID(p_owner->addTextureSampler(m_pDisplacementMinSampler));
+            m_data.setDisplacementMaxSamplerID(p_owner->addTextureSampler(m_pDisplacementMaxSampler));
             if (m_data.flags != prevFlags)
             {
                 m_updates |= UpdateFlags::DataChanged;
@@ -71,16 +72,11 @@ namespace april::graphics
         return hasTextureSlotData(TextureSlot::Displacement);
     }
 
-    auto BasicMaterial::isEqual(core::ref<Material> const& p_other) const -> bool
-    {
-        auto other = core::dynamic_ref_cast<BasicMaterial>(p_other);
-        return other && (*this == *other);
-    }
-
     auto BasicMaterial::setAlphaMode(generated::AlphaMode alphaMode) -> void
     {
         if (!isAlphaSupported())
         {
+            AP_ASSERT(getAlphaMode() == generated::AlphaMode::Opaque);
             AP_WARN("Alpha is not supported by material type '{}'. Ignoring setAlphaMode() for material '{}'.", static_cast<uint32_t>(getType()), getName());
             return;
         }
@@ -100,11 +96,29 @@ namespace april::graphics
             return;
         }
 
+        // TODO(falcor-align): Compare against float16-cast threshold like Falcor (mHeader.getAlphaThreshold() != (float16_t)alphaThreshold).
         if (m_header.getAlphaThreshold() != alphaThreshold)
         {
             m_header.setAlphaThreshold(alphaThreshold);
             markUpdates(UpdateFlags::DataChanged);
             updateAlphaMode();
+        }
+    }
+
+    auto BasicMaterial::setDefaultTextureSampler(core::ref<Sampler> const& p_sampler) -> void
+    {
+        if (p_sampler != m_pDefaultSampler)
+        {
+            m_pDefaultSampler = p_sampler;
+
+            auto desc = p_sampler->getDesc();
+            desc.setMaxAnisotropy(16);
+            desc.setReductionMode(TextureReductionMode::Min);
+            m_pDisplacementMinSampler = m_device->createSampler(desc);
+            desc.setReductionMode(TextureReductionMode::Max);
+            m_pDisplacementMaxSampler = m_device->createSampler(desc);
+
+            markUpdates(UpdateFlags::ResourcesChanged);
         }
     }
 
@@ -147,40 +161,181 @@ namespace april::graphics
         return true;
     }
 
-    auto BasicMaterial::optimizeTexture(TextureSlot const slot, TextureOptimizationStats& stats) -> void
+    auto BasicMaterial::optimizeTexture(TextureSlot const slot, TextureAnalyzer::Result const& texInfo, TextureOptimizationStats& stats) -> void
     {
-        (void)stats;
-        if (slot == TextureSlot::Normal)
+        AP_ASSERT(getTexture(slot) != nullptr);
+        auto channelMask = getTextureSlotInfo(slot).mask;
+
+        switch (slot)
         {
-            updateNormalMapType();
+        case TextureSlot::BaseColor:
+        {
+            auto const previouslyOpaque = isOpaque();
+
+            auto const pBaseColor = getBaseColorTexture();
+            auto const hasAlpha = isAlphaSupported() && pBaseColor && doesFormatHaveAlpha(pBaseColor->getFormat());
+            auto const isColorConstant = texInfo.isConstant(TextureChannelFlags::RGB);
+            auto const isAlphaConstant = texInfo.isConstant(TextureChannelFlags::Alpha);
+
+            if (hasAlpha)
+            {
+                m_alphaRange = float2(texInfo.minValue.w, texInfo.maxValue.w);
+            }
+
+            auto baseColor = getBaseColor();
+            if (isColorConstant)
+            {
+                baseColor = float4(texInfo.value.x, texInfo.value.y, texInfo.value.z, baseColor.w);
+                m_isTexturedBaseColorConstant = true;
+            }
+
+            if (hasAlpha && isAlphaConstant)
+            {
+                baseColor = float4(baseColor.x, baseColor.y, baseColor.z, texInfo.value.w);
+                m_isTexturedAlphaConstant = true;
+            }
+            setBaseColor(baseColor);
+
+            if (isColorConstant && (!hasAlpha || isAlphaConstant))
+            {
+                clearTexture(TextureSlot::BaseColor);
+                ++stats.texturesRemoved[static_cast<size_t>(slot)];
+            }
+            else if (isColorConstant)
+            {
+                ++stats.constantBaseColor;
+            }
+
+            updateAlphaMode();
+            if (!previouslyOpaque && isOpaque())
+            {
+                ++stats.disabledAlpha;
+            }
+            break;
+        }
+        case TextureSlot::Specular:
+            if (texInfo.isConstant(channelMask))
+            {
+                clearTexture(TextureSlot::Specular);
+                setSpecularParams(texInfo.value);
+                ++stats.texturesRemoved[static_cast<size_t>(slot)];
+            }
+            break;
+        case TextureSlot::Emissive:
+            if (texInfo.isConstant(channelMask))
+            {
+                clearTexture(TextureSlot::Emissive);
+                setEmissiveColor(float3(texInfo.value.x, texInfo.value.y, texInfo.value.z));
+                ++stats.texturesRemoved[static_cast<size_t>(slot)];
+            }
+            break;
+        case TextureSlot::Normal:
+            switch (getNormalMapType())
+            {
+            case generated::NormalMapType::RG:
+                channelMask = TextureChannelFlags::Red | TextureChannelFlags::Green;
+                break;
+            case generated::NormalMapType::RGB:
+                channelMask = TextureChannelFlags::RGB;
+                break;
+            default:
+                AP_WARN("BasicMaterial::optimizeTexture() - Unsupported normal map mode");
+                channelMask = TextureChannelFlags::RGBA;
+                break;
+            }
+
+            if (texInfo.isConstant(channelMask))
+            {
+                ++stats.constantNormalMaps;
+            }
+            break;
+        case TextureSlot::Transmission:
+            if (texInfo.isConstant(channelMask))
+            {
+                clearTexture(TextureSlot::Transmission);
+                setTransmissionColor(float3(texInfo.value.x, texInfo.value.y, texInfo.value.z));
+                ++stats.texturesRemoved[static_cast<size_t>(slot)];
+            }
+            break;
+        case TextureSlot::Displacement:
+            break;
+        default:
+            // TODO(falcor-align): Falcor throws on unexpected slot here; map to equivalent throw path instead of AP_UNREACHABLE().
+            AP_UNREACHABLE();
+            break;
         }
     }
 
-    auto BasicMaterial::setDefaultTextureSampler(core::ref<Sampler> const& p_sampler) -> void
+    auto BasicMaterial::isAlphaSupported() const -> bool
     {
-        if (p_sampler == m_pDefaultSampler)
+        return enum_has_all_flags(getTextureSlotInfo(TextureSlot::BaseColor).mask, TextureChannelFlags::Alpha);
+    }
+
+    auto BasicMaterial::prepareDisplacementMapForRendering() -> void
+    {
+        if (auto p_displacementMap = getDisplacementMap(); p_displacementMap && m_displacementMapChanged)
         {
-            return;
+            auto* p_context = m_device ? m_device->getCommandContext() : nullptr;
+
+            if (p_context && getFormatChannelCount(p_displacementMap->getFormat()) < 4)
+            {
+                auto const usage = p_displacementMap->getUsage() | TextureUsage::UnorderedAccess | TextureUsage::RenderTarget;
+                auto p_newDisplacementMap = m_device->createTexture2D(
+                    p_displacementMap->getWidth(),
+                    p_displacementMap->getHeight(),
+                    ResourceFormat::RGBA16Float,
+                    p_displacementMap->getArraySize(),
+                    Resource::kMaxPossible,
+                    nullptr,
+                    usage
+                );
+
+                for (auto arraySlice = uint32_t{0}; arraySlice < p_displacementMap->getArraySize(); ++arraySlice)
+                {
+                    auto p_srv = p_displacementMap->getSRV(0, 1, arraySlice, 1);
+                    auto p_rtv = p_newDisplacementMap->getRTV(0, arraySlice, 1);
+                    auto colorTargets = ColorTargets{};
+                    colorTargets.emplace_back(p_rtv, LoadOp::DontCare, StoreOp::Store);
+
+                    if (auto p_renderPass = p_context->beginRenderPass(colorTargets))
+                    {
+                        // TODO(falcor-align): Falcor uses RenderContext::blit() with reduction modes and componentsTransform for displacement packing.
+                        p_renderPass->blit(p_srv, p_rtv, RenderPassEncoder::kMaxRect, RenderPassEncoder::kMaxRect, TextureFilteringMode::Linear);
+                        p_renderPass->end();
+                    }
+                }
+
+                p_displacementMap = p_newDisplacementMap;
+                setDisplacementMap(p_newDisplacementMap);
+            }
+
+            p_displacementMap->generateMips(p_context, true);
         }
 
-        m_pDefaultSampler = p_sampler;
+        m_displacementMapChanged = false;
+    }
 
-        if (p_sampler && m_device)
+    auto BasicMaterial::setDisplacementScale(float value) -> void
+    {
+        if (m_data.displacementScale != value)
         {
-            auto desc = p_sampler->getDesc();
-            desc.setMaxAnisotropy(16);
-            desc.setReductionMode(TextureReductionMode::Min);
-            m_pDisplacementMinSampler = m_device->createSampler(desc);
-
-            desc.setReductionMode(TextureReductionMode::Max);
-            m_pDisplacementMaxSampler = m_device->createSampler(desc);
+            m_data.displacementScale = value;
+            markUpdates(UpdateFlags::DataChanged | UpdateFlags::DisplacementChanged);
         }
+    }
 
-        markUpdates(UpdateFlags::ResourcesChanged);
+    auto BasicMaterial::setDisplacementOffset(float value) -> void
+    {
+        if (m_data.displacementOffset != value)
+        {
+            m_data.displacementOffset = value;
+            markUpdates(UpdateFlags::DataChanged | UpdateFlags::DisplacementChanged);
+        }
     }
 
     auto BasicMaterial::setBaseColor(float4 const& color) -> void
     {
+        // TODO(falcor-align): Use Falcor-style vector compare/cast path (any(mData.baseColor != (float16_t4)color)).
         auto const current = float4(m_data.baseColor);
         if (current != color)
         {
@@ -193,6 +348,7 @@ namespace april::graphics
 
     auto BasicMaterial::setSpecularParams(float4 const& value) -> void
     {
+        // TODO(falcor-align): Use Falcor-style vector compare/cast path (any(mData.specular != (float16_t4)value)).
         auto const current = float4(m_data.specular);
         if (current != value)
         {
@@ -204,6 +360,7 @@ namespace april::graphics
 
     auto BasicMaterial::setTransmissionColor(float3 const& value) -> void
     {
+        // TODO(falcor-align): Use Falcor-style vector compare/cast path (any(mData.transmission != (float16_t3)value)).
         auto const current = float3(m_data.transmission);
         if (current != value)
         {
@@ -234,6 +391,7 @@ namespace april::graphics
 
     auto BasicMaterial::setVolumeAbsorption(float3 const& volumeAbsorption) -> void
     {
+        // TODO(falcor-align): Use Falcor-style vector compare/cast path (any(mData.volumeAbsorption != (float16_t3)volumeAbsorption)).
         auto const current = float3(m_data.volumeAbsorption);
         if (current != volumeAbsorption)
         {
@@ -244,6 +402,7 @@ namespace april::graphics
 
     auto BasicMaterial::setVolumeScattering(float3 const& volumeScattering) -> void
     {
+        // TODO(falcor-align): Use Falcor-style vector compare/cast path (any(mData.volumeScattering != (float16_t3)volumeScattering)).
         auto const current = float3(m_data.volumeScattering);
         if (current != volumeScattering)
         {
@@ -254,7 +413,7 @@ namespace april::graphics
 
     auto BasicMaterial::setVolumeAnisotropy(float volumeAnisotropy) -> void
     {
-        auto const clamped = glm::clamp(volumeAnisotropy, -0.99f, 0.99f);
+        auto const clamped = glm::clamp(volumeAnisotropy, -kMaxVolumeAnisotropy, kMaxVolumeAnisotropy);
         if (float(m_data.volumeAnisotropy) != clamped)
         {
             m_data.volumeAnisotropy = generated::float16_t(clamped);
@@ -262,78 +421,78 @@ namespace april::graphics
         }
     }
 
-    auto BasicMaterial::setDisplacementScale(float value) -> void
+    auto BasicMaterial::isEqual(core::ref<Material> const& p_other) const -> bool
     {
-        if (m_data.displacementScale != value)
+        auto const other = core::dynamic_ref_cast<BasicMaterial>(p_other);
+        if (!other)
         {
-            m_data.displacementScale = value;
-            markUpdates(UpdateFlags::DataChanged | UpdateFlags::DisplacementChanged);
+            return false;
         }
-    }
 
-    auto BasicMaterial::setDisplacementOffset(float value) -> void
-    {
-        if (m_data.displacementOffset != value)
-        {
-            m_data.displacementOffset = value;
-            markUpdates(UpdateFlags::DataChanged | UpdateFlags::DisplacementChanged);
-        }
+        return *this == *other;
     }
 
     auto BasicMaterial::operator==(BasicMaterial const& other) const -> bool
     {
-        return isBaseEqual(other)
-            && m_data.flags == other.m_data.flags
-            && m_data.emissiveFactor == other.m_data.emissiveFactor
-            && float4(m_data.baseColor) == float4(other.m_data.baseColor)
-            && float4(m_data.specular) == float4(other.m_data.specular)
-            && float3(m_data.emissive) == float3(other.m_data.emissive)
-            && float(m_data.specularTransmission) == float(other.m_data.specularTransmission)
-            && float3(m_data.transmission) == float3(other.m_data.transmission)
-            && float(m_data.diffuseTransmission) == float(other.m_data.diffuseTransmission)
-            && m_data.displacementScale == other.m_data.displacementScale
-            && m_data.displacementOffset == other.m_data.displacementOffset;
-    }
-
-    auto BasicMaterial::isAlphaSupported() const -> bool
-    {
-        return enum_has_all_flags(getTextureSlotInfo(TextureSlot::BaseColor).mask, TextureChannelFlags::Alpha);
-    }
-
-    auto BasicMaterial::prepareDisplacementMapForRendering() -> void
-    {
-        m_displacementMapChanged = false;
-    }
-
-    auto BasicMaterial::adjustDoubleSidedFlag() -> void
-    {
-        auto doubleSided = Material::isDoubleSided();
-        if (getDiffuseTransmission() > 0.f || getSpecularTransmission() > 0.f)
+        // TODO(falcor-align): Match Falcor compare_vec_field macros exactly (compare half-vector storage directly via any()).
+        if (!isBaseEqual(other))
         {
-            doubleSided = true;
+            return false;
         }
-        if (isDisplaced())
+
+#define compare_field(field_) if (m_data.field_ != other.m_data.field_) return false
+#define compare_vec_field(field_) if (float3(m_data.field_) != float3(other.m_data.field_)) return false
+        compare_field(flags);
+        compare_field(displacementScale);
+        compare_field(displacementOffset);
+        if (float4(m_data.baseColor) != float4(other.m_data.baseColor)) return false;
+        if (float4(m_data.specular) != float4(other.m_data.specular)) return false;
+        compare_vec_field(emissive);
+        compare_field(emissiveFactor);
+        compare_field(diffuseTransmission);
+        compare_field(specularTransmission);
+        compare_vec_field(transmission);
+        compare_vec_field(volumeAbsorption);
+        compare_field(volumeAnisotropy);
+        compare_vec_field(volumeScattering);
+#undef compare_field
+#undef compare_vec_field
+
+        if (m_pDefaultSampler->getDesc() != other.m_pDefaultSampler->getDesc())
         {
-            doubleSided = true;
+            return false;
         }
-        Material::setDoubleSided(doubleSided);
+
+        if (m_pDisplacementMinSampler->getDesc() != other.m_pDisplacementMinSampler->getDesc())
+        {
+            return false;
+        }
+
+        if (m_pDisplacementMaxSampler->getDesc() != other.m_pDisplacementMaxSampler->getDesc())
+        {
+            return false;
+        }
+
+        return true;
     }
 
     auto BasicMaterial::updateAlphaMode() -> void
     {
         if (!isAlphaSupported())
         {
+            AP_ASSERT(getAlphaMode() == generated::AlphaMode::Opaque);
             return;
         }
 
+        auto const hasAlpha = getBaseColorTexture() && doesFormatHaveAlpha(getBaseColorTexture()->getFormat());
         auto const alpha = getBaseColor().w;
-        if (!getBaseColorTexture())
+        if (!hasAlpha)
         {
             m_alphaRange = float2(alpha);
         }
 
         auto const useAlpha = m_alphaRange.x < getAlphaThreshold();
-        Material::setAlphaMode(useAlpha ? generated::AlphaMode::Mask : generated::AlphaMode::Opaque);
+        setAlphaMode(useAlpha ? generated::AlphaMode::Mask : generated::AlphaMode::Opaque);
     }
 
     auto BasicMaterial::updateNormalMapType() -> void
@@ -360,5 +519,22 @@ namespace april::graphics
             m_header.setEmissive(emissive);
             markUpdates(UpdateFlags::DataChanged | UpdateFlags::EmissiveChanged);
         }
+    }
+
+    auto BasicMaterial::adjustDoubleSidedFlag() -> void
+    {
+        auto doubleSided = Material::isDoubleSided();
+
+        if (getDiffuseTransmission() > 0.f || getSpecularTransmission() > 0.f)
+        {
+            doubleSided = true;
+        }
+
+        if (isDisplaced())
+        {
+            doubleSided = true;
+        }
+
+        Material::setDoubleSided(doubleSided);
     }
 }

@@ -2,6 +2,7 @@
 
 #include "rhi/texture.hpp"
 
+#include <cstdint>
 #include <functional>
 #include <unordered_map>
 #include <vector>
@@ -11,6 +12,15 @@ namespace april::graphics
     class MaterialTextureManager
     {
     public:
+        struct Stats
+        {
+            uint64_t textureCount = 0;
+            uint64_t textureCompressedCount = 0;
+            uint64_t textureTexelCount = 0;
+            uint64_t textureTexelChannelCount = 0;
+            uint64_t textureMemoryInBytes = 0;
+        };
+
         using DescriptorHandle = uint32_t;
         using DeferredTextureLoader = std::function<core::ref<Texture>()>;
 
@@ -26,6 +36,7 @@ namespace april::graphics
         auto enqueueDeferred(DeferredTextureLoader loader) -> void;
         auto resolveDeferred(size_t maxCount) -> bool;
         auto hasDeferred() const -> bool;
+        auto getStats() const -> Stats;
 
         auto forEach(std::function<void(core::ref<Texture> const&)> const& visitor) const -> void;
 

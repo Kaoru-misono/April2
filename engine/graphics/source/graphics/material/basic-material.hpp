@@ -20,7 +20,7 @@ namespace april::graphics
         auto setAlphaMode(generated::AlphaMode alphaMode) -> void override;
         auto setAlphaThreshold(float alphaThreshold) -> void override;
         auto setTexture(TextureSlot const slot, core::ref<Texture> const& p_texture) -> bool override;
-        auto optimizeTexture(TextureSlot const slot, TextureOptimizationStats& stats) -> void override;
+        auto optimizeTexture(TextureSlot const slot, TextureAnalyzer::Result const& texInfo, TextureOptimizationStats& stats) -> void override;
         auto setDefaultTextureSampler(core::ref<Sampler> const& p_sampler) -> void override;
         auto getDefaultTextureSampler() const -> core::ref<Sampler> override { return m_pDefaultSampler; }
 

@@ -221,9 +221,10 @@ namespace april::graphics
         return m_textureSlotData[static_cast<size_t>(slot)].pTexture;
     }
 
-    auto Material::optimizeTexture(TextureSlot slot, TextureOptimizationStats& stats) -> void
+    auto Material::optimizeTexture(TextureSlot slot, TextureAnalyzer::Result const& texInfo, TextureOptimizationStats& stats) -> void
     {
         (void)slot;
+        (void)texInfo;
         (void)stats;
     }
 
@@ -356,7 +357,7 @@ namespace april::graphics
             return;
         }
 
-        auto const samplerID = pOwner->registerSamplerDescriptor(pSampler);
+        auto const samplerID = pOwner->addTextureSampler(pSampler);
         if (m_header.getDefaultTextureSamplerID() != samplerID)
         {
             m_header.setDefaultTextureSamplerID(samplerID);

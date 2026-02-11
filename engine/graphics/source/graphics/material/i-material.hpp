@@ -2,6 +2,7 @@
 
 #include "generated/material/material-data.generated.hpp"
 #include "generated/material/material-types.generated.hpp"
+#include "texture-analyzer.hpp"
 #include "../program/define-list.hpp"
 #include "program/program.hpp"
 #include "rhi/format.hpp"
@@ -119,7 +120,7 @@ namespace april::graphics
         virtual auto loadTexture(TextureSlot slot, std::filesystem::path const& path, bool useSrgb = true) -> bool;
         virtual auto clearTexture(TextureSlot slot) -> void;
         virtual auto getTexture(TextureSlot slot) const -> core::ref<Texture>;
-        virtual auto optimizeTexture(TextureSlot slot, TextureOptimizationStats& stats) -> void;
+        virtual auto optimizeTexture(TextureSlot slot, TextureAnalyzer::Result const& texInfo, TextureOptimizationStats& stats) -> void;
         virtual auto setDefaultTextureSampler(core::ref<Sampler> const& pSampler) -> void;
         virtual auto getDefaultTextureSampler() const -> core::ref<Sampler>;
         virtual auto getHeader() const -> generated::MaterialHeader const&;

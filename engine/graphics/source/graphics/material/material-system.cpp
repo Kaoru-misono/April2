@@ -1,999 +1,838 @@
-// MaterialSystem implementation.
-
 #include "material-system.hpp"
-#include "basic-material.hpp"
-#include "standard-material.hpp"
+
 #include "program/shader-variable.hpp"
+#include "rhi/command-context.hpp"
 #include "rhi/parameter-block.hpp"
 #include "rhi/render-device.hpp"
+#include "texture-analyzer.hpp"
 
-#include <format>
-#include <stdexcept>
 #include <algorithm>
-#include <cstring>
-#include <string_view>
-#include <cstdlib>
-#include <array>
-#include <cmath>
+#include <cctype>
+#include <limits>
+#include <numeric>
 
 namespace april::graphics
 {
-
-MaterialSystem::MaterialSystem(core::ref<Device> device)
-    : m_device(std::move(device))
-{
-    m_materials.reserve(kInitialBufferCapacity);
-    m_cpuMaterialData.reserve(kInitialBufferCapacity);
-
-    m_samplerDescriptors.emplace_back();
-    m_bufferDescriptors.emplace_back();
-
-    if (m_device)
+    namespace
     {
-        m_defaultTextureSampler = m_device->getDefaultSampler();
+        auto constexpr kMaterialDataName = "materialData";
+        auto constexpr kMaterialSamplersName = "materialSamplers";
+        auto constexpr kMaterialTexturesName = "materialTextures";
+        auto constexpr kMaterialBuffersName = "materialBuffers";
+        auto constexpr kMaterialTextures3DName = "materialTextures3D";
+
+        auto constexpr kMaxSamplerCount = 1ull << generated::MaterialHeader::kSamplerIDBits;
+        auto constexpr kMaxTextureCount = 1ull << generated::TextureHandle::kTextureIDBits;
+
+        auto isSpecGloss(core::ref<IMaterial> const& p_material) -> bool
+        {
+            (void)p_material;
+            return false;
+        }
     }
 
-    m_materialTypeRegistry.registerBuiltIn(
-        "Standard",
-        static_cast<uint32_t>(generated::MaterialType::Standard)
-    );
-}
-
-auto MaterialSystem::getShaderDefines() const -> DefineList
-{
-    auto defines = DefineList{};
-
-    defines.add("MATERIAL_SYSTEM_TEXTURE_DESC_COUNT", std::to_string(m_textureDescCount));
-    defines.add("MATERIAL_SYSTEM_SAMPLER_DESC_COUNT", std::to_string(kMaxSamplerCount));
-    defines.add("MATERIAL_SYSTEM_BUFFER_DESC_COUNT", std::to_string(m_bufferDescCount));
-    defines.add("MATERIAL_SYSTEM_TEXTURE_3D_DESC_COUNT", std::to_string(m_texture3DDescCount));
-    defines.add("MATERIAL_SYSTEM_UDIM_INDIRECTION_ENABLED", m_udimIndirectionEnabled ? "1" : "0");
-    defines.add("MATERIAL_SYSTEM_USE_LIGHT_PROFILE", m_lightProfileEnabled ? "1" : "0");
-
-    auto materialInstanceByteSize = size_t{128};
-    for (auto const& material : m_materials)
+    MaterialSystem::MaterialSystem(core::ref<Device> p_device)
+        : m_device(std::move(p_device))
     {
-        if (!material)
-        {
-            continue;
-        }
-        materialInstanceByteSize = std::max(materialInstanceByteSize, material->getMaterialInstanceByteSize());
+        AP_ASSERT(m_device);
+        AP_ASSERT(kMaxSamplerCount <= m_device->getLimits().maxShaderVisibleSamplers);
+
+        m_fence = m_device->createFence();
+        m_textureManager = std::make_unique<MaterialTextureManager>();
+
+        auto samplerDesc = Sampler::Desc{};
+        samplerDesc.setFilterMode(TextureFilteringMode::Linear, TextureFilteringMode::Linear, TextureFilteringMode::Linear);
+        samplerDesc.setMaxAnisotropy(8);
+        m_defaultTextureSampler = m_device->createSampler(samplerDesc);
     }
-    defines.add("FALCOR_MATERIAL_INSTANCE_SIZE", std::to_string(materialInstanceByteSize));
 
-    for (auto const& material : m_materials)
+    auto MaterialSystem::updateUI() -> void
     {
-        if (!material)
-        {
-            continue;
-        }
+    }
 
-        auto materialDefines = material->getDefines();
-        for (auto const& [name, value] : materialDefines)
+    auto MaterialSystem::setDefaultTextureSampler(core::ref<Sampler> const& p_sampler) -> void
+    {
+        m_defaultTextureSampler = p_sampler;
+        for (auto const& p_material : m_materials)
         {
-            if (auto existing = defines.find(name); existing != defines.end() && existing->second != value)
+            if (p_material)
             {
-                AP_ERROR(
-                    "Mismatching values '{}' and '{}' for material define '{}'.",
-                    existing->second,
-                    value,
-                    name
-                );
-                std::abort();
+                p_material->setDefaultTextureSampler(p_sampler);
             }
-            defines.add(name, value);
         }
     }
 
-    return defines;
-}
-
-auto MaterialSystem::addMaterial(core::ref<IMaterial> material) -> uint32_t
-{
-    if (!material)
+    auto MaterialSystem::addTextureSampler(core::ref<Sampler> const& p_sampler) -> uint32_t
     {
-        AP_WARN("MaterialSystem::addMaterial: null material provided");
-        return UINT32_MAX;
-    }
+        AP_ASSERT(p_sampler);
 
-    auto it = m_materialIndices.find(material.get());
-    if (it != m_materialIndices.end())
-    {
-        return it->second;
-    }
-
-    if (material->getDefaultTextureSampler() == nullptr)
-    {
-        material->setDefaultTextureSampler(m_defaultTextureSampler);
-    }
-
-    material->registerUpdateCallback([this](auto flags)
-    {
-        m_materialUpdates |= flags;
-    });
-
-    auto const index = static_cast<uint32_t>(m_materials.size());
-    m_materials.push_back(material);
-    m_materialIndices[material.get()] = index;
-
-    m_cpuMaterialData.emplace_back();
-    m_materialsUpdateFlags.emplace_back(MaterialUpdateFlags::None);
-
-    m_materialsChanged = true;
-    m_dirty = true;
-    return index;
-}
-
-auto MaterialSystem::removeMaterial(uint32_t index) -> void
-{
-    if (index >= m_materials.size())
-    {
-        AP_WARN("MaterialSystem::removeMaterial: invalid index {}", index);
-        return;
-    }
-
-    auto const material = m_materials[index];
-    if (material)
-    {
-        m_materialIndices.erase(material.get());
-    }
-
-    m_materials[index] = nullptr;
-    m_materialsChanged = true;
-    m_dirty = true;
-}
-
-auto MaterialSystem::getMaterial(uint32_t index) const -> core::ref<IMaterial>
-{
-    if (index >= m_materials.size())
-    {
-        return nullptr;
-    }
-    return m_materials[index];
-}
-
-auto MaterialSystem::getMaterialCount() const -> uint32_t
-{
-    return static_cast<uint32_t>(m_materials.size());
-}
-
-auto MaterialSystem::update(bool forceUpdate) -> MaterialUpdateFlags
-{
-    if (m_textureManager.resolveDeferred(kMaxTextureCount) || m_texture3DManager.resolveDeferred(kMaxTextureCount))
-    {
-        m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
-        forceUpdate = true;
-    }
-
-    if (forceUpdate || m_materialsChanged)
-    {
-        updateMetadata();
-
-        if (!m_useExternalParamData)
+        auto const isEqual = [&p_sampler](core::ref<Sampler> const& p_other)
         {
-            rebuildInternalMaterialParamData();
-        }
-
-        m_materialsChanged = false;
-        forceUpdate = true;
-    }
-
-    m_materialsUpdateFlags.resize(m_materials.size());
-    std::fill(m_materialsUpdateFlags.begin(), m_materialsUpdateFlags.end(), MaterialUpdateFlags::None);
-
-    auto updateFlags = MaterialUpdateFlags::None;
-    auto updateMaterial = [this, &updateFlags](uint32_t index)
-    {
-        if (index >= m_materials.size())
-        {
-            return;
-        }
-
-        auto& material = m_materials[index];
-        if (!material)
-        {
-            return;
-        }
-
-        auto const flags = material->update(this);
-        m_materialsUpdateFlags[index] = flags;
-        updateFlags |= flags;
-    };
-
-    if (forceUpdate || m_materialUpdates != MaterialUpdateFlags::None)
-    {
-        for (uint32_t i = 0; i < static_cast<uint32_t>(m_materials.size()); ++i)
-        {
-            updateMaterial(i);
-        }
-    }
-    else
-    {
-        for (auto const i : m_dynamicMaterialIndices)
-        {
-            updateMaterial(i);
-        }
-    }
-
-    updateFlags |= m_materialUpdates;
-    m_materialUpdates = MaterialUpdateFlags::None;
-
-    if (m_materialParamDataDirty)
-    {
-        auto uploadStructured = [this](size_t elementSize, size_t elementCount, void const* data) -> core::ref<Buffer>
-        {
-            if (elementCount == 0)
-            {
-                return nullptr;
-            }
-
-            return core::make_ref<Buffer>(
-                m_device,
-                static_cast<uint32_t>(elementSize),
-                static_cast<uint32_t>(elementCount),
-                BufferUsage::ShaderResource,
-                MemoryType::Upload,
-                data,
-                false
-            );
+            return p_other && (p_sampler->getDesc() == p_other->getDesc());
         };
 
-        m_materialParamLayoutBuffer = uploadStructured(
-            sizeof(MaterialParamLayoutEntry),
-            m_materialParamLayoutEntries.size(),
-            m_materialParamLayoutEntries.empty() ? nullptr : m_materialParamLayoutEntries.data()
-        );
-
-        m_serializedMaterialParamsBuffer = uploadStructured(
-            sizeof(SerializedMaterialParam),
-            m_serializedMaterialParams.size(),
-            m_serializedMaterialParams.empty() ? nullptr : m_serializedMaterialParams.data()
-        );
-
-        if (!m_serializedMaterialParamData.empty())
+        if (auto const it = std::find_if(m_textureSamplers.begin(), m_textureSamplers.end(), isEqual); it != m_textureSamplers.end())
         {
-            m_serializedMaterialParamDataBuffer = core::make_ref<Buffer>(
-                m_device,
-                1,
-                static_cast<uint32_t>(m_serializedMaterialParamData.size()),
-                BufferUsage::ShaderResource,
-                MemoryType::Upload,
-                m_serializedMaterialParamData.data(),
-                false
-            );
+            return static_cast<uint32_t>(std::distance(m_textureSamplers.begin(), it));
+        }
+
+        if (m_textureSamplers.size() >= kMaxSamplerCount)
+        {
+            // TODO(falcor-align): FALCOR_CHECK/FALCOR_THROW on sampler overflow.
+            AP_ERROR("Too many samplers");
+            return 0;
+        }
+
+        auto const samplerId = static_cast<uint32_t>(m_textureSamplers.size());
+        m_textureSamplers.push_back(p_sampler);
+        m_samplersChanged = true;
+        return samplerId;
+    }
+
+    auto MaterialSystem::addBuffer(core::ref<Buffer> const& p_buffer) -> uint32_t
+    {
+        AP_ASSERT(p_buffer);
+
+        if (auto const it = std::find(m_buffers.begin(), m_buffers.end(), p_buffer); it != m_buffers.end())
+        {
+            return static_cast<uint32_t>(std::distance(m_buffers.begin(), it));
+        }
+
+        if (m_buffers.size() >= m_bufferDescCount)
+        {
+            // TODO(falcor-align): FALCOR_CHECK/FALCOR_THROW on buffer overflow.
+            AP_ERROR("Too many buffers");
+            return 0;
+        }
+
+        auto const bufferId = static_cast<uint32_t>(m_buffers.size());
+        m_buffers.push_back(p_buffer);
+        m_buffersChanged = true;
+        return bufferId;
+    }
+
+    auto MaterialSystem::replaceBuffer(uint32_t id, core::ref<Buffer> const& p_buffer) -> void
+    {
+        AP_ASSERT(p_buffer);
+        if (id >= m_buffers.size())
+        {
+            // TODO(falcor-align): FALCOR_CHECK on buffer id bounds.
+            AP_ERROR("Buffer id out of bounds");
+            return;
+        }
+
+        m_buffers[id] = p_buffer;
+        m_buffersChanged = true;
+    }
+
+    auto MaterialSystem::addTexture3D(core::ref<Texture> const& p_texture) -> uint32_t
+    {
+        AP_ASSERT(p_texture);
+
+        if (auto const it = std::find(m_textures3D.begin(), m_textures3D.end(), p_texture); it != m_textures3D.end())
+        {
+            return static_cast<uint32_t>(std::distance(m_textures3D.begin(), it));
+        }
+
+        if (m_textures3D.size() >= m_texture3DDescCount)
+        {
+            // TODO(falcor-align): FALCOR_CHECK/FALCOR_THROW on 3D texture overflow.
+            AP_ERROR("Too many 3D textures");
+            return 0;
+        }
+
+        auto const textureId = static_cast<uint32_t>(m_textures3D.size());
+        m_textures3D.push_back(p_texture);
+        m_textures3DChanged = true;
+        return textureId;
+    }
+
+    auto MaterialSystem::addMaterial(core::ref<IMaterial> const& p_material) -> uint32_t
+    {
+        if (!p_material)
+        {
+            // TODO(falcor-align): FALCOR_CHECK for missing material.
+            AP_ERROR("'p_material' is missing");
+            return std::numeric_limits<uint32_t>::max();
+        }
+
+        if (auto const it = std::find(m_materials.begin(), m_materials.end(), p_material); it != m_materials.end())
+        {
+            return static_cast<uint32_t>(std::distance(m_materials.begin(), it));
+        }
+
+        if (m_materials.size() >= std::numeric_limits<uint32_t>::max())
+        {
+            // TODO(falcor-align): FALCOR_THROW when material count overflows uint32_t.
+            AP_ERROR("Too many materials");
+            return std::numeric_limits<uint32_t>::max();
+        }
+
+        if (p_material->getDefaultTextureSampler() == nullptr)
+        {
+            p_material->setDefaultTextureSampler(m_defaultTextureSampler);
+        }
+
+        p_material->registerUpdateCallback([this](auto const flags) { m_materialUpdates |= flags; });
+        m_materials.push_back(p_material);
+        m_materialsChanged = true;
+        return static_cast<uint32_t>(m_materials.size() - 1);
+    }
+
+    auto MaterialSystem::removeMaterial(uint32_t materialId) -> void
+    {
+        if (materialId >= m_materials.size())
+        {
+            // TODO(falcor-align): FALCOR_CHECK for material id validity.
+            AP_ERROR("Material id invalid");
+            return;
+        }
+
+        auto const& p_material = m_materials[materialId];
+        if (p_material)
+        {
+            m_reservedTextureDescCount += p_material->getMaxTextureCount();
+            m_reservedBufferDescCount += p_material->getMaxBufferCount();
+            m_reservedTexture3DDescCount += p_material->getMaxTexture3DCount();
+        }
+
+        m_materials[materialId] = nullptr;
+        m_materialsChanged = true;
+    }
+
+    auto MaterialSystem::replaceMaterial(uint32_t materialId, core::ref<IMaterial> const& p_replacement) -> void
+    {
+        if (materialId >= m_materials.size())
+        {
+            // TODO(falcor-align): FALCOR_CHECK for material id validity.
+            AP_ERROR("Material id invalid");
+            return;
+        }
+        if (!p_replacement)
+        {
+            // TODO(falcor-align): FALCOR_CHECK for missing replacement material.
+            AP_ERROR("Replacement material missing");
+            return;
+        }
+
+        removeMaterial(materialId);
+
+        if (p_replacement->getDefaultTextureSampler() == nullptr)
+        {
+            p_replacement->setDefaultTextureSampler(m_defaultTextureSampler);
+        }
+        p_replacement->registerUpdateCallback([this](auto const flags) { m_materialUpdates |= flags; });
+
+        m_materials[materialId] = p_replacement;
+        m_materialsChanged = true;
+    }
+
+    auto MaterialSystem::replaceMaterial(core::ref<IMaterial> const& p_material, core::ref<IMaterial> const& p_replacement) -> void
+    {
+        if (!p_material)
+        {
+            // TODO(falcor-align): FALCOR_CHECK for missing source material.
+            AP_ERROR("'p_material' is missing");
+            return;
+        }
+
+        if (auto const it = std::find(m_materials.begin(), m_materials.end(), p_material); it != m_materials.end())
+        {
+            replaceMaterial(static_cast<uint32_t>(std::distance(m_materials.begin(), it)), p_replacement);
         }
         else
         {
-            m_serializedMaterialParamDataBuffer = nullptr;
+            // TODO(falcor-align): FALCOR_THROW when source material does not exist.
+            AP_ERROR("Material does not exist");
         }
-
-        m_materialParamDataDirty = false;
     }
 
-    if (!m_materials.empty())
+    auto MaterialSystem::getMaterialCountByType(generated::MaterialType type) const -> uint32_t
     {
-        ensureBufferCapacity(static_cast<uint32_t>(m_materials.size()));
+        // TODO(falcor-align): FALCOR_CHECK(!mMaterialsChanged, "Materials have changed. Call update() first.").
+        auto const index = static_cast<size_t>(type);
+        return index < m_materialCountByType.size() ? m_materialCountByType[index] : 0;
     }
 
-    if (forceUpdate || enum_has_any_flags(updateFlags, MaterialUpdateFlags::DataChanged) || m_dirty)
+    auto MaterialSystem::getMaterialTypes() const -> std::set<generated::MaterialType>
     {
-        for (uint32_t i = 0; i < m_materials.size(); ++i)
+        // TODO(falcor-align): FALCOR_CHECK(!mMaterialsChanged, "Materials have changed. Call update() first.").
+        return m_materialTypes;
+    }
+
+    auto MaterialSystem::hasMaterialType(generated::MaterialType type) const -> bool
+    {
+        // TODO(falcor-align): FALCOR_CHECK(!mMaterialsChanged, "Materials have changed. Call update() first.").
+        return m_materialTypes.find(type) != m_materialTypes.end();
+    }
+
+    auto MaterialSystem::hasMaterial(uint32_t materialId) const -> bool
+    {
+        return materialId < m_materials.size();
+    }
+
+    auto MaterialSystem::getMaterial(uint32_t materialId) const -> core::ref<IMaterial> const&
+    {
+        // TODO(falcor-align): FALCOR_CHECK on material id range.
+        AP_ASSERT(materialId < m_materials.size());
+        return m_materials[materialId];
+    }
+
+    auto MaterialSystem::getMaterialByName(std::string const& name) const -> core::ref<IMaterial>
+    {
+        for (auto const& p_material : m_materials)
         {
-            if (forceUpdate || enum_has_any_flags(m_materialsUpdateFlags[i], MaterialUpdateFlags::DataChanged) || m_dirty)
+            if (p_material && p_material->getName() == name)
             {
-                uploadMaterial(i);
+                return p_material;
             }
         }
-        m_dirty = false;
+        return nullptr;
     }
 
-    return updateFlags;
-}
-
-auto MaterialSystem::bindShaderData(ShaderVariable const& var) const -> void
-{
-    if (!var.isValid())
+    auto MaterialSystem::removeDuplicateMaterials(std::vector<uint32_t>& idMap) -> size_t
     {
-        return;
-    }
+        auto uniqueMaterials = std::vector<core::ref<IMaterial>>{};
+        idMap.resize(m_materials.size());
 
-    auto bindingVar = var;
-    if (auto parameterBlock = var.getParameterBlock())
-    {
-        auto const byteSize = parameterBlock->getElementSize();
-        if (!m_materialsBindingBlock || m_materialsBindingBlockByteSize != byteSize)
+        for (auto id = uint32_t{0}; id < m_materials.size(); ++id)
         {
-            m_materialsBindingBlock = ParameterBlock::create(m_device, parameterBlock->getReflection());
-            m_materialsBindingBlockByteSize = byteSize;
-        }
-
-        bindingVar = m_materialsBindingBlock->getRootVariable();
-    }
-
-    if (bindingVar.hasMember("materialCount"))
-    {
-        bindingVar["materialCount"].set(getMaterialCount());
-    }
-
-    if (m_materialDataBuffer && bindingVar.hasMember("materialData"))
-    {
-        bindingVar["materialData"].setBuffer(m_materialDataBuffer);
-    }
-
-    if (bindingVar.hasMember("materialSamplers"))
-    {
-        for (uint32_t i = 0; i < getSamplerDescriptorCount(); ++i)
-        {
-            auto sampler = getSamplerDescriptorResource(i);
-            if (!sampler)
+            auto const& p_material = m_materials[id];
+            auto const it = std::find_if(uniqueMaterials.begin(), uniqueMaterials.end(), [&p_material](auto const& p_other)
             {
-                sampler = m_defaultTextureSampler;
+                return p_other->isEqual(p_material);
+            });
+
+            if (it == uniqueMaterials.end())
+            {
+                idMap[id] = static_cast<uint32_t>(uniqueMaterials.size());
+                uniqueMaterials.push_back(p_material);
             }
-            bindingVar["materialSamplers"][i].setSampler(sampler);
-        }
-    }
-
-    if (bindingVar.hasMember("materialTextures"))
-    {
-        for (uint32_t i = 0; i < getTextureDescriptorCount(); ++i)
-        {
-            if (auto texture = getTextureDescriptorResource(i))
+            else
             {
-                bindingVar["materialTextures"][i].setTexture(texture);
+                AP_INFO("Removing duplicate material '{}' (duplicate of '{}').", p_material->getName(), (*it)->getName());
+                idMap[id] = static_cast<uint32_t>(std::distance(uniqueMaterials.begin(), it));
             }
         }
+
+        auto const removed = m_materials.size() - uniqueMaterials.size();
+        if (removed > 0)
+        {
+            m_materials = uniqueMaterials;
+            m_materialsChanged = true;
+        }
+
+        return removed;
     }
 
-    if (bindingVar.hasMember("materialBuffers"))
+    auto MaterialSystem::optimizeMaterials() -> void
     {
-        for (uint32_t i = 0; i < getBufferDescriptorCount(); ++i)
+        auto materialSlots = std::vector<std::pair<core::ref<IMaterial>, Material::TextureSlot>>{};
+        auto textures = std::vector<core::ref<Texture>>{};
+        auto const maxCount = m_materials.size() * static_cast<size_t>(Material::TextureSlot::Count);
+        materialSlots.reserve(maxCount);
+        textures.reserve(maxCount);
+
+        for (auto const& p_material : m_materials)
         {
-            if (auto buffer = getBufferDescriptorResource(i))
+            if (!p_material)
             {
-                bindingVar["materialBuffers"][i].setBuffer(buffer);
+                continue;
+            }
+
+            for (auto i = uint32_t{0}; i < static_cast<uint32_t>(Material::TextureSlot::Count); ++i)
+            {
+                auto const slot = static_cast<Material::TextureSlot>(i);
+                if (auto const p_texture = p_material->getTexture(slot))
+                {
+                    materialSlots.push_back({p_material, slot});
+                    textures.push_back(p_texture);
+                }
             }
         }
-    }
 
-    if (bindingVar.hasMember("materialTextures3D"))
-    {
-        for (uint32_t i = 0; i < getTexture3DDescriptorCount(); ++i)
-        {
-            if (auto texture = getTexture3DDescriptorResource(i))
-            {
-                bindingVar["materialTextures3D"][i].setTexture(texture);
-            }
-        }
-    }
-
-    if (bindingVar.hasMember("materialParamLayoutEntryCount"))
-    {
-        bindingVar["materialParamLayoutEntryCount"].set(static_cast<uint32_t>(m_materialParamLayoutEntries.size()));
-    }
-
-    if (bindingVar.hasMember("serializedMaterialParamCount"))
-    {
-        bindingVar["serializedMaterialParamCount"].set(static_cast<uint32_t>(m_serializedMaterialParams.size()));
-    }
-
-    if (bindingVar.hasMember("materialParamLayoutEntries") && m_materialParamLayoutBuffer)
-    {
-        bindingVar["materialParamLayoutEntries"].setBuffer(m_materialParamLayoutBuffer);
-    }
-
-    if (bindingVar.hasMember("serializedMaterialParamEntries") && m_serializedMaterialParamsBuffer)
-    {
-        bindingVar["serializedMaterialParamEntries"].setBuffer(m_serializedMaterialParamsBuffer);
-    }
-
-    if (bindingVar.hasMember("serializedMaterialParamData") && m_serializedMaterialParamDataBuffer)
-    {
-        bindingVar["serializedMaterialParamData"].setBuffer(m_serializedMaterialParamDataBuffer);
-    }
-
-    if (bindingVar.hasMember("udimIndirection") && m_udimIndirectionEnabled && m_udimIndirectionBuffer)
-    {
-        bindingVar["udimIndirection"].setBuffer(m_udimIndirectionBuffer);
-    }
-
-    if (m_materialsBindingBlock)
-    {
-        var.setParameterBlock(m_materialsBindingBlock);
-    }
-}
-
-auto MaterialSystem::getStats() const -> MaterialStats
-{
-    auto stats = MaterialStats{};
-
-    stats.materialCount = static_cast<uint64_t>(m_materials.size());
-    stats.materialMemoryInBytes = static_cast<uint64_t>(m_materials.size()) * sizeof(generated::MaterialDataBlob);
-    stats.materialTypeCount = static_cast<uint64_t>(m_typeConformancesByType.size());
-
-    for (auto const& material : m_materials)
-    {
-        if (!material)
-        {
-            continue;
-        }
-
-        auto const alphaMasked = material->getAlphaMode() == generated::AlphaMode::Mask;
-        if (!alphaMasked)
-        {
-            ++stats.materialOpaqueCount;
-        }
-    }
-
-    stats.textureCount = static_cast<uint64_t>(m_textureManager.size() > 0 ? m_textureManager.size() - 1 : 0);
-    m_textureManager.forEach([&](core::ref<Texture> const& texture)
-    {
-        if (!texture)
+        if (textures.empty())
         {
             return;
         }
 
-        auto const format = texture->getFormat();
-        if (isCompressedFormat(format))
-        {
-            ++stats.textureCompressedCount;
-        }
+        AP_INFO("Analyzing {} material textures.", textures.size());
 
-        auto const channels = getChannelMask(format);
-        auto const channelBits = getNumChannelBits(format, channels);
-        auto const texels = static_cast<uint64_t>(texture->getWidth()) * texture->getHeight() * texture->getDepth();
-        stats.textureTexelCount += texels;
-        stats.textureTexelChannelCount += texels * channelBits;
-    });
+        auto const analyzer = TextureAnalyzer{};
+        auto* p_context = m_device->getCommandContext();
 
-    return stats;
-}
+        auto const resultBufferSize = textures.size() * TextureAnalyzer::getResultSize();
+        auto const p_results = m_device->createBuffer(
+            resultBufferSize,
+            BufferUsage::UnorderedAccess | BufferUsage::CopySource,
+            MemoryType::DeviceLocal,
+            nullptr
+        );
+        analyzer.analyze(p_context, textures, p_results);
 
-auto MaterialSystem::getMaterialDataBuffer() const -> core::ref<Buffer>
-{
-    return m_materialDataBuffer;
-}
-
-auto MaterialSystem::getTypeConformances() const -> TypeConformanceList
-{
-    TypeConformanceList conformances;
-    for (auto const& [type, list] : m_typeConformancesByType)
-    {
-        (void)type;
-        conformances.add(list);
-    }
-
-    // Falcor-style phase-function conformances used by volumetric paths.
-    conformances.add("IsotropicPhaseFunction", "IPhaseFunction");
-    conformances.add("HenyeyGreensteinPhaseFunction", "IPhaseFunction");
-
-    return conformances;
-}
-
-auto MaterialSystem::getTypeConformances(generated::MaterialType type) const -> TypeConformanceList
-{
-    if (auto const it = m_typeConformancesByType.find(type); it != m_typeConformancesByType.end())
-    {
-        return it->second;
-    }
-
-    AP_ERROR("No type conformances for material type '{}'.", static_cast<uint32_t>(type));
-    return {};
-}
-
-auto MaterialSystem::getShaderModules() const -> ProgramDesc::ShaderModuleList
-{
-    return m_shaderModules;
-}
-
-auto MaterialSystem::getShaderModules(ProgramDesc::ShaderModuleList& modules) const -> void
-{
-    auto materialModules = getShaderModules();
-    modules.insert(modules.end(), materialModules.begin(), materialModules.end());
-}
-
-auto MaterialSystem::registerTextureDescriptor(core::ref<Texture> texture) -> DescriptorHandle
-{
-    auto const handle = m_textureManager.registerTexture(texture, kMaxTextureCount);
-    if (handle == kInvalidDescriptorHandle && texture)
-    {
-        AP_ERROR("MaterialSystem texture descriptor overflow.");
-    }
-    return handle;
-}
-
-auto MaterialSystem::registerSamplerDescriptor(core::ref<Sampler> sampler) -> DescriptorHandle
-{
-    if (!sampler)
-    {
-        return kInvalidDescriptorHandle;
-    }
-
-    auto const iter = m_samplerDescriptorIndices.find(sampler.get());
-    if (iter != m_samplerDescriptorIndices.end())
-    {
-        return iter->second;
-    }
-
-    if (m_samplerDescriptors.size() >= kMaxSamplerCount)
-    {
-        AP_ERROR("MaterialSystem sampler descriptor overflow.");
-        return kInvalidDescriptorHandle;
-    }
-
-    auto const handle = static_cast<DescriptorHandle>(m_samplerDescriptors.size());
-    m_samplerDescriptors.push_back(sampler);
-    m_samplerDescriptorIndices[sampler.get()] = handle;
-    return handle;
-}
-
-auto MaterialSystem::registerBufferDescriptor(core::ref<Buffer> buffer) -> DescriptorHandle
-{
-    if (!buffer)
-    {
-        return kInvalidDescriptorHandle;
-    }
-
-    auto const iter = m_bufferDescriptorIndices.find(buffer.get());
-    if (iter != m_bufferDescriptorIndices.end())
-    {
-        return iter->second;
-    }
-
-    auto const handle = static_cast<DescriptorHandle>(m_bufferDescriptors.size());
-    m_bufferDescriptors.push_back(buffer);
-    m_bufferDescriptorIndices[buffer.get()] = handle;
-    return handle;
-}
-
-auto MaterialSystem::registerTexture3DDescriptor(core::ref<Texture> texture) -> DescriptorHandle
-{
-    return m_texture3DManager.registerTexture(texture, kMaxTextureCount);
-}
-
-auto MaterialSystem::addTexture(core::ref<Texture> texture) -> DescriptorHandle
-{
-    auto const handle = registerTextureDescriptor(texture);
-    if (handle != kInvalidDescriptorHandle)
-    {
-        m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
-    }
-    return handle;
-}
-
-auto MaterialSystem::enqueueDeferredTextureLoad(MaterialTextureManager::DeferredTextureLoader loader) -> void
-{
-    m_textureManager.enqueueDeferred(std::move(loader));
-}
-
-auto MaterialSystem::enqueueDeferredTexture3DLoad(MaterialTextureManager::DeferredTextureLoader loader) -> void
-{
-    m_texture3DManager.enqueueDeferred(std::move(loader));
-}
-
-auto MaterialSystem::replaceTexture(DescriptorHandle handle, core::ref<Texture> texture) -> bool
-{
-    if (!m_textureManager.replaceTexture(handle, texture))
-    {
-        return false;
-    }
-
-    m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
-    return true;
-}
-
-auto MaterialSystem::addSampler(core::ref<Sampler> sampler) -> DescriptorHandle
-{
-    auto const handle = registerSamplerDescriptor(sampler);
-    if (handle != kInvalidDescriptorHandle)
-    {
-        m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
-    }
-    return handle;
-}
-
-auto MaterialSystem::replaceSampler(DescriptorHandle handle, core::ref<Sampler> sampler) -> bool
-{
-    if (handle == kInvalidDescriptorHandle || handle >= m_samplerDescriptors.size() || !sampler)
-    {
-        return false;
-    }
-
-    m_samplerDescriptors[handle] = sampler;
-    m_samplerDescriptorIndices[sampler.get()] = handle;
-    m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
-    return true;
-}
-
-auto MaterialSystem::addBuffer(core::ref<Buffer> buffer) -> DescriptorHandle
-{
-    auto const handle = registerBufferDescriptor(buffer);
-    if (handle != kInvalidDescriptorHandle)
-    {
-        m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
-    }
-    return handle;
-}
-
-auto MaterialSystem::replaceBuffer(DescriptorHandle handle, core::ref<Buffer> buffer) -> bool
-{
-    if (handle == kInvalidDescriptorHandle || handle >= m_bufferDescriptors.size() || !buffer)
-    {
-        return false;
-    }
-
-    m_bufferDescriptors[handle] = buffer;
-    m_bufferDescriptorIndices[buffer.get()] = handle;
-    m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
-    return true;
-}
-
-auto MaterialSystem::addTexture3D(core::ref<Texture> texture) -> DescriptorHandle
-{
-    auto const handle = registerTexture3DDescriptor(texture);
-    if (handle != kInvalidDescriptorHandle)
-    {
-        m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
-    }
-    return handle;
-}
-
-auto MaterialSystem::replaceTexture3D(DescriptorHandle handle, core::ref<Texture> texture) -> bool
-{
-    if (!m_texture3DManager.replaceTexture(handle, texture))
-    {
-        return false;
-    }
-
-    m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
-    return true;
-}
-
-auto MaterialSystem::getTextureDescriptorResource(DescriptorHandle handle) const -> core::ref<Texture>
-{
-    return m_textureManager.getTexture(handle);
-}
-
-auto MaterialSystem::getSamplerDescriptorResource(DescriptorHandle handle) const -> core::ref<Sampler>
-{
-    if (handle == kInvalidDescriptorHandle || handle >= m_samplerDescriptors.size())
-    {
-        return nullptr;
-    }
-
-    return m_samplerDescriptors[handle];
-}
-
-auto MaterialSystem::getBufferDescriptorResource(DescriptorHandle handle) const -> core::ref<Buffer>
-{
-    if (handle == kInvalidDescriptorHandle || handle >= m_bufferDescriptors.size())
-    {
-        return nullptr;
-    }
-
-    return m_bufferDescriptors[handle];
-}
-
-auto MaterialSystem::getTexture3DDescriptorResource(DescriptorHandle handle) const -> core::ref<Texture>
-{
-    return m_texture3DManager.getTexture(handle);
-}
-
-auto MaterialSystem::getMaterialTypeRegistry() const -> MaterialTypeRegistry const&
-{
-    return m_materialTypeRegistry;
-}
-
-auto MaterialSystem::getMaterialTypeId(uint32_t materialIndex) const -> uint32_t
-{
-    if (materialIndex >= m_cpuMaterialData.size())
-    {
-        return MaterialTypeRegistry::kInvalidMaterialTypeId;
-    }
-
-    return static_cast<uint32_t>(m_cpuMaterialData[materialIndex].header.getMaterialType());
-}
-
-auto MaterialSystem::setMaterialParamLayout(std::vector<MaterialParamLayoutEntry> entries) -> void
-{
-    m_materialParamLayoutEntries = std::move(entries);
-    m_useExternalParamData = true;
-    m_materialParamDataDirty = true;
-}
-
-auto MaterialSystem::setSerializedMaterialParams(std::vector<SerializedMaterialParam> params, std::vector<uint8_t> rawData) -> void
-{
-    m_serializedMaterialParams = std::move(params);
-    m_serializedMaterialParamData = std::move(rawData);
-    m_useExternalParamData = true;
-    m_materialParamDataDirty = true;
-}
-
-auto MaterialSystem::setUdimIndirectionBuffer(core::ref<Buffer> buffer) -> void
-{
-    m_udimIndirectionBuffer = std::move(buffer);
-    m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
-}
-
-auto MaterialSystem::setUdimIndirectionEnabled(bool enabled) -> void
-{
-    m_udimIndirectionEnabled = enabled;
-    m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
-}
-
-auto MaterialSystem::setLightProfileEnabled(bool enabled) -> void
-{
-    m_lightProfileEnabled = enabled;
-    m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
-}
-
-auto MaterialSystem::removeDuplicateMaterials() -> uint32_t
-{
-    auto removed = uint32_t{0};
-    auto canonicalByBlob = std::unordered_map<size_t, uint32_t>{};
-
-    for (uint32_t i = 0; i < static_cast<uint32_t>(m_materials.size()); ++i)
-    {
-        auto const& material = m_materials[i];
-        if (!material)
-        {
-            continue;
-        }
-
-        auto const blob = material->getDataBlob();
-        auto const hash = core::hash(
-            static_cast<uint32_t>(material->getType()),
-            std::string_view(reinterpret_cast<char const*>(&blob), sizeof(blob))
+        auto const p_resultsStaging = m_device->createBuffer(
+            resultBufferSize,
+            BufferUsage::None,
+            MemoryType::ReadBack,
+            nullptr
         );
 
-        if (auto const it = canonicalByBlob.find(hash); it != canonicalByBlob.end())
+        p_context->copyBuffer(p_resultsStaging.get(), p_results.get());
+        p_context->enqueueSignal(m_fence.get());
+        p_context->submit(false);
+        m_fence->wait();
+
+        auto const* p_resultsData = static_cast<TextureAnalyzer::Result const*>(p_resultsStaging->map(rhi::CpuAccessMode::Read));
+
+        auto stats = Material::TextureOptimizationStats{};
+        for (auto i = size_t{0}; i < textures.size(); ++i)
         {
-            m_materials[i] = m_materials[it->second];
-            ++removed;
-            continue;
+            materialSlots[i].first->optimizeTexture(materialSlots[i].second, p_resultsData[i], stats);
+        }
+        p_resultsStaging->unmap();
+
+        auto const totalRemoved = std::accumulate(stats.texturesRemoved.begin(), stats.texturesRemoved.end(), size_t{0});
+        if (totalRemoved > 0)
+        {
+            AP_INFO("Optimized materials by removing {} constant textures.", totalRemoved);
+            for (auto slot = size_t{0}; slot < static_cast<size_t>(Material::TextureSlot::Count); ++slot)
+            {
+                AP_INFO("  slot {}: {}", slot, stats.texturesRemoved[slot]);
+            }
+
+            m_materialUpdates |= Material::UpdateFlags::ResourcesChanged;
         }
 
-        canonicalByBlob.emplace(hash, i);
+        if (stats.disabledAlpha > 0)
+        {
+            AP_INFO("Optimized materials by disabling alpha test for {} materials.", stats.disabledAlpha);
+        }
+
+        if (stats.constantBaseColor > 0)
+        {
+            AP_WARN("Materials have {} base color maps of constant value with non-constant alpha channel.", stats.constantBaseColor);
+        }
+
+        if (stats.constantNormalMaps > 0)
+        {
+            AP_WARN("Materials have {} normal maps of constant value. Please update the asset to optimize performance.", stats.constantNormalMaps);
+        }
     }
 
-    if (removed > 0)
+    auto MaterialSystem::update(bool forceUpdate) -> Material::UpdateFlags
     {
-        m_materialIndices.clear();
-        for (uint32_t i = 0; i < static_cast<uint32_t>(m_materials.size()); ++i)
+        auto reupdateMetadata = false;
+
+        if (forceUpdate || m_materialsChanged)
         {
-            if (m_materials[i])
+            updateMetadata();
+            updateUI();
+
+            m_materialsBlock = nullptr;
+            m_materialsChanged = false;
+            forceUpdate = true;
+            reupdateMetadata = true;
+        }
+
+        auto updateFlags = Material::UpdateFlags::None;
+        m_materialsUpdateFlags.resize(m_materials.size());
+        std::fill(m_materialsUpdateFlags.begin(), m_materialsUpdateFlags.end(), Material::UpdateFlags::None);
+
+        auto updateMaterial = [this, &updateFlags](uint32_t materialId)
+        {
+            auto& p_material = m_materials[materialId];
+            if (!p_material)
             {
-                m_materialIndices[m_materials[i].get()] = i;
+                return;
+            }
+
+            // TODO(falcor-align): Check material device matches material-system device and throw on mismatch.
+
+            auto const flags = p_material->update(this);
+            m_materialsUpdateFlags[materialId] = flags;
+            updateFlags |= flags;
+        };
+
+        if (forceUpdate || m_materialUpdates != Material::UpdateFlags::None)
+        {
+            // TODO(falcor-align): beginDeferredLoading().
+            for (auto materialId = uint32_t{0}; materialId < static_cast<uint32_t>(m_materials.size()); ++materialId)
+            {
+                updateMaterial(materialId);
+            }
+            // TODO(falcor-align): endDeferredLoading().
+        }
+        else
+        {
+            for (auto const& materialId : m_dynamicMaterialIds)
+            {
+                updateMaterial(materialId);
             }
         }
-        m_materialsChanged = true;
-        m_dirty = true;
-    }
 
-    return removed;
-}
-
-auto MaterialSystem::optimizeMaterials() -> uint32_t
-{
-    auto optimized = removeDuplicateMaterials();
-
-    for (auto const& material : m_materials)
-    {
-        auto basicMaterial = core::dynamic_ref_cast<BasicMaterial>(material);
-        if (!basicMaterial)
+        if (reupdateMetadata)
         {
-            continue;
+            updateMetadata();
+            reupdateMetadata = false;
         }
 
-        if (length(float3(basicMaterial->getData().emissive)) <= 0.0f && basicMaterial->getEmissiveTexture())
+        if (m_lightProfile && !m_lightProfileBaked)
         {
-            basicMaterial->setEmissiveTexture(nullptr);
-            ++optimized;
+            // TODO(falcor-align): Bake light profile using render context before marking baked.
+            m_lightProfileBaked = true;
         }
-        else if (basicMaterial->getEmissiveTexture())
+
+        updateFlags |= m_materialUpdates;
+        m_materialUpdates = Material::UpdateFlags::None;
+
+        if (!m_materialsBlock)
         {
-            if (m_textureAnalyzer.canPrune(basicMaterial->getEmissiveTexture(), MaterialTextureSemantic::Emissive))
+            createParameterBlock();
+            if (!m_materialsBlock)
             {
-                basicMaterial->setEmissiveTexture(nullptr);
-                ++optimized;
+                // TODO(falcor-align): Ensure createParameterBlock() always succeeds once reflection bootstrap is aligned.
+                return updateFlags;
             }
+            updateFlags |= Material::UpdateFlags::DataChanged | Material::UpdateFlags::ResourcesChanged;
+            forceUpdate = true;
         }
 
-        if (basicMaterial->getSpecularTransmission() <= 0.0f && basicMaterial->getDiffuseTransmission() <= 0.0f && basicMaterial->getTransmissionTexture())
+        if (forceUpdate || enum_has_any_flags(updateFlags, Material::UpdateFlags::DataChanged))
         {
-            basicMaterial->setTransmissionTexture(nullptr);
-            ++optimized;
-        }
-
-        if (auto standardMaterial = core::dynamic_ref_cast<StandardMaterial>(material))
-        {
-            if (standardMaterial->normalScale == 0.0f && standardMaterial->getNormalMap())
+            if (!m_materials.empty() && (!m_materialDataBuffer || m_materialDataBuffer->getElementCount() < m_materials.size()))
             {
-                standardMaterial->setNormalMap(nullptr);
-                ++optimized;
+                m_materialDataBuffer = core::make_ref<Buffer>(
+                    m_device,
+                    static_cast<uint32_t>(sizeof(generated::MaterialDataBlob)),
+                    static_cast<uint32_t>(m_materials.size()),
+                    BufferUsage::ShaderResource,
+                    MemoryType::Upload,
+                    nullptr,
+                    false
+                );
             }
-            else if (standardMaterial->getNormalMap())
+
+            for (auto materialId = uint32_t{0}; materialId < static_cast<uint32_t>(m_materials.size()); ++materialId)
             {
-                if (m_textureAnalyzer.canPrune(standardMaterial->getNormalMap(), MaterialTextureSemantic::Normal))
+                if (forceUpdate || enum_has_any_flags(m_materialsUpdateFlags[materialId], Material::UpdateFlags::DataChanged))
                 {
-                    standardMaterial->setNormalMap(nullptr);
-                    ++optimized;
+                    uploadMaterial(materialId);
+                }
+            }
+        }
+
+        auto blockVar = m_materialsBlock->getRootVariable();
+
+        if (forceUpdate || m_samplersChanged)
+        {
+            auto var = blockVar[kMaterialSamplersName];
+            for (auto i = size_t{0}; i < m_textureSamplers.size(); ++i)
+            {
+                var[i].setSampler(m_textureSamplers[i]);
+            }
+            m_samplersChanged = false;
+        }
+
+        if (forceUpdate || enum_has_any_flags(updateFlags, Material::UpdateFlags::ResourcesChanged))
+        {
+            // TODO(falcor-align): Bind material textures through deferred-loading aware texture-manager shader-data path.
+            // TODO(falcor-align): Assert !m_materialsChanged before binding textures.
+            auto var = blockVar[kMaterialTexturesName];
+            for (auto i = size_t{0}; i < m_textureDescCount; ++i)
+            {
+                if (auto const p_texture = m_textureManager->getTexture(static_cast<uint32_t>(i)))
+                {
+                    var[i].setTexture(p_texture);
+                }
+            }
+        }
+
+        if (forceUpdate || m_buffersChanged)
+        {
+            auto var = blockVar[kMaterialBuffersName];
+            for (auto i = size_t{0}; i < m_buffers.size(); ++i)
+            {
+                var[i].setBuffer(m_buffers[i]);
+            }
+            m_buffersChanged = false;
+        }
+
+        if (forceUpdate || m_textures3DChanged)
+        {
+            auto var = blockVar[kMaterialTextures3DName];
+            for (auto i = size_t{0}; i < m_textures3D.size(); ++i)
+            {
+                var[i].setTexture(m_textures3D[i]);
+            }
+            m_textures3DChanged = false;
+        }
+
+        if (forceUpdate || enum_has_any_flags(updateFlags, Material::UpdateFlags::CodeChanged))
+        {
+            m_shaderModules.clear();
+            m_typeConformances.clear();
+
+            for (auto const& p_material : m_materials)
+            {
+                if (!p_material)
+                {
+                    continue;
+                }
+
+                auto const materialType = p_material->getType();
+                if (m_typeConformances.find(materialType) == m_typeConformances.end())
+                {
+                    auto const modules = p_material->getShaderModules();
+                    m_shaderModules.insert(m_shaderModules.end(), modules.begin(), modules.end());
+                    m_typeConformances[materialType] = p_material->getTypeConformances();
+                }
+            }
+        }
+
+        AP_ASSERT(m_materialUpdates == Material::UpdateFlags::None);
+        return updateFlags;
+    }
+
+    auto MaterialSystem::updateMetadata() -> void
+    {
+        m_textureDescCount = m_reservedTextureDescCount;
+        m_bufferDescCount = m_reservedBufferDescCount;
+        m_texture3DDescCount = m_reservedTexture3DDescCount;
+
+        m_materialCountByType.resize(static_cast<size_t>(generated::MaterialType::Count));
+        std::fill(m_materialCountByType.begin(), m_materialCountByType.end(), 0);
+        m_materialTypes.clear();
+        m_hasSpecGlossStandardMaterial = false;
+        m_dynamicMaterialIds.clear();
+
+        for (auto materialIdx = size_t{0}; materialIdx < m_materials.size(); ++materialIdx)
+        {
+            auto const& p_material = m_materials[materialIdx];
+            if (!p_material)
+            {
+                continue;
+            }
+
+            if (p_material->isDynamic())
+            {
+                m_dynamicMaterialIds.push_back(static_cast<uint32_t>(materialIdx));
+            }
+
+            m_textureDescCount += p_material->getMaxTextureCount();
+            m_bufferDescCount += p_material->getMaxBufferCount();
+            m_texture3DDescCount += p_material->getMaxTexture3DCount();
+
+            auto const typeIndex = static_cast<size_t>(p_material->getType());
+            AP_ASSERT(typeIndex < m_materialCountByType.size());
+            ++m_materialCountByType[typeIndex];
+            m_materialTypes.insert(p_material->getType());
+            if (isSpecGloss(p_material))
+            {
+                m_hasSpecGlossStandardMaterial = true;
+            }
+        }
+        // TODO(falcor-align): FALCOR_CHECK(mMaterialTypes.find(MaterialType::Unknown) == mMaterialTypes.end(), "Unknown material type found. Make sure all material types are registered.").
+    }
+
+    auto MaterialSystem::getStats() const -> MaterialStats
+    {
+        // TODO(falcor-align): FALCOR_CHECK(!mMaterialsChanged, "Materials have changed. Call update() first.").
+        auto stats = MaterialStats{};
+        stats.materialTypeCount = m_materialTypes.size();
+        stats.materialCount = m_materials.size();
+        stats.materialOpaqueCount = 0;
+        stats.materialMemoryInBytes += m_materialDataBuffer ? m_materialDataBuffer->getSize() : 0;
+
+        for (auto const& p_material : m_materials)
+        {
+            if (p_material && p_material->isOpaque())
+            {
+                ++stats.materialOpaqueCount;
+            }
+        }
+
+        auto const textureStats = m_textureManager->getStats();
+        stats.textureCount = textureStats.textureCount;
+        stats.textureCompressedCount = textureStats.textureCompressedCount;
+        stats.textureTexelCount = textureStats.textureTexelCount;
+        stats.textureTexelChannelCount = textureStats.textureTexelChannelCount;
+        stats.textureMemoryInBytes = textureStats.textureMemoryInBytes;
+
+        return stats;
+    }
+
+    auto MaterialSystem::loadLightProfile(std::filesystem::path const& absoluteFilename, bool normalize) -> void
+    {
+        // TODO:
+        (void)absoluteFilename;
+        (void)normalize;
+        m_lightProfileBaked = false;
+    }
+
+    auto MaterialSystem::getDefines(DefineList& defines) const -> void
+    {
+        // TODO(falcor-align): FALCOR_CHECK(!mMaterialsChanged, "Materials have changed. Call update() first.").
+        auto materialInstanceByteSize = size_t{0};
+        for (auto const& p_material : m_materials)
+        {
+            if (p_material)
+            {
+                materialInstanceByteSize = std::max(materialInstanceByteSize, p_material->getMaterialInstanceByteSize());
+            }
+        }
+
+        defines.add("MATERIAL_SYSTEM_SAMPLER_DESC_COUNT", std::to_string(kMaxSamplerCount));
+        defines.add("MATERIAL_SYSTEM_TEXTURE_DESC_COUNT", std::to_string(m_textureDescCount));
+        defines.add("MATERIAL_SYSTEM_BUFFER_DESC_COUNT", std::to_string(m_bufferDescCount));
+        defines.add("MATERIAL_SYSTEM_TEXTURE_3D_DESC_COUNT", std::to_string(m_texture3DDescCount));
+        defines.add("MATERIAL_SYSTEM_UDIM_INDIRECTION_ENABLED", "0");
+        defines.add("MATERIAL_SYSTEM_HAS_SPEC_GLOSS_MATERIALS", m_hasSpecGlossStandardMaterial ? "1" : "0");
+        defines.add("MATERIAL_SYSTEM_USE_LIGHT_PROFILE", m_lightProfile ? "1" : "0");
+        defines.add("FALCOR_MATERIAL_INSTANCE_SIZE", std::to_string(materialInstanceByteSize));
+
+        for (auto const& p_material : m_materials)
+        {
+            if (!p_material)
+            {
+                continue;
+            }
+
+            auto const materialDefines = p_material->getDefines();
+            for (auto const& [name, value] : materialDefines)
+            {
+                if (auto const it = defines.find(name); it != defines.end())
+                {
+                    if (it->second != value)
+                    {
+                        AP_ERROR("Mismatching values '{}' and '{}' for material define '{}'.", it->second, value, name);
+                    }
+                }
+                else
+                {
+                    defines.add(name, value);
                 }
             }
         }
     }
 
-    if (optimized > 0)
+    auto MaterialSystem::getTypeConformances(TypeConformanceList& typeConformances) const -> void
     {
-        m_materialUpdates |= MaterialUpdateFlags::ResourcesChanged;
-        m_dirty = true;
+        for (auto const& it : m_typeConformances)
+        {
+            typeConformances.add(it.second);
+        }
+        typeConformances.add("NullPhaseFunction", "IPhaseFunction", 0);
+        typeConformances.add("IsotropicPhaseFunction", "IPhaseFunction", 1);
+        typeConformances.add("HenyeyGreensteinPhaseFunction", "IPhaseFunction", 2);
+        typeConformances.add("DualHenyeyGreensteinPhaseFunction", "IPhaseFunction", 3);
     }
 
-    return optimized;
-}
-
-auto MaterialSystem::rebuildInternalMaterialParamData() -> void
-{
-    auto hashName = [](std::string_view s) -> uint32_t
+    auto MaterialSystem::getTypeConformances(generated::MaterialType type) const -> TypeConformanceList
     {
-        auto hash = uint32_t{2166136261u};
-        for (auto const c : s)
+        if (auto const it = m_typeConformances.find(type); it != m_typeConformances.end())
         {
-            hash ^= static_cast<uint8_t>(c);
-            hash *= 16777619u;
-        }
-        return hash;
-    };
-
-    m_materialParamLayoutEntries.clear();
-    m_serializedMaterialParams.clear();
-    m_serializedMaterialParamData.clear();
-
-    m_materialParamLayoutEntries.push_back(MaterialParamLayoutEntry{
-        hashName("MaterialHeader"),
-        0u,
-        static_cast<uint32_t>(sizeof(generated::MaterialHeader)),
-        0u
-    });
-
-    m_materialParamLayoutEntries.push_back(MaterialParamLayoutEntry{
-        hashName("MaterialPayload"),
-        static_cast<uint32_t>(sizeof(generated::MaterialHeader)),
-        static_cast<uint32_t>(sizeof(generated::MaterialPayload)),
-        0u
-    });
-
-    auto const blobName = hashName("material_blob");
-    for (auto const& material : m_materials)
-    {
-        if (!material)
-        {
-            continue;
+            return it->second;
         }
 
-        auto const blob = material->getDataBlob();
-        auto const offset = static_cast<uint32_t>(m_serializedMaterialParamData.size());
-        auto const* bytes = reinterpret_cast<uint8_t const*>(&blob);
-        m_serializedMaterialParamData.insert(
-            m_serializedMaterialParamData.end(),
-            bytes,
-            bytes + sizeof(generated::MaterialDataBlob)
-        );
-
-        m_serializedMaterialParams.push_back(SerializedMaterialParam{
-            blobName,
-            0u,
-            offset,
-            static_cast<uint32_t>(sizeof(generated::MaterialDataBlob))
-        });
+        AP_ERROR("No type conformances for material type '{}'.", static_cast<uint32_t>(type));
+        return {};
     }
 
-    m_materialParamDataDirty = true;
-}
-
-auto MaterialSystem::ensureBufferCapacity(uint32_t requiredCount) -> void
-{
-    if (requiredCount == 0)
+    auto MaterialSystem::getShaderModules() const -> ProgramDesc::ShaderModuleList
     {
-        return;
+        // TODO(falcor-align): FALCOR_CHECK(!mMaterialsChanged, "Materials have changed. Call update() first.").
+        return m_shaderModules;
     }
 
-    auto const requiredSize = requiredCount * sizeof(generated::MaterialDataBlob);
-    if (m_materialDataBuffer && m_materialDataBuffer->getSize() >= requiredSize)
+    auto MaterialSystem::getShaderModules(ProgramDesc::ShaderModuleList& shaderModuleList) const -> void
     {
-        return;
+        // TODO(falcor-align): FALCOR_CHECK(!mMaterialsChanged, "Materials have changed. Call update() first.").
+        shaderModuleList.insert(shaderModuleList.end(), m_shaderModules.begin(), m_shaderModules.end());
     }
 
-    auto newCount = m_materialDataBuffer
-        ? static_cast<uint32_t>(m_materialDataBuffer->getSize() / sizeof(generated::MaterialDataBlob))
-        : kInitialBufferCapacity;
-
-    while (newCount < requiredCount)
+    auto MaterialSystem::bindShaderData(ShaderVariable const& var) const -> void
     {
-        newCount *= 2;
-    }
-
-    auto const usage = BufferUsage::ShaderResource;
-    m_materialDataBuffer = core::make_ref<Buffer>(
-        m_device,
-        static_cast<uint32_t>(sizeof(generated::MaterialDataBlob)),
-        newCount,
-        usage,
-        MemoryType::Upload,
-        nullptr,
-        false
-    );
-}
-
-auto MaterialSystem::updateMetadata() -> void
-{
-    m_typeConformancesByType.clear();
-    m_shaderModules.clear();
-    m_dynamicMaterialIndices.clear();
-
-    size_t maxTextures = 1;
-    size_t maxBuffers = 1;
-    size_t maxTexture3D = 1;
-    for (size_t materialIndex = 0; materialIndex < m_materials.size(); ++materialIndex)
-    {
-        auto const& material = m_materials[materialIndex];
-        if (!material)
+        if (!m_materialsBlock || m_materialsChanged)
         {
-            continue;
+            // TODO(falcor-align): FALCOR_CHECK(m_materialsBlock != nullptr && !m_materialsChanged, "Parameter block is not ready. Call update() first.").
+            AP_ERROR("Parameter block is not ready. Call update() first.");
+            return;
         }
 
-        if (material->isDynamic())
+        var = m_materialsBlock;
+    }
+
+    auto MaterialSystem::createParameterBlock() -> void
+    {
+        if (m_materialsBlock || !m_device)
         {
-            m_dynamicMaterialIndices.push_back(static_cast<uint32_t>(materialIndex));
+            return;
         }
 
-        m_typeConformancesByType[material->getType()] = material->getTypeConformances();
-
-        auto modules = material->getShaderModules();
-        m_shaderModules.insert(m_shaderModules.end(), modules.begin(), modules.end());
-
-        maxTextures += material->getMaxTextureCount();
-        maxBuffers += material->getMaxBufferCount();
-        maxTexture3D += material->getMaxTexture3DCount();
-    }
-
-    m_textureDescCount = static_cast<uint32_t>(std::min(maxTextures, kMaxTextureCount));
-    m_bufferDescCount = static_cast<uint32_t>(maxBuffers);
-    m_texture3DDescCount = static_cast<uint32_t>(maxTexture3D);
-}
-
-auto MaterialSystem::uploadMaterial(uint32_t materialId) -> void
-{
-    if (materialId >= m_materials.size())
-    {
-        return;
-    }
-
-    auto const& material = m_materials[materialId];
-    if (!material)
-    {
-        if (materialId < m_cpuMaterialData.size())
+        // TODO(falcor-align): Create temporary compute pass from material-system shader and fetch
+        // gMaterialsBlock reflection via pass->program->reflector->getParameterBlock("gMaterialsBlock").
+        // Current code relies on externally supplied reflection until ComputePass path is available.
+        if (!m_materialsBlockReflection)
         {
-            m_cpuMaterialData[materialId] = {};
+            AP_WARN("MaterialSystem parameter-block reflection is not available yet.");
+            return;
         }
-        return;
+
+        m_materialsBlock = ParameterBlock::create(m_device, m_materialsBlockReflection);
+        if (!m_materialsBlock)
+        {
+            AP_ERROR("Failed to create MaterialSystem parameter block.");
+            return;
+        }
+
+        auto const p_reflVar = m_materialsBlock->getReflection()->findMember(kMaterialDataName);
+        AP_ASSERT(p_reflVar);
+        auto const* p_reflResType = p_reflVar->getType()->asResourceType();
+        AP_ASSERT(p_reflResType && p_reflResType->getType() == ReflectionResourceType::Type::StructuredBuffer);
+        auto const byteSize = p_reflResType->getStructType()->getByteSize();
+        if (byteSize != sizeof(generated::MaterialDataBlob))
+        {
+            // TODO(falcor-align): Match FALCOR_THROW behavior for unexpected material-data struct size.
+            AP_ERROR("MaterialSystem material data buffer has unexpected struct size");
+            return;
+        }
+
+        auto blockVar = m_materialsBlock->getRootVariable();
+        if (!m_materials.empty() && (!m_materialDataBuffer || m_materialDataBuffer->getElementCount() < m_materials.size()))
+        {
+            m_materialDataBuffer = m_device->createStructuredBuffer(
+                blockVar[kMaterialDataName],
+                static_cast<uint32_t>(m_materials.size()),
+                BufferUsage::ShaderResource,
+                MemoryType::DeviceLocal,
+                nullptr,
+                false
+            );
+            m_materialDataBuffer->setName("MaterialSystem::m_materialDataBuffer");
+        }
+
+        if (blockVar.hasMember(kMaterialDataName))
+        {
+            blockVar[kMaterialDataName].setBuffer(!m_materials.empty() ? m_materialDataBuffer : nullptr);
+        }
+        if (blockVar.hasMember("materialCount"))
+        {
+            blockVar["materialCount"].set(getMaterialCount());
+        }
+        if (m_lightProfile)
+        {
+            // FALCOR_ASSERT(m_lightProfileBaked);
+            // m_lightProfile->bindShaderData(blockVar[kLightProfile]);
+        }
     }
 
-    auto const blob = material->getDataBlob();
-
-    if (materialId >= m_cpuMaterialData.size())
+    auto MaterialSystem::uploadMaterial(uint32_t materialID) -> void
     {
-        m_cpuMaterialData.resize(materialId + 1);
-    }
+        AP_ASSERT(materialID < m_materials.size());
+        auto const& p_material = m_materials[materialID];
+        AP_ASSERT(p_material);
+        AP_ASSERT(m_materialDataBuffer);
 
-    auto& data = m_cpuMaterialData[materialId];
-    data = blob;
-    data.header.setMaterialType(material->getType());
-
-    if (m_materialDataBuffer)
-    {
-        auto const offset = static_cast<size_t>(materialId) * sizeof(generated::MaterialDataBlob);
-        m_materialDataBuffer->setBlob(&data, offset, sizeof(generated::MaterialDataBlob));
+        m_materialDataBuffer->setElement(materialID, p_material->getDataBlob());
     }
 }
-
-} // namespace april::graphics
