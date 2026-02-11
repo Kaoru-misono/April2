@@ -3,6 +3,7 @@
 #pragma once
 
 #include "i-material.hpp"
+#include "material-texture-analyzer.hpp"
 #include "material-texture-manager.hpp"
 #include "material-type-registry.hpp"
 #include "rhi/buffer.hpp"
@@ -134,6 +135,7 @@ namespace april::graphics
         std::vector<core::ref<Buffer>> m_bufferDescriptors;
         MaterialTextureManager m_textureManager{};
         MaterialTextureManager m_texture3DManager{};
+        MaterialTextureAnalyzer m_textureAnalyzer{};
         std::unordered_map<Sampler*, DescriptorHandle> m_samplerDescriptorIndices;
         std::unordered_map<Buffer*, DescriptorHandle> m_bufferDescriptorIndices;
 

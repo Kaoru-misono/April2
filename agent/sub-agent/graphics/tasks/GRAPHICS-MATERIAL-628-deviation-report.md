@@ -563,7 +563,7 @@ The following items remain the concrete non-zero deltas after the latest destruc
      - `engine/graphics/source/graphics/rhi/parameter-block.cpp`
 
 5. **Material optimization path lacks Falcor-level analyzers**
-   - `removeDuplicateMaterials()` / `optimizeMaterials()` now include texture-impact optimization rules and constant-texture pruning (1x1 emissive/normal analysis), but still lack full Falcor-level deep rewrite/packing passes.
+   - `removeDuplicateMaterials()` / `optimizeMaterials()` now include texture-impact optimization rules and constant-texture pruning through `MaterialTextureAnalyzer` (1x1 emissive/normal analysis), but still lack full Falcor-level deep rewrite/packing passes.
    - Evidence:
      - `engine/graphics/source/graphics/material/material-system.hpp`
      - `engine/graphics/source/graphics/material/material-system.cpp`

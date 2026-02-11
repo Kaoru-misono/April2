@@ -776,56 +776,6 @@ auto MaterialSystem::optimizeMaterials() -> uint32_t
 {
     auto optimized = removeDuplicateMaterials();
 
-    auto tryReadConstantRGBA = [](core::ref<Texture> const& texture, float4& outColor) -> bool
-    {
-        if (!texture)
-        {
-            return false;
-        }
-
-        if (texture->getWidth() != 1 || texture->getHeight() != 1 || texture->getDepth() != 1)
-        {
-            return false;
-        }
-
-        auto const format = texture->getFormat();
-        if (format == ResourceFormat::RGBA8Unorm || format == ResourceFormat::RGBA8UnormSrgb)
-        {
-            std::array<uint8_t, 4> pixel{};
-            texture->getSubresourceBlob(0, pixel.data(), pixel.size());
-            outColor = float4(
-                static_cast<float>(pixel[0]) / 255.0f,
-                static_cast<float>(pixel[1]) / 255.0f,
-                static_cast<float>(pixel[2]) / 255.0f,
-                static_cast<float>(pixel[3]) / 255.0f
-            );
-            return true;
-        }
-
-        if (format == ResourceFormat::BGRA8Unorm || format == ResourceFormat::BGRA8UnormSrgb)
-        {
-            std::array<uint8_t, 4> pixel{};
-            texture->getSubresourceBlob(0, pixel.data(), pixel.size());
-            outColor = float4(
-                static_cast<float>(pixel[2]) / 255.0f,
-                static_cast<float>(pixel[1]) / 255.0f,
-                static_cast<float>(pixel[0]) / 255.0f,
-                static_cast<float>(pixel[3]) / 255.0f
-            );
-            return true;
-        }
-
-        if (format == ResourceFormat::RGBA32Float)
-        {
-            std::array<float, 4> pixel{};
-            texture->getSubresourceBlob(0, pixel.data(), sizeof(pixel));
-            outColor = float4(pixel[0], pixel[1], pixel[2], pixel[3]);
-            return true;
-        }
-
-        return false;
-    };
-
     for (auto const& material : m_materials)
     {
         auto basicMaterial = core::dynamic_ref_cast<BasicMaterial>(material);
@@ -841,27 +791,16 @@ auto MaterialSystem::optimizeMaterials() -> uint32_t
         }
         else if (basicMaterial->emissiveTexture)
         {
-            auto emissiveValue = float4(0.0f);
-            if (tryReadConstantRGBA(basicMaterial->emissiveTexture, emissiveValue))
+            if (m_textureAnalyzer.canPrune(basicMaterial->emissiveTexture, MaterialTextureSemantic::Emissive))
             {
-                auto const emissiveRgb = float3(emissiveValue.x, emissiveValue.y, emissiveValue.z);
-                if (length(emissiveRgb) <= 0.0f)
-                {
-                    basicMaterial->emissiveTexture = nullptr;
-                    ++optimized;
-                }
+                basicMaterial->emissiveTexture = nullptr;
+                ++optimized;
             }
         }
 
         if (basicMaterial->specularTransmission <= 0.0f && basicMaterial->diffuseTransmission <= 0.0f && basicMaterial->transmissionTexture)
         {
             basicMaterial->transmissionTexture = nullptr;
-            ++optimized;
-        }
-
-        if (basicMaterial->alphaMode == generated::AlphaMode::Opaque && basicMaterial->baseColor.w >= 1.0f && basicMaterial->baseColorTexture)
-        {
-            // Conservative pruning rule: opaque alpha path does not require alpha sampled texture value.
             ++optimized;
         }
 
@@ -874,16 +813,10 @@ auto MaterialSystem::optimizeMaterials() -> uint32_t
             }
             else if (standardMaterial->normalTexture)
             {
-                auto normalValue = float4(0.0f);
-                if (tryReadConstantRGBA(standardMaterial->normalTexture, normalValue))
+                if (m_textureAnalyzer.canPrune(standardMaterial->normalTexture, MaterialTextureSemantic::Normal))
                 {
-                    auto const epsilon = 1e-3f;
-                    if (std::abs(normalValue.x - 0.5f) < epsilon && std::abs(normalValue.y - 0.5f) < epsilon &&
-                        std::abs(normalValue.z - 1.0f) < epsilon)
-                    {
-                        standardMaterial->normalTexture = nullptr;
-                        ++optimized;
-                    }
+                    standardMaterial->normalTexture = nullptr;
+                    ++optimized;
                 }
             }
         }

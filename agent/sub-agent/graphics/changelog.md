@@ -21,6 +21,7 @@
   - Added owned reflected material binding-block lifecycle state in `MaterialSystem` (size tracking + recreation on reflection mismatch) and shader-side phase evaluation helper for volumetric phase usage.
   - Added runtime control points for UDIM/light-profile material-system defines and UDIM indirection buffer binding, replacing hardcoded optional-define values.
   - Strengthened material define conflict handling to fail-fast semantics (`abort`) and expanded `optimizeMaterials()` with constant-texture analysis rules (1x1 emissive/normal neutral detection + transmission pruning).
+  - Introduced `MaterialTextureAnalyzer` to formalize texture-content analysis in optimization flow and connected it to `MaterialSystem::optimizeMaterials()`.
 - GRAPHICS-MATERIAL-628 follow-up parity fixes:
   - Removed shader-side `StandardMaterialData` usage; shader pipeline now consistently uses `MaterialDataBlob` + `BasicMaterialData`.
   - Added/activated `texture-handle.slang` and split `basic-material-data.slang`; material payload fields now map to Falcor-style texture handle sampling (`sampleTexture(TextureHandle, ...)`).
