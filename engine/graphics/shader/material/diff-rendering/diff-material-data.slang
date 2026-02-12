@@ -25,57 +25,56 @@
  # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
-#pragma once
-#include "utils/host-device-shared.slangh"
-BEGIN_NAMESPACE_FALCOR/** Material type.*/// TODO: Specify the backing type when Slang issue has been resolvedenum class MaterialType // : uint32_t{    Unknown,    ///< Unknown material type, e.g. type is not yet registered.
 
-    Standard,
-    Cloth,
-    Hair,
-    MERL,
-    MERLMix,
-    PBRTDiffuse,
-    PBRTDiffuseTransmission,
-    PBRTConductor,
-    PBRTDielectric,
-    PBRTCoatedConductor,
-    PBRTCoatedDiffuse,
-    RGL,
-    BuiltinCount // Must be last
-};
+import material.shading_utils;
 
-/** Alpha mode. This specifies how alpha testing should be done.
-*/
-
-enum class AlphaMode
+/** * Stores differentiable parameters used for BSDF evaluation. */
+struct DiffMaterialData : IDifferentiable
 {
-    Opaque,     ///< No alpha test.
-    Mask,       ///< Alpha mask.
+    static const uint kMaterialParamCount = 20;
+    ShadingFrame sf;
 
-    Count // Must be last
+    // Material parameters.
+    float data[kMaterialParamCount];
+
+    [Differentiable]
+    __init()
+    {
+        sf = ShadingFrame.createIdentity();
+        [ForceUnroll]
+        for (uint i = 0; i < kMaterialParamCount; i++)
+            data[i] = 0.f;
+    }
+
+    [Differentiable]
+    float read(inout uint offset) { return data[offset++]; }
+
+    [Differentiable]
+    void read<let N : int>(out vector<float, N> value, inout uint offset)
+    {
+        [ForceUnroll]
+        for (uint i = 0; i < N; i++)
+            value[i] = read(offset);
+    }
+
+    [Differentiable]
+    vector<float, N> read<let N : int>(inout uint offset)
+    {
+        vector<float, N> value;
+        this.read(value, offset);
+        return value;
+    }
+
+    [mutating]
+    [Differentiable]
+    void write(float value, inout uint offset) { data[offset++] = value; }
+
+    [mutating]
+    [Differentiable]
+    void write<let N : int>(vector<float, N> value, inout uint offset)
+    {
+        [ForceUnroll]
+        for (uint i = 0; i < N; i++)
+            this.write(value[i], offset);
+    }
 };
-
-/** Shading models supported by the standard material.
-*/
-
-enum class ShadingModel
-{
-    MetalRough,
-    SpecGloss,
-
-    Count // Must be last
-};
-
-/** Normal map type. This specifies the encoding of a normal map.
-*/
-
-enum class NormalMapType
-{
-    None,       ///< Normal map is not used.
-    RGB,        ///< Normal encoded in RGB channels in [0,1].
-    RG,         ///< Tangent space encoding in RG channels in [0,1].
-
-    Count // Must be last
-};
-
-END_NAMESPACE_FALCOR

@@ -1,5 +1,5 @@
 /***************************************************************************
- # Copyright (c) 2015-23, NVIDIA CORPORATION. All rights reserved.
+ # Copyright (c) 2015-22, NVIDIA CORPORATION. All rights reserved.
  #
  # Redistribution and use in source and binary forms, with or without
  # modification, are permitted provided that the following conditions
@@ -27,55 +27,28 @@
  **************************************************************************/
 #pragma once
 #include "utils/host-device-shared.slangh"
-BEGIN_NAMESPACE_FALCOR/** Material type.*/// TODO: Specify the backing type when Slang issue has been resolvedenum class MaterialType // : uint32_t{    Unknown,    ///< Unknown material type, e.g. type is not yet registered.
+BEGIN_NAMESPACE_FALCOR/** Flags representing the various lobes of a BSDF.*/// TODO: Specify the backing type when Slang issue has been resolvedenum class LobeType // : uint32_t{    None                    = 0x00,
 
-    Standard,
-    Cloth,
-    Hair,
-    MERL,
-    MERLMix,
-    PBRTDiffuse,
-    PBRTDiffuseTransmission,
-    PBRTConductor,
-    PBRTDielectric,
-    PBRTCoatedConductor,
-    PBRTCoatedDiffuse,
-    RGL,
-    BuiltinCount // Must be last
-};
+    DiffuseReflection       = 0x01,
+    SpecularReflection      = 0x02,
+    DeltaReflection         = 0x04,
 
-/** Alpha mode. This specifies how alpha testing should be done.
-*/
+    DiffuseTransmission     = 0x10,
+    SpecularTransmission    = 0x20,
+    DeltaTransmission       = 0x40,
 
-enum class AlphaMode
-{
-    Opaque,     ///< No alpha test.
-    Mask,       ///< Alpha mask.
+    Diffuse                 = 0x11,
+    Specular                = 0x22,
+    Delta                   = 0x44,
+    NonDelta                = 0x33,
 
-    Count // Must be last
-};
+    Reflection              = 0x0f,
+    Transmission            = 0xf0,
 
-/** Shading models supported by the standard material.
-*/
+    NonDeltaReflection      = 0x03,
+    NonDeltaTransmission    = 0x30,
 
-enum class ShadingModel
-{
-    MetalRough,
-    SpecGloss,
-
-    Count // Must be last
-};
-
-/** Normal map type. This specifies the encoding of a normal map.
-*/
-
-enum class NormalMapType
-{
-    None,       ///< Normal map is not used.
-    RGB,        ///< Normal encoded in RGB channels in [0,1].
-    RG,         ///< Tangent space encoding in RG channels in [0,1].
-
-    Count // Must be last
+    All                     = 0xff,
 };
 
 END_NAMESPACE_FALCOR

@@ -1,23 +1,28 @@
 // Scene mesh shader with material support.
 
 import material.material_types;
+
 import material.material_data;
+
 import material.material_system;
+
 import material.material_factory;
+
 import material.i_material;
+
 import material.i_material_instance;
+
 import material.shading_data;
+
 import material.shading_utils;
+
 import material.texture_sampler;
+
 import material.material_instance_hints;
 
 // Material system defines must be injected from host.
-#if !defined(MATERIAL_SYSTEM_TEXTURE_DESC_COUNT) || !defined(MATERIAL_SYSTEM_SAMPLER_DESC_COUNT) || !defined(MATERIAL_SYSTEM_BUFFER_DESC_COUNT)
-#error "MaterialSystem defines are not set!"
-#endif
-
-struct VSIn
-{
+#if !defined(MATERIAL_SYSTEM_TEXTURE_DESC_COUNT) || !defined(MATERIAL_SYSTEM_SAMPLER_DESC_COUNT) || !defined(MATERIAL_SYSTEM_BUFFER_DESC_COUNT)#error "MaterialSystem defines are not set!"
+#endifstruct VSIn{
     float3 position : POSITION;
     float3 normal   : NORMAL;
     float4 tangent  : TANGENT;

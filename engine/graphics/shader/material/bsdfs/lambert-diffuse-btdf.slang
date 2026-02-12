@@ -25,20 +25,67 @@
  # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
-#include "utils/host-device-shared.slangh" // For bit packing macros/** Hints passed in when creating a material instance.*/
-enum MaterialInstanceHints : uint
-{
-    None = 0,
-    DisableNormalMapping = 0x1,     ///< Turn off normal mapping if supported.
-    AdjustShadingNormal = 0x2,      ///< Adjust shading normal to reduce risk of back-facing hits.
-};
+#include "utils/math/math-constants.slangh"
+import material.math.math_helpers;
+__exported import material.i_bsdf;
 
-bool isNormalMappingEnabled(uint hints)
+/** * Lambertian diffuse transmission. */
+struct LambertDiffuseBTDF : IBSDF, IDifferentiable
 {
-    return !bool(hints & (uint)MaterialInstanceHints::DisableNormalMapping);
-}
+    float3 albedo; ///< Diffuse albedo.
 
-bool isAdjustShadingNormalEnabled(uint hints)
-{
-    return bool(hints & (uint)MaterialInstanceHints::AdjustShadingNormal);
+    [Differentiable]
+    float3 eval<S : ISampleGenerator>(const float3 wi, const float3 wo, inout S sg, BSDFContext bc)
+    {
+        if (min(wi.z, -wo.z) < kMinCosTheta)
+            return float3(0.f);
+
+        return M_1_PI * albedo * -wo.z;
+    }
+
+    bool sample<S : ISampleGenerator>(
+        const float3 wi,
+        out float3 wo,
+        out float pdf,
+        out float3 weight,
+        out uint lobeType,
+        inout S sg,
+        BSDFContext bc
+    )
+    {
+        wo = sample_cosine_hemisphere_concentric(sampleNext2D(sg), pdf);
+        wo.z = -wo.z;
+        lobeType = (uint)LobeType::DiffuseTransmission;
+
+        if (min(wi.z, -wo.z) < kMinCosTheta)
+        {
+            weight = {};
+            return false;
+        }
+
+        weight = albedo;
+        return true;
+    }
+
+    float evalPdf(const float3 wi, const float3 wo, BSDFContext bc)
+    {
+        if (min(wi.z, -wo.z) < kMinCosTheta)
+            return 0.f;
+
+        return M_1_PI * -wo.z;
+    }
+
+    AlbedoContributions evalAlbedo(const float3 wi, const LobeType lobetype)
+    {
+        return AlbedoContributions(0.0f, 0.0f, albedo, 1.0f - albedo);
+    }
+
+    float3 getIorAsReflectance() { return float3(0.f); }
+
+    RoughnessInformation getRoughnessInformation(const float3 wi)
+    {
+        RoughnessInformation r;
+        r.roughnessBSDFNotation = float2(0.5f, 0.5f);
+        return r;
+    }
 }

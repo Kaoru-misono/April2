@@ -1,4 +1,5 @@
-#include "full-screen.slang"
+
+#include "full_screen.slang"
 
 struct VertexOutput
 {

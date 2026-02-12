@@ -1,5 +1,5 @@
 /***************************************************************************
- # Copyright (c) 2015-23, NVIDIA CORPORATION. All rights reserved.
+ # Copyright (c) 2015-22, NVIDIA CORPORATION. All rights reserved.
  #
  # Redistribution and use in source and binary forms, with or without
  # modification, are permitted provided that the following conditions
@@ -26,56 +26,25 @@
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
 #pragma once
-#include "utils/host-device-shared.slangh"
-BEGIN_NAMESPACE_FALCOR/** Material type.*/// TODO: Specify the backing type when Slang issue has been resolvedenum class MaterialType // : uint32_t{    Unknown,    ///< Unknown material type, e.g. type is not yet registered.
 
-    Standard,
-    Cloth,
-    Hair,
-    MERL,
-    MERLMix,
-    PBRTDiffuse,
-    PBRTDiffuseTransmission,
-    PBRTConductor,
-    PBRTDielectric,
-    PBRTCoatedConductor,
-    PBRTCoatedDiffuse,
-    RGL,
-    BuiltinCount // Must be last
-};
+/** Static configuration of the BSDF models.
 
-/** Alpha mode. This specifies how alpha testing should be done.
+    The defaults can be overridden by passing in defines from the host.
+
+    TODO: This file will be removed when we've settled on a new standard material definition.
 */
 
-enum class AlphaMode
-{
-    Opaque,     ///< No alpha test.
-    Mask,       ///< Alpha mask.
+#define DiffuseBrdfLambert      0
+#define DiffuseBrdfDisney       1
+#define DiffuseBrdfFrostbite    2
 
-    Count // Must be last
-};
+#ifndef DiffuseBrdf
+#define DiffuseBrdf DiffuseBrdfFrostbite
+#endif
 
-/** Shading models supported by the standard material.
-*/
+#define SpecularMaskingFunctionSmithGGXSeparable    0       ///< Used by UE4.
+#define SpecularMaskingFunctionSmithGGXCorrelated   1       ///< Used by Frostbite. This is the more accurate form (default).
 
-enum class ShadingModel
-{
-    MetalRough,
-    SpecGloss,
-
-    Count // Must be last
-};
-
-/** Normal map type. This specifies the encoding of a normal map.
-*/
-
-enum class NormalMapType
-{
-    None,       ///< Normal map is not used.
-    RGB,        ///< Normal encoded in RGB channels in [0,1].
-    RG,         ///< Tangent space encoding in RG channels in [0,1].
-
-    Count // Must be last
-};
-
-END_NAMESPACE_FALCOR
+#ifndef SpecularMaskingFunction
+#define SpecularMaskingFunction SpecularMaskingFunctionSmithGGXCorrelated
+#endif

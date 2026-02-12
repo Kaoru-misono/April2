@@ -25,57 +25,11 @@
  # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
-#pragma once
-#include "utils/host-device-shared.slangh"
-BEGIN_NAMESPACE_FALCOR/** Material type.*/// TODO: Specify the backing type when Slang issue has been resolvedenum class MaterialType // : uint32_t{    Unknown,    ///< Unknown material type, e.g. type is not yet registered.
 
-    Standard,
-    Cloth,
-    Hair,
-    MERL,
-    MERLMix,
-    PBRTDiffuse,
-    PBRTDiffuseTransmission,
-    PBRTConductor,
-    PBRTDielectric,
-    PBRTCoatedConductor,
-    PBRTCoatedDiffuse,
-    RGL,
-    BuiltinCount // Must be last
-};
-
-/** Alpha mode. This specifies how alpha testing should be done.
-*/
-
-enum class AlphaMode
+import material.phase.i_phase_function;
+struct VolumeProperties
 {
-    Opaque,     ///< No alpha test.
-    Mask,       ///< Alpha mask.
-
-    Count // Must be last
+    float3 sigmaA; ///< Absorption coefficient.. or maybe cross section.
+    float3 sigmaS; ///< Scattering coefficient.. or maybe cross section.
+    IPhaseFunction phaseFunction; ///< Set to NullPhaseFunction when invalid
 };
-
-/** Shading models supported by the standard material.
-*/
-
-enum class ShadingModel
-{
-    MetalRough,
-    SpecGloss,
-
-    Count // Must be last
-};
-
-/** Normal map type. This specifies the encoding of a normal map.
-*/
-
-enum class NormalMapType
-{
-    None,       ///< Normal map is not used.
-    RGB,        ///< Normal encoded in RGB channels in [0,1].
-    RG,         ///< Tangent space encoding in RG channels in [0,1].
-
-    Count // Must be last
-};
-
-END_NAMESPACE_FALCOR

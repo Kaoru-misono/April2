@@ -28,6 +28,7 @@
 #pragma once
 #include "utils/host-device-shared.slangh"
 BEGIN_NAMESPACE_FALCOR/** Struct representing a material texture handle on the GPU.    A texture handle can be in different modes:    - 'Uniform' handle refers to a constant value.    - 'Texture' handle refers to a traditional texture.
+
     In the future we'll add a 'Procedural' mode here, where the handle
     refers to a procedural texture identified by a unique ID.
 */

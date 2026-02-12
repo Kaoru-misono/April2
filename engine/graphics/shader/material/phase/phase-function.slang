@@ -28,7 +28,6 @@
 #include "utils/math/math-constants.slangh"
 __exported import IPhaseFunction;
 import material.math.math_helpers;
-
 /** Null collision phase function*/
 struct NullPhaseFunction : IPhaseFunction
 {

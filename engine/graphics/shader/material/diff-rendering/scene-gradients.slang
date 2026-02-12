@@ -25,57 +25,33 @@
  # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
-#pragma once
-#include "utils/host-device-shared.slangh"
-BEGIN_NAMESPACE_FALCOR/** Material type.*/// TODO: Specify the backing type when Slang issue has been resolvedenum class MaterialType // : uint32_t{    Unknown,    ///< Unknown material type, e.g. type is not yet registered.
-
-    Standard,
-    Cloth,
-    Hair,
-    MERL,
-    MERLMix,
-    PBRTDiffuse,
-    PBRTDiffuseTransmission,
-    PBRTConductor,
-    PBRTDielectric,
-    PBRTCoatedConductor,
-    PBRTCoatedDiffuse,
-    RGL,
-    BuiltinCount // Must be last
-};
-
-/** Alpha mode. This specifies how alpha testing should be done.
-*/
-
-enum class AlphaMode
+#include "utils/nvapi.slangh"
+__exported import material.diff_rendering.shared_types;
+struct SceneGradients
 {
-    Opaque,     ///< No alpha test.
-    Mask,       ///< Alpha mask.
+    uint gradDim[(uint)GradientType::Count];
+    uint hashSize[(uint)GradientType::Count];    // Temporary buffers for keeping gradients before aggregating them.    RWByteAddressBuffer tmpGrads[(uint)GradientType::Count];    uint getGradDim(GradientType gradType) { return gradDim[(uint)gradType]; }
 
-    Count // Must be last
+    uint getHashSize(GradientType gradType) { return hashSize[(uint)gradType]; }
+
+    float getGrad(GradientType gradType, uint gradIndex, uint hashIndex)
+    {
+        uint index = hashIndex * gradDim[(uint)gradType] + gradIndex;
+        return asfloat(tmpGrads[(uint)gradType].Load(index * 4));
+    }
+
+    void atomicAddGrad(GradientType gradType, uint gradIndex, uint hashIndex, float value)
+    {
+        if (gradIndex < gradDim[(uint)gradType])
+        {
+            uint index = hashIndex * gradDim[(uint)gradType] + gradIndex;
+            tmpGrads[(uint)gradType].InterlockedAddF32(index * 4, value);
+        }
+    }
 };
 
-/** Shading models supported by the standard material.
-*/
+ParameterBlock<SceneGradients> gSceneGradients;
 
-enum class ShadingModel
-{
-    MetalRough,
-    SpecGloss,
-
-    Count // Must be last
-};
-
-/** Normal map type. This specifies the encoding of a normal map.
-*/
-
-enum class NormalMapType
-{
-    None,       ///< Normal map is not used.
-    RGB,        ///< Normal encoded in RGB channels in [0,1].
-    RG,         ///< Tangent space encoding in RG channels in [0,1].
-
-    Count // Must be last
-};
-
-END_NAMESPACE_FALCOR
+#ifdef SCENE_GRADIENTS_BLOCK
+void main() {}
+#endif
