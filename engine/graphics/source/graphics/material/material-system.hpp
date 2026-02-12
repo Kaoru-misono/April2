@@ -173,14 +173,14 @@ namespace april::graphics
 
         Material::UpdateFlags m_materialUpdates = Material::UpdateFlags::None;
 
-        core::ref<ParameterBlock> m_materialsBlock{};
-        core::ref<ParameterBlockReflection const> m_materialsBlockReflection{};
-        core::ref<Buffer> m_materialDataBuffer{};
         core::ref<Fence> m_fence{};
+        core::ref<ParameterBlock> m_materialsBlock{};
+        core::ref<Buffer> m_materialDataBuffer{};
         core::ref<Sampler> m_defaultTextureSampler{};
         std::vector<core::ref<Sampler>> m_textureSamplers;
         std::vector<core::ref<Buffer>> m_buffers;
         std::vector<core::ref<Texture>> m_textures3D;
+        core::ref<ParameterBlockReflection const> m_materialsBlockReflection{};
 
     };
 }
